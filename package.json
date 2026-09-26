@@ -1,0 +1,54 @@
+{
+  "name": "ruleswright-ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron desktop shell for the Ruleswright engine.",
+  "main": "./out/main/index.js",
+  "author": "John Paul Ruf <john.paul.ruf@gmail.com>",
+  "packageManager": "pnpm@10.15.0",
+  "scripts": {
+    "check:engine": "node scripts/check-engine.mjs",
+    "dev": "node scripts/check-engine.mjs && electron-vite dev",
+    "build": "node scripts/check-engine.mjs && electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test.json",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "dist": "pnpm build && electron-builder",
+    "verify": "pnpm check:engine && pnpm typecheck && pnpm lint && pnpm test && pnpm e2e"
+  },
+  "dependencies": {
+    "@fontsource/cinzel": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/oswald": "^5.3.0",
+    "@fontsource/spectral": "^5.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "ruleswright": "file:../Ruleswright",
+    "zustand": "^5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@typescript-eslint/eslint-plugin": "^8",
+    "@typescript-eslint/parser": "^8",
+    "@vitejs/plugin-react": "^4",
+    "electron": "^33",
+    "electron-builder": "^25",
+    "electron-vite": "^2",
+    "eslint": "8.57.1",
+    "eslint-plugin-react-hooks": "^4",
+    "typescript": "5.6.3",
+    "vite": "^5",
+    "vitest": "^2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
+  }
+}
