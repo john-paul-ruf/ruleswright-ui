@@ -8,3 +8,10 @@
 
 ## Change history
 - v1-shell plan: created (planned).
+
+
+<!-- v1-shell SESSION-02 -->
+## Realized — v1-shell SESSION-02
+
+### M16 app
+- `main.tsx` imports `styles/fonts.css`, `tokens.css`, `base.css`; `App.tsx` renders `<Shell/>` + startup.

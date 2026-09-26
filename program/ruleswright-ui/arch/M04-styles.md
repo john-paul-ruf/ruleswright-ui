@@ -12,3 +12,12 @@
 
 ## Change history
 - v1-shell plan: created (planned).
+
+
+<!-- v1-shell SESSION-02 -->
+## Realized — v1-shell SESSION-02
+
+### M04 styles — realized (`f03f38d`, `6b9e658`)
+- `tokens.css`: design.md mood tables verbatim. Selectors are `:root, [data-mood='archive']`, `[data-mood='fantasy']`, `[data-mood='urban']` (not `:root[...]`), so a subtree can preview another mood's tokens (ThemeCard swatches). Shared tokens on `:root`: `--font-ui`, `--font-mono`, `--radius-s/m/l`, `--space-1,2,3,4,6,8`, `--text-40…10`, `--dur-fast/event/mood`, `--content-max`.
+- `base.css`: reset (`color-scheme: dark`), type-role classes `.display .reading .mono .kicker .dim .text-NN`, `:focus-visible` accent ring, `.section-head` (urban hazard stripe), fantasy candle glow on `body::before`, reduced-motion → 0s.
+- `fonts.css`: Cinzel 600/700, Spectral 400 + 400-italic, Oswald 500/600, Inter 400/500/600/700, JetBrains Mono 400/500.

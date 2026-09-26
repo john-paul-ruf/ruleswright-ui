@@ -9,3 +9,10 @@
 
 ## Change history
 - v1-shell plan: created (planned).
+
+
+<!-- v1-shell SESSION-02 -->
+## Realized — v1-shell SESSION-02
+
+### M05 moods — realized (`ae1c762`)
+- `moods/map.ts`: `type MoodId`, `moodForTheme(themeId: string | null | undefined): MoodId`, `applyMood(mood, doc = document)` as planned.
