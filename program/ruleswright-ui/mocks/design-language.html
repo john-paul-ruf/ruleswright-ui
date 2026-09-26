@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en" data-mood="fantasy">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design Language — Ruleswright Mock</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Oswald:wght@500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Spectral:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<script>const _m=new URLSearchParams(location.search).get('mood');if(_m)document.documentElement.dataset.mood=_m;</script>
+<style>
+:root{--radius-s:2px;--radius-m:4px;--radius-l:8px}
+[data-mood="fantasy"]{--font-display:'Cinzel',serif;--font-reading:'Spectral',serif;
+--base:#0b0a12;--surface:#131120;--surface2:#1a1730;--hairline:rgba(212,196,255,.14);
+--ink:#eae3d6;--dim:#a89fc0;--accent:#d8a94e;--accent-strong:#f0c469;--accent-ink:#1a1206;
+--accent2:#a08cf0;--danger:#e06a78;--ok:#8fbf9a}
+[data-mood="urban"]{--font-display:'Oswald',sans-serif;--font-reading:'Inter',sans-serif;
+--base:#0c0f0d;--surface:#141814;--surface2:#1a201b;--hairline:rgba(196,220,196,.13);
+--ink:#e4e8e0;--dim:#93a396;--accent:#e56432;--accent-strong:#f4794a;--accent-ink:#170a05;
+--accent2:#a8b840;--danger:#e05555;--ok:#8fbf7f}
+[data-mood="archive"]{--font-display:'Inter',sans-serif;--font-reading:'Inter',sans-serif;
+--base:#101113;--surface:#17191c;--surface2:#1e2124;--hairline:rgba(255,255,255,.12);
+--ink:#e7e7e5;--dim:#9aa1a8;--accent:#c8a86a;--accent-strong:#dcbf85;--accent-ink:#171204;
+--accent2:#8aa0b8;--danger:#e06a6a;--ok:#8fbf9a}
+html,body{background:var(--base);color:var(--ink)}
+body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+.display{font-family:var(--font-display);letter-spacing:.03em}
+.reading{font-family:var(--font-reading)}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.kicker{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.panel{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--radius-m)}
+.panel2{background:var(--surface2);border:1px solid var(--hairline);border-radius:var(--radius-m)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:var(--radius-s);font-weight:600;font-size:13px;border:1px solid transparent;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{background:var(--accent-strong)}
+.btn-ghost{border-color:var(--hairline);color:var(--ink);background:transparent}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent-strong)}
+.btn-danger{border-color:color-mix(in srgb,var(--danger) 55%,transparent);color:var(--danger);background:transparent}
+.btn-danger:hover{background:var(--danger);color:var(--base)}
+.input{background:var(--base);border:1px solid var(--hairline);border-radius:var(--radius-s);padding:8px 12px;color:var(--ink);font-size:14px;width:100%}
+.input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;border:1px solid var(--hairline);font-size:11px;font-weight:600;color:var(--dim)}
+.chip-accent{border-color:color-mix(in srgb,var(--accent) 50%,transparent);color:var(--accent-strong)}
+.bar{height:8px;border-radius:999px;background:color-mix(in srgb,var(--ink) 10%,transparent);overflow:hidden}
+.bar>span{display:block;height:100%;border-radius:999px;background:var(--accent)}
+.errorcard{border:1px solid color-mix(in srgb,var(--danger) 45%,transparent);background:color-mix(in srgb,var(--danger) 9%,var(--surface));border-radius:var(--radius-m)}
+.vignette:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(1200px 500px at 50% -10%,color-mix(in srgb,var(--accent) 7%,transparent),transparent 60%)}
+.swatch{width:26px;height:10px;border-radius:999px;display:inline-block}
+.mocknav{position:fixed;bottom:12px;right:12px;display:flex;gap:6px;z-index:50;flex-wrap:wrap;max-width:60vw;justify-content:flex-end}
+.mocknav a{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--hairline);background:color-mix(in srgb,var(--surface) 85%,transparent);color:var(--dim);backdrop-filter:blur(4px)}
+.mocknav a:hover{color:var(--accent-strong);border-color:var(--accent)}
+</style>
+</head>
+<body class="vignette">
+
+<div class="fixed top-3 right-3 z-50 flex gap-1 text-[11px]">
+  <button onclick="document.documentElement.dataset.mood='fantasy'" class="chip">✦ fantasy</button>
+  <button onclick="document.documentElement.dataset.mood='urban'" class="chip">▲ urban</button>
+  <button onclick="document.documentElement.dataset.mood='archive'" class="chip">◆ archive</button>
+</div>
+
+<main class="max-w-6xl mx-auto px-8 py-10">
+  <p class="kicker">Ruleswright</p>
+  <h1 class="display text-3xl mt-2">Design Language</h1>
+  <p class="mt-2 text-sm max-w-3xl" style="color:var(--dim)">One system, three moods. Flip the mood switch (top right) — every token below re-renders. Components never hardcode colors; they consume tokens only. This sheet is itself the visual spec (FR-15).</p>
+
+  <!-- tokens -->
+  <section class="panel p-6 mt-8">
+    <p class="kicker">Core tokens — current mood renders them live</p>
+    <div class="grid md:grid-cols-4 gap-3 mt-4">
+      <div class="panel2 p-3"><span class="swatch" style="width:100%;height:34px;background:var(--base);border:1px solid var(--hairline)"></span><p class="mono text-[11px] mt-2">--base</p></div>
+      <div class="panel2 p-3"><span class="swatch" style="width:100%;height:34px;background:var(--surface)"></span><p class="mono text-[11px] mt-2">--surface</p></div>
+      <div class="panel2 p-3"><span class="swatch" style="width:100%;height:34px;background:var(--surface2)"></span><p class="mono text-[11px] mt-2">--surface2</p></div>
+      <div class="panel2 p-3"><span class="swatch" style="width:100%;height:34px;background:var(--accent)"></span><p class="mono text-[11px] mt-2">--accent</p></div>
+      <div class="panel2 p-3"><span class="swatch" style="width:100%;height:34px;background:var(--accent-strong)"></span><p class="mono text-[11px] mt-2">--accent-strong</p></div>
+      <div class="panel2 p-3"><span class="swatch" style="width:100%;height:34px;background:var(--accent2)"></span><p class="mono text-[11px] mt-2">--accent2</p></div>
+      <div class="panel2 p-3"><span class="swatch" style="width:100%;height:34px;background:var(--danger)"></span><p class="mono text-[11px] mt-2">--danger</p></div>
+      <div class="panel2 p-3"><span class="swatch" style="width:100%;height:34px;background:var(--ok)"></span><p class="mono text-[11px] mt-2">--ok</p></div>
+    </div>
+    <div class="panel2 p-3 mt-3">
+      <p class="mono text-[11px]">--ink <span style="color:var(--ink)">#ink — primary text</span> · --dim <span style="color:var(--dim)">#dim — secondary text</span> · --hairline (borders) · --accent-ink (text on accent)</p>
+    </div>
+    <p class="text-xs mt-3" style="color:var(--dim)">WCAG 2.1 AA holds in every mood: dim ≥ 4.5:1 on surface, accent-ink ≥ 4.5:1 on accent. Never use dim for body copy on base.</p>
+  </section>
+
+  <!-- typography -->
+  <section class="panel p-6 mt-4">
+    <p class="kicker">Typography — display font swaps with mood</p>
+    <p class="display text-5xl mt-3">Ashen Vale</p>
+    <p class="mono text-[11px] mt-2" style="color:var(--dim)">--font-display · titles, numerals · fantasy: Cinzel · urban: Oswald · archive: Inter 700</p>
+    <p class="reading text-xl mt-4">Wardens hold the line between the living barrows and what walks out of them.</p>
+    <p class="mono text-[11px] mt-2" style="color:var(--dim)">--font-reading · descriptions & flavor · fantasy: Spectral · urban: Inter</p>
+    <p class="mt-3">Inter 400/500/600/700 carries all functional UI text; JetBrains Mono 400/500 carries seeds, formulas, provenance, JSON.</p>
+    <p class="mono text-[11px] mt-2" style="color:var(--dim)">scale: 40/32/24/20/18/16/14/12/11/10 · kickers 11px .16em caps · line-height 1.5</p>
+  </section>
+
+  <!-- components -->
+  <section class="panel p-6 mt-4">
+    <p class="kicker">Components</p>
+    <div class="flex flex-wrap items-center gap-3 mt-4">
+      <button class="btn btn-primary">Primary</button>
+      <button class="btn btn-ghost">Ghost</button>
+      <button class="btn btn-danger">Danger</button>
+      <button class="btn btn-primary" style="opacity:.45;cursor:not-allowed">Disabled</button>
+      <span class="chip">chip</span>
+      <span class="chip chip-accent">chip accent</span>
+    </div>
+    <div class="grid md:grid-cols-3 gap-4 mt-4">
+      <div><label class="kicker block mb-1">Input</label><input class="input" value="seed 42"></div>
+      <div><label class="kicker block mb-1">Select</label><select class="input"><option>standard</option></select></div>
+      <div><label class="kicker block mb-1">Progress</label><div class="bar mt-2"><span style="width:60%"></span></div></div>
+    </div>
+    <div class="errorcard p-3 mt-4">
+      <p class="kicker" style="color:var(--danger)">error card</p>
+      <p class="mono text-xs mt-1" style="color:var(--danger)">verbatim library message</p>
+    </div>
+    <div class="panel2 p-3 mt-3">
+      <p class="mono text-[11px]">radii: s 2 · m 4 · l 8 · hairline borders 1px · shadows: accent glow (selection/active) only — elevation comes from surface steps, not drop shadows · spacing base 4px, scale ×1,×2,×3,×4,×6,×8 · icon glyphs ✦ ▲ ◆ ✻ ⟳ 🎲</p>
+    </div>
+  </section>
+
+  <!-- motion & a11y -->
+  <section class="panel p-6 mt-4">
+    <p class="kicker">Motion & accessibility</p>
+    <p class="text-sm mt-3" style="color:var(--dim)">Transitions ≤ 150ms (buttons, borders, glows). Combat events appear ≤ 120ms fade+rise. Everything honors <span class="mono text-xs">prefers-reduced-motion</span>. Visible focus rings everywhere; the combat loop is fully keyboard-playable. Never animate a die roll's arithmetic — the roll is text, verbatim (FR-13).</p>
+  </section>
+
+</main>
+
+<nav class="mocknav" aria-label="mock navigation">
+  <a href="index.html">shell</a><a href="roll.html">roll</a><a href="world.html">world</a><a href="character.html">character</a><a href="fight.html">fight</a><a href="combat.html">combat</a><a href="design-language.html">tokens</a>
+</nav>
+
+</body>
+</html>

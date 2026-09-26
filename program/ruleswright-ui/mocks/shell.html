@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en" data-mood="fantasy">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shell — Ruleswright Mock</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Oswald:wght@500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Spectral:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<script>const _m=new URLSearchParams(location.search).get('mood');if(_m)document.documentElement.dataset.mood=_m;</script>
+<style>
+:root{--radius-s:2px;--radius-m:4px;--radius-l:8px}
+[data-mood="fantasy"]{--font-display:'Cinzel',serif;--font-reading:'Spectral',serif;
+--base:#0b0a12;--surface:#131120;--surface2:#1a1730;--hairline:rgba(212,196,255,.14);
+--ink:#eae3d6;--dim:#a89fc0;--accent:#d8a94e;--accent-strong:#f0c469;--accent-ink:#1a1206;
+--accent2:#a08cf0;--danger:#e06a78;--ok:#8fbf9a}
+[data-mood="urban"]{--font-display:'Oswald',sans-serif;--font-reading:'Inter',sans-serif;
+--base:#0c0f0d;--surface:#141814;--surface2:#1a201b;--hairline:rgba(196,220,196,.13);
+--ink:#e4e8e0;--dim:#93a396;--accent:#e56432;--accent-strong:#f4794a;--accent-ink:#170a05;
+--accent2:#a8b840;--danger:#e05555;--ok:#8fbf7f}
+[data-mood="archive"]{--font-display:'Inter',sans-serif;--font-reading:'Inter',sans-serif;
+--base:#101113;--surface:#17191c;--surface2:#1e2124;--hairline:rgba(255,255,255,.12);
+--ink:#e7e7e5;--dim:#9aa1a8;--accent:#c8a86a;--accent-strong:#dcbf85;--accent-ink:#171204;
+--accent2:#8aa0b8;--danger:#e06a6a;--ok:#8fbf9a}
+html,body{background:var(--base);color:var(--ink)}
+body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+.display{font-family:var(--font-display);letter-spacing:.03em}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.kicker{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.panel{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--radius-m)}
+.panel2{background:var(--surface2);border:1px solid var(--hairline);border-radius:var(--radius-m)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:var(--radius-s);font-weight:600;font-size:13px;border:1px solid transparent;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{background:var(--accent-strong)}
+.btn-ghost{border-color:var(--hairline);color:var(--ink);background:transparent}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent-strong)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;border:1px solid var(--hairline);font-size:11px;font-weight:600;color:var(--dim)}
+.errorcard{border:1px solid color-mix(in srgb,var(--danger) 45%,transparent);background:color-mix(in srgb,var(--danger) 9%,var(--surface));border-radius:var(--radius-m)}
+.vignette:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(1200px 500px at 50% -10%,color-mix(in srgb,var(--accent) 7%,transparent),transparent 60%)}
+.mocknav{position:fixed;bottom:12px;right:12px;display:flex;gap:6px;z-index:50;flex-wrap:wrap;max-width:60vw;justify-content:flex-end}
+.mocknav a{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--hairline);background:color-mix(in srgb,var(--surface) 85%,transparent);color:var(--dim);backdrop-filter:blur(4px)}
+.mocknav a:hover{color:var(--accent-strong);border-color:var(--accent)}
+</style>
+</head>
+<body class="vignette">
+
+<div class="fixed top-3 right-3 z-50 flex gap-1 text-[11px]">
+  <button onclick="document.documentElement.dataset.mood='fantasy'" class="chip">✦ fantasy</button>
+  <button onclick="document.documentElement.dataset.mood='urban'" class="chip">▲ urban</button>
+  <button onclick="document.documentElement.dataset.mood='archive'" class="chip">◆ archive</button>
+</div>
+
+<main class="max-w-6xl mx-auto px-8 py-10">
+  <p class="kicker">Ruleswright</p>
+  <h1 class="display text-3xl mt-2">Shell — empty states &amp; error cards</h1>
+  <p class="mt-2 text-sm" style="color:var(--dim)">Three empty states plus the one error-card pattern. All content is illustrative mock data.</p>
+
+  <!-- empty state 1 -->
+  <section class="panel p-6 mt-8">
+    <p class="kicker">Empty state 1 — no world loaded (World · Character · Fight)</p>
+    <div class="panel2 p-6 mt-3 text-center">
+      <p class="display text-xl">No world yet</p>
+      <p class="text-sm mt-2" style="color:var(--dim)">Roll one — or import a pack from a node script.</p>
+      <a href="roll.html" class="btn btn-primary mt-4">Go to Roll →</a>
+    </div>
+  </section>
+
+  <!-- empty state 2 -->
+  <section class="panel p-6 mt-4">
+    <p class="kicker">Empty state 2 — world but no character (Character · Fight)</p>
+    <div class="panel2 p-6 mt-3 text-center">
+      <p class="display text-xl">No character in this world yet</p>
+      <p class="text-sm mt-2" style="color:var(--dim)">Create one on the Character surface.</p>
+      <a href="character.html" class="btn btn-primary mt-4">Go to Character →</a>
+    </div>
+  </section>
+
+  <!-- empty state 3 -->
+  <section class="panel p-6 mt-4">
+    <p class="kicker">Empty state 3 — Fight with no fight yet</p>
+    <div class="panel2 p-6 mt-3 text-center">
+      <p class="display text-xl">No fights yet</p>
+      <p class="text-sm mt-2" style="color:var(--dim)">Assemble one on the Fight surface.</p>
+      <a href="fight.html" class="btn btn-primary mt-4">Go to Fight →</a>
+    </div>
+  </section>
+
+  <!-- error card gallery -->
+  <section class="panel p-6 mt-4">
+    <p class="kicker">Error-card pattern (FR-16) — one pattern, each error type's own text</p>
+
+    <div class="errorcard p-4 mt-3">
+      <p class="kicker" style="color:var(--danger)">generation error</p>
+      <p class="mono text-xs mt-1" style="color:var(--danger)">knob "encounter bias" expected 0–5, got 9</p>
+      <p class="text-xs mt-1" style="color:var(--dim)">Form values preserved and editable in place — nothing was lost.</p>
+    </div>
+
+    <div class="errorcard p-4 mt-2">
+      <p class="kicker" style="color:var(--danger)">runtime rule error</p>
+      <p class="mono text-xs mt-1" style="color:var(--danger)">actions.cut-down.attackBonus — formula referenced unknown stat `vigor2`</p>
+      <p class="text-xs mt-1" style="color:var(--dim)">The pack's own rule card, quoted verbatim — never paraphrased.</p>
+    </div>
+
+    <div class="errorcard p-4 mt-2">
+      <p class="kicker" style="color:var(--danger)">snapshot identity mismatch</p>
+      <p class="mono text-xs mt-1" style="color:var(--danger)">snapshot "dawn-check" belongs to dark-fantasy · seed 42; active world is zombie-urban · seed 1337</p>
+      <p class="text-xs mt-1" style="color:var(--dim)">Restore refused loudly (FR-10).</p>
+    </div>
+  </section>
+
+</main>
+
+<nav class="mocknav" aria-label="mock navigation">
+  <a href="index.html">shell</a><a href="roll.html">roll</a><a href="world.html">world</a><a href="character.html">character</a><a href="fight.html">fight</a><a href="combat.html">combat</a><a href="design-language.html">tokens</a>
+</nav>
+</body>
+</html>

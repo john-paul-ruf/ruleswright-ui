@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en" data-mood="fantasy">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fight — Ruleswright Mock</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Oswald:wght@500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Spectral:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<script>const _m=new URLSearchParams(location.search).get('mood');if(_m)document.documentElement.dataset.mood=_m;</script>
+<style>
+:root{--radius-s:2px;--radius-m:4px;--radius-l:8px}
+[data-mood="fantasy"]{--font-display:'Cinzel',serif;--font-reading:'Spectral',serif;
+--base:#0b0a12;--surface:#131120;--surface2:#1a1730;--hairline:rgba(212,196,255,.14);
+--ink:#eae3d6;--dim:#a89fc0;--accent:#d8a94e;--accent-strong:#f0c469;--accent-ink:#1a1206;
+--accent2:#a08cf0;--danger:#e06a78;--ok:#8fbf9a}
+[data-mood="urban"]{--font-display:'Oswald',sans-serif;--font-reading:'Inter',sans-serif;
+--base:#0c0f0d;--surface:#141814;--surface2:#1a201b;--hairline:rgba(196,220,196,.13);
+--ink:#e4e8e0;--dim:#93a396;--accent:#e56432;--accent-strong:#f4794a;--accent-ink:#170a05;
+--accent2:#a8b840;--danger:#e05555;--ok:#8fbf7f}
+[data-mood="archive"]{--font-display:'Inter',sans-serif;--font-reading:'Inter',sans-serif;
+--base:#101113;--surface:#17191c;--surface2:#1e2124;--hairline:rgba(255,255,255,.12);
+--ink:#e7e7e5;--dim:#9aa1a8;--accent:#c8a86a;--accent-strong:#dcbf85;--accent-ink:#171204;
+--accent2:#8aa0b8;--danger:#e06a6a;--ok:#8fbf9a}
+html,body{background:var(--base);color:var(--ink)}
+body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+.display{font-family:var(--font-display);letter-spacing:.03em}
+.reading{font-family:var(--font-reading)}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.kicker{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.panel{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--radius-m)}
+.panel2{background:var(--surface2);border:1px solid var(--hairline);border-radius:var(--radius-m)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:var(--radius-s);font-weight:600;font-size:13px;border:1px solid transparent;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{background:var(--accent-strong)}
+.btn-ghost{border-color:var(--hairline);color:var(--ink);background:transparent}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent-strong)}
+.btn-danger{border-color:color-mix(in srgb,var(--danger) 55%,transparent);color:var(--danger);background:transparent}
+.btn-danger:hover{background:var(--danger);color:var(--base)}
+.input{background:var(--base);border:1px solid var(--hairline);border-radius:var(--radius-s);padding:8px 12px;color:var(--ink);font-size:14px;width:100%}
+.input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;border:1px solid var(--hairline);font-size:11px;font-weight:600;color:var(--dim)}
+.chip-accent{border-color:color-mix(in srgb,var(--accent) 50%,transparent);color:var(--accent-strong)}
+.errorcard{border:1px solid color-mix(in srgb,var(--danger) 45%,transparent);background:color-mix(in srgb,var(--danger) 9%,var(--surface));border-radius:var(--radius-m)}
+.okcard{border:1px solid color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 9%,var(--surface));border-radius:var(--radius-m)}
+.vignette:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(1200px 500px at 50% -10%,color-mix(in srgb,var(--accent) 7%,transparent),transparent 60%)}
+.mocknav{position:fixed;bottom:12px;right:12px;display:flex;gap:6px;z-index:50;flex-wrap:wrap;max-width:60vw;justify-content:flex-end}
+.mocknav a{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--hairline);background:color-mix(in srgb,var(--surface) 85%,transparent);color:var(--dim);backdrop-filter:blur(4px)}
+.mocknav a:hover{color:var(--accent-strong);border-color:var(--accent)}
+.combatant{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--hairline);border-radius:var(--radius-s);background:var(--surface)}
+.combatant.active{box-shadow:0 0 0 1px var(--accent),0 0 18px color-mix(in srgb,var(--accent) 22%,transparent)}
+.event{border-left:2px solid var(--hairline);padding:8px 12px;background:var(--surface)}
+.event-roll{border-left-color:var(--accent)}
+.event-mut{border-left-color:var(--accent2)}
+.event-sys{border-left-color:var(--hairline)}
+.hpnum{font-family:var(--font-display);font-size:26px;line-height:1;color:var(--accent-strong)}
+</style>
+</head>
+<body class="vignette">
+
+<div class="fixed top-3 right-3 z-50 flex gap-1 text-[11px]">
+  <button onclick="document.documentElement.dataset.mood='fantasy'" class="chip">✦ fantasy</button>
+  <button onclick="document.documentElement.dataset.mood='urban'" class="chip">▲ urban</button>
+  <button onclick="document.documentElement.dataset.mood='archive'" class="chip">◆ archive</button>
+</div>
+
+<main class="max-w-6xl mx-auto px-8 py-8">
+
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <p class="kicker">Ashen Vale · Fight</p>
+      <h1 class="display text-3xl mt-1">Assemble a Fight</h1>
+      <p class="mono text-xs mt-1" style="color:var(--dim)">theater-of-mind · seed 42 · theaterOfMind spatial model</p>
+    </div>
+    <a href="combat.html" class="btn btn-primary">Begin combat →</a>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-4 mt-8">
+
+    <!-- allies -->
+    <section class="panel p-5">
+      <div class="flex items-baseline justify-between">
+        <p class="kicker">Allies</p>
+        <span class="chip chip-accent">your character</span>
+      </div>
+      <div class="combatant active mt-3">
+        <div>
+          <p class="font-semibold">Brynn</p>
+          <p class="mono text-[10px] mt-1" style="color:var(--dim)">hillfolk · warden 1 · hp 27 · ac 12</p>
+        </div>
+        <span class="chip">fixed</span>
+      </div>
+      <p class="text-xs mt-3" style="color:var(--dim)">The active character anchors the ally side. Extra bestiary spawns may be added beside her (FR-11).</p>
+      <button class="btn btn-ghost mt-3">+ Add bestiary spawn…</button>
+    </section>
+
+    <!-- enemies -->
+    <section class="panel p-5">
+      <div class="flex items-baseline justify-between">
+        <p class="kicker">Enemies</p>
+        <span class="chip">from bestiary</span>
+      </div>
+      <div class="combatant mt-3">
+        <div>
+          <p class="font-semibold">barrow-wight</p>
+          <p class="mono text-[10px] mt-1" style="color:var(--dim)">spawnMonster · hp 22 · actions: cut-down, withdraw</p>
+        </div>
+        <div class="flex gap-1"><button class="btn btn-ghost" style="padding:4px 8px">−</button></div>
+      </div>
+      <div class="combatant mt-2">
+        <div>
+          <p class="font-semibold">barrow-wight</p>
+          <p class="mono text-[10px] mt-1" style="color:var(--dim)">spawnMonster · hp 22 · actions: cut-down, withdraw</p>
+        </div>
+        <div class="flex gap-1"><button class="btn btn-ghost" style="padding:4px 8px">−</button></div>
+      </div>
+      <button class="btn btn-ghost mt-3">+ Add spawn…</button>
+      <p class="text-xs mt-3" style="color:var(--dim)">Spawns are chosen from the pack's bestiary ids — no monsters are invented UI-side.</p>
+    </section>
+  </div>
+
+  <!-- determinism strip -->
+  <section class="panel p-5 mt-6">
+    <p class="kicker">Determinism</p>
+    <div class="grid md:grid-cols-2 gap-4 mt-3">
+      <div class="okcard p-4">
+        <p class="font-semibold text-sm" style="color:var(--ok)">⟳ Rerun same seed — verified</p>
+        <p class="mono text-[11px] mt-2" style="color:var(--dim)">regenerated from theme+seed+knobs · byte-identical to stored pack</p>
+        <p class="text-xs mt-2" style="color:var(--dim)">A pass/fail, never a shrug (FR-14). Fail state renders the same strip in danger color with a diff pointer.</p>
+      </div>
+      <div class="panel2 p-4">
+        <p class="font-semibold text-sm">Replay a recorded fight</p>
+        <p class="text-xs mt-2" style="color:var(--dim)">Store the declaration sequence; a fresh fight in the re-rolled pack re-applies it. Any divergence flags in the log instead of silently continuing (FR-14).</p>
+        <button class="btn btn-ghost mt-3">Replay last recorded fight…</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<nav class="mocknav" aria-label="mock navigation">
+  <a href="index.html">shell</a><a href="roll.html">roll</a><a href="world.html">world</a><a href="character.html">character</a><a href="fight.html">fight</a><a href="combat.html">combat</a><a href="design-language.html">tokens</a>
+</nav>
+
+</body>
+</html>

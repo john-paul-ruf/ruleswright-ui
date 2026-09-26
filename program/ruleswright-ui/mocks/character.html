@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en" data-mood="fantasy">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Character — Ruleswright Mock</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Oswald:wght@500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Spectral:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<script>const _m=new URLSearchParams(location.search).get('mood');if(_m)document.documentElement.dataset.mood=_m;</script>
+<style>
+:root{--radius-s:2px;--radius-m:4px;--radius-l:8px}
+[data-mood="fantasy"]{--font-display:'Cinzel',serif;--font-reading:'Spectral',serif;
+--base:#0b0a12;--surface:#131120;--surface2:#1a1730;--hairline:rgba(212,196,255,.14);
+--ink:#eae3d6;--dim:#a89fc0;--accent:#d8a94e;--accent-strong:#f0c469;--accent-ink:#1a1206;
+--accent2:#a08cf0;--danger:#e06a78;--ok:#8fbf9a}
+[data-mood="urban"]{--font-display:'Oswald',sans-serif;--font-reading:'Inter',sans-serif;
+--base:#0c0f0d;--surface:#141814;--surface2:#1a201b;--hairline:rgba(196,220,196,.13);
+--ink:#e4e8e0;--dim:#93a396;--accent:#e56432;--accent-strong:#f4794a;--accent-ink:#170a05;
+--accent2:#a8b840;--danger:#e05555;--ok:#8fbf7f}
+[data-mood="archive"]{--font-display:'Inter',sans-serif;--font-reading:'Inter',sans-serif;
+--base:#101113;--surface:#17191c;--surface2:#1e2124;--hairline:rgba(255,255,255,.12);
+--ink:#e7e7e5;--dim:#9aa1a8;--accent:#c8a86a;--accent-strong:#dcbf85;--accent-ink:#171204;
+--accent2:#8aa0b8;--danger:#e06a6a;--ok:#8fbf9a}
+html,body{background:var(--base);color:var(--ink)}
+body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+.display{font-family:var(--font-display);letter-spacing:.03em}
+.reading{font-family:var(--font-reading)}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.kicker{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.panel{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--radius-m)}
+.panel2{background:var(--surface2);border:1px solid var(--hairline);border-radius:var(--radius-m)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:var(--radius-s);font-weight:600;font-size:13px;border:1px solid transparent;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{background:var(--accent-strong)}
+.btn-ghost{border-color:var(--hairline);color:var(--ink);background:transparent}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent-strong)}
+.btn-danger{border-color:color-mix(in srgb,var(--danger) 55%,transparent);color:var(--danger);background:transparent}
+.btn-danger:hover{background:var(--danger);color:var(--base)}
+.input{background:var(--base);border:1px solid var(--hairline);border-radius:var(--radius-s);padding:8px 12px;color:var(--ink);font-size:14px;width:100%}
+.input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;border:1px solid var(--hairline);font-size:11px;font-weight:600;color:var(--dim)}
+.chip-accent{border-color:color-mix(in srgb,var(--accent) 50%,transparent);color:var(--accent-strong)}
+.chip-danger{border-color:color-mix(in srgb,var(--danger) 50%,transparent);color:var(--danger)}
+.bar{height:8px;border-radius:999px;background:color-mix(in srgb,var(--ink) 10%,transparent);overflow:hidden}
+.bar>span{display:block;height:100%;border-radius:999px;background:var(--accent)}
+.statnum{font-family:var(--font-display);font-size:40px;line-height:1;color:var(--accent-strong)}
+.errorcard{border:1px solid color-mix(in srgb,var(--danger) 45%,transparent);background:color-mix(in srgb,var(--danger) 9%,var(--surface));border-radius:var(--radius-m)}
+.vignette:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(1200px 500px at 50% -10%,color-mix(in srgb,var(--accent) 7%,transparent),transparent 60%)}
+.swatch{width:26px;height:10px;border-radius:999px;display:inline-block}
+.mocknav{position:fixed;bottom:12px;right:12px;display:flex;gap:6px;z-index:50;flex-wrap:wrap;max-width:60vw;justify-content:flex-end}
+.mocknav a{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--hairline);background:color-mix(in srgb,var(--surface) 85%,transparent);color:var(--dim);backdrop-filter:blur(4px)}
+.mocknav a:hover{color:var(--accent-strong);border-color:var(--accent)}
+</style>
+</head>
+<body class="vignette">
+
+<div class="fixed top-3 right-3 z-50 flex gap-1 text-[11px]">
+  <button onclick="document.documentElement.dataset.mood='fantasy'" class="chip">✦ fantasy</button>
+  <button onclick="document.documentElement.dataset.mood='urban'" class="chip">▲ urban</button>
+  <button onclick="document.documentElement.dataset.mood='archive'" class="chip">◆ archive</button>
+</div>
+
+<main class="max-w-6xl mx-auto px-8 py-8">
+
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <p class="kicker">Ashen Vale · Character</p>
+      <h1 class="display text-3xl mt-1">Brynn</h1>
+      <p class="mono text-xs mt-1" style="color:var(--dim)">hillfolk · warden 1 · snapshot v1 · seed 42</p>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <a href="fight.html" class="btn btn-primary">Take her to a fight →</a>
+    </div>
+  </div>
+
+  <div class="grid lg:grid-cols-[1fr,340px] gap-6 mt-8 items-start">
+
+    <!-- ─── sheet column ─── -->
+    <div class="space-y-6">
+
+      <!-- derived stats -->
+      <section class="panel p-5">
+        <div class="flex items-baseline justify-between">
+          <p class="kicker">Derived · resolved through the pack's own formulas</p>
+          <span class="chip">hp/ac descending · pack convention</span>
+        </div>
+        <div class="grid grid-cols-3 gap-4 mt-4 text-center">
+          <div><p class="statnum">27</p><p class="kicker mt-1">hp</p></div>
+          <div><p class="statnum">12</p><p class="kicker mt-1">ac</p></div>
+          <div>
+            <p class="display text-xl" style="color:var(--accent-strong)">vigor 0</p>
+            <p class="display text-xl mt-1" style="color:var(--accent-strong)">grace 0</p>
+            <p class="display text-xl mt-1" style="color:var(--accent-strong)">tenacity 0</p>
+            <p class="display text-xl mt-1" style="color:var(--accent-strong)">reason 0</p>
+            <p class="display text-xl mt-1" style="color:var(--accent-strong)">presence 0</p>
+          </div>
+        </div>
+        <p class="mono text-[10px] mt-4" style="color:var(--dim)">hp = 8 + vigor.mod + warden.level × (4 + vigor.mod) · ac = 12 − armor.worn − (grace.mod / 2)</p>
+      </section>
+
+      <!-- pools & spells -->
+      <section class="panel p-5">
+        <div class="flex items-baseline justify-between flex-wrap gap-2">
+          <p class="kicker">Pools & spells</p>
+          <button class="btn btn-ghost">Rest <span class="mono text-[10px]">replenishes all</span></button>
+        </div>
+
+        <div class="space-y-3 mt-4">
+          <div>
+            <div class="flex justify-between text-sm"><span class="font-semibold">Vigor</span><span class="mono text-xs" style="color:var(--dim)">6 / 12</span></div>
+            <div class="bar mt-1"><span style="width:50%"></span></div>
+          </div>
+          <div>
+            <div class="flex justify-between text-sm"><span class="font-semibold">Grace</span><span class="mono text-xs" style="color:var(--dim)">9 / 9</span></div>
+            <div class="bar mt-1"><span style="width:100%"></span></div>
+          </div>
+          <div>
+            <div class="flex justify-between text-sm"><span class="font-semibold">Presence</span><span class="mono text-xs" style="color:var(--dim)">2 / 4</span></div>
+            <div class="bar mt-1"><span style="width:50%"></span></div>
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-3 mt-5">
+          <div class="panel2 p-3">
+            <div class="flex items-center justify-between">
+              <p class="font-semibold text-sm">Ember Lash</p>
+              <span class="chip chip-accent">prepared</span>
+            </div>
+            <p class="mono text-[10px] mt-1" style="color:var(--dim)">spell 1 · cost vigor 4 · cast via library API</p>
+            <div class="flex gap-2 mt-2"><button class="btn btn-primary" style="padding:4px 10px">Cast</button><button class="btn btn-ghost" style="padding:4px 10px">Unprepare</button></div>
+          </div>
+          <div class="panel2 p-3">
+            <div class="flex items-center justify-between">
+              <p class="font-semibold text-sm">Sightless Vigil</p>
+              <span class="chip">known</span>
+            </div>
+            <p class="mono text-[10px] mt-1" style="color:var(--dim)">spell 2 · cost presence 2 · insufficient pool → rejection card</p>
+            <div class="flex gap-2 mt-2"><button class="btn btn-ghost" style="padding:4px 10px">Prepare</button></div>
+          </div>
+        </div>
+
+        <div class="errorcard p-3 mt-4">
+          <p class="mono text-[11px]" style="color:var(--danger)">cast rejected · pool vigor 2 remaining, Ember Lash costs 4</p>
+          <p class="text-xs mt-1" style="color:var(--dim)">Example CostRejection — the reason is the library's, verbatim.</p>
+        </div>
+      </section>
+
+      <!-- conditions -->
+      <section class="panel p-5">
+        <div class="flex items-baseline justify-between flex-wrap gap-2">
+          <p class="kicker">Conditions</p>
+          <span class="text-xs" style="color:var(--dim)">available list comes from the pack</span>
+        </div>
+
+        <div class="panel2 p-3 mt-3 flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <p class="font-semibold text-sm">Burning <span class="chip chip-danger ml-1">3 ticks left</span></p>
+            <p class="mono text-[10px] mt-1" style="color:var(--dim)">restricts: strike, withdraw</p>
+          </div>
+          <div class="flex gap-2"><button class="btn btn-ghost" style="padding:4px 10px">Tick −1</button><button class="btn btn-danger" style="padding:4px 10px">Remove</button></div>
+        </div>
+
+        <div class="mt-3 flex gap-2 flex-wrap">
+          <button class="btn btn-ghost">+ Apply condition…</button>
+        </div>
+      </section>
+
+      <!-- progression -->
+      <section class="panel p-5">
+        <p class="kicker">Progression</p>
+        <div class="flex items-center gap-3 mt-3 flex-wrap">
+          <span class="display text-2xl" style="color:var(--accent-strong)">Warden 1</span>
+          <span class="mono text-xs" style="color:var(--dim)">XP 0 · next: 300</span>
+        </div>
+        <div class="flex gap-2 mt-3 flex-wrap">
+          <button class="btn btn-ghost">Award 50 XP</button>
+          <button class="btn btn-ghost">Set level…</button>
+        </div>
+        <div class="errorcard p-3 mt-4">
+          <p class="mono text-[11px]" style="color:var(--danger)">validateBuild · vessel.level 1 requires grace ≥ 13 (currently 10)</p>
+          <p class="text-xs mt-1" style="color:var(--dim)">Example build error on an invalid set-level attempt.</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- ─── side column ─── -->
+    <aside class="space-y-6">
+
+      <!-- snapshots -->
+      <section class="panel p-5">
+        <p class="kicker">Snapshots</p>
+        <div class="space-y-2 mt-3">
+          <div class="panel2 p-3">
+            <p class="font-semibold text-sm">dawn-check</p>
+            <p class="mono text-[10px] mt-1" style="color:var(--dim)">warden 1 · hp 27 · 2 days ago</p>
+            <p class="mono text-[10px] mt-1" style="color:var(--dim)">rng: a3f1 92c4 0d77 e5b2</p>
+            <div class="flex gap-2 mt-2"><button class="btn btn-ghost" style="padding:4px 10px">Restore</button><button class="btn btn-danger" style="padding:4px 10px">Delete</button></div>
+          </div>
+          <div class="panel2 p-3">
+            <p class="font-semibold text-sm">pre-combat</p>
+            <p class="mono text-[10px] mt-1" style="color:var(--dim)">warden 1 · hp 27 · just now</p>
+            <p class="mono text-[10px] mt-1" style="color:var(--dim)">rng: 77c1 0aa4 33d9 f001</p>
+            <div class="flex gap-2 mt-2"><button class="btn btn-ghost" style="padding:4px 10px">Restore</button><button class="btn btn-danger" style="padding:4px 10px">Delete</button></div>
+          </div>
+        </div>
+        <button class="btn btn-primary mt-3 w-full justify-center">Save snapshot…</button>
+        <p class="mono text-[10px] mt-2" style="color:var(--dim)">restore checks pack identity — mismatched packs are rejected loudly (FR-10)</p>
+      </section>
+
+      <!-- create / replace -->
+      <section class="panel p-5">
+        <p class="kicker">Create a new character</p>
+        <div class="space-y-3 mt-3">
+          <div><label class="kicker block mb-1">Name</label><input class="input" placeholder="Brynn"></div>
+          <div><label class="kicker block mb-1">Race</label><select class="input"><option>hillfolk</option><option>ash-bound</option></select></div>
+          <div>
+            <label class="kicker block mb-1">Class + level</label>
+            <div class="flex gap-2">
+              <select class="input"><option>warden</option><option>vessel</option><option>thornspeaker</option></select>
+              <input class="input mono" style="width:70px" value="1">
+            </div>
+          </div>
+          <button class="btn btn-primary w-full justify-center">Create via library</button>
+          <p class="text-xs" style="color:var(--dim)">World holds exactly one character (v1). Creating clears Brynn — after confirmation (FR-6).</p>
+        </div>
+      </section>
+
+    </aside>
+  </div>
+</main>
+
+<nav class="mocknav" aria-label="mock navigation">
+  <a href="index.html">shell</a><a href="roll.html">roll</a><a href="world.html">world</a><a href="character.html">character</a><a href="fight.html">fight</a><a href="combat.html">combat</a><a href="design-language.html">tokens</a>
+</nav>
+
+</body>
+</html>
