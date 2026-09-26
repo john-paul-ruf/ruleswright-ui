@@ -17,6 +17,8 @@ async function forge(page: Page, themeId: string, seed: number): Promise<void> {
   await page.getByTestId('roll-seed').fill(String(seed));
   await page.getByTestId('roll-forge').click();
   await expect(page.getByTestId('active-world-seed')).toHaveText(`${themeId} · ${seed}`);
+  // Design flow 1: a successful forge opens the World surface.
+  await expect(page.getByTestId('nav-world')).toHaveAttribute('aria-current', 'page');
   await page.getByTestId('nav-roll').click();
 }
 

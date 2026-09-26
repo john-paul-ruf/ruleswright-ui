@@ -32,6 +32,7 @@ test('CAP-01: forge → persist → restart → reopen', async ({ rw }) => {
   await page.getByTestId('roll-seed').fill('42');
   await page.getByTestId('roll-forge').click();
   await expect(page.getByTestId('active-world-seed')).toHaveText('dark-fantasy · 42');
+  await page.getByTestId('nav-roll').click();
   await expect(page.getByTestId('world-row')).toHaveCount(1);
 
   // Disk: pack bytes are exactly the library's canonical serialization (CA-01) and digested (CA-03).

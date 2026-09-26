@@ -85,6 +85,7 @@ test('CAP-04: mood follows the open world, bundled fonts, error card, world empt
   await expect(page.getByTestId('active-world-seed')).toHaveText('zombie-urban · 7');
 
   // Opening the other world switches the mood back.
+  await page.getByTestId('nav-roll').click();
   await page.getByTestId('world-row').filter({ hasText: 'dark-fantasy · 7' }).getByTestId('world-open').click();
   await expect(page.getByTestId('active-world-seed')).toHaveText('dark-fantasy · 7');
   await expect(page.locator('html')).toHaveAttribute('data-mood', 'fantasy');

@@ -3,6 +3,7 @@ import { useId, useState } from 'react';
 import type { Knobs } from '../../../../shared/model';
 import type { KnobSpec, ThemeInfo } from '../../engine/compiler';
 import { moodForTheme } from '../../moods/map';
+import { useUiStore } from '../../store/ui';
 import { useWorldsStore } from '../../store/worlds';
 import { Button, ErrorCard, Input, Panel, Select, ThemeCard } from '../../ui';
 import { MOOD_GLYPH } from './glyphs';
@@ -68,6 +69,7 @@ export function ForgeForm(): JSX.Element {
   const forgeError = useWorldsStore((s) => s.forgeError);
   const forgeMs = useWorldsStore((s) => s.forgeMs);
   const forge = useWorldsStore((s) => s.forge);
+  const navigate = useUiStore((s) => s.navigate);
 
   const [themeId, setThemeId] = useState<string | null>(null);
   const [seed, setSeed] = useState('');
@@ -159,8 +161,10 @@ export function ForgeForm(): JSX.Element {
           data-testid="roll-forge"
           disabled={!canForge}
           aria-busy={busy || undefined}
-          onClick={() => {
-            if (theme) void forge({ themeId: theme.id, seed: seedNumber, knobs: toKnobs(theme, knobInputs) });
+          onClick={async () => {
+            if (!theme) return;
+            // Design flow 1: a validated forge opens the new world on the World surface.
+            if (await forge({ themeId: theme.id, seed: seedNumber, knobs: toKnobs(theme, knobInputs) })) navigate('world');
           }}
         >
           {busy ? 'Forging…' : 'Forge the world →'}
