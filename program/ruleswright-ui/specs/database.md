@@ -60,7 +60,7 @@ The generated pack, written **verbatim** — the exact string the app serialized
 | `name` | string | The filename stem, echoed |
 | `createdAt` | ISO-8601 string | |
 | `packIdentity` | object | The pack identity block from `serializeCharacter` output, echoed top-level so a mismatched restore is detectable without parsing the snapshot body (FR-10) |
-| `snapshot` | object | **Verbatim `serializeCharacter` output** — including the four RNG uint32 words (FR-10 display) — never wrapped, re-keyed, or summarized |
+| `snapshot` | object | **Verbatim `serializeCharacter` output** — never wrapped, re-keyed, or summarized. Carries no RNG state (the library's character envelope has none); RNG words live in `FightDoc.combat.rng` (FR-14, revised B-3) |
 
 ### FightDoc — `fights/<worldId>/<name>.json`
 | Field | Type | Notes |
@@ -68,7 +68,12 @@ The generated pack, written **verbatim** — the exact string the app serialized
 | `formatVersion` / `id` / `worldId` / `name` / `createdAt` | as SnapshotDoc | |
 | `declarations` | array | **Verbatim, ordered declaration sequence** — each entry `{combatantId, action, options}` as passed to `declare`; this is the replay script (FR-14) |
 | `combat` | object | `serializeCombat` output at record time, for inspection and post-hoc diffing |
-| `outcome` | string enum | `'complete' \| 'diverged' \| 'abandoned'` — CHECK-equivalent enforced by main on write; updated if a replay later diverges |
+| `outcome` | string enum | `'complete' \| 'diverged' \| 'abandoned'` — CHECK-equivalent enforced by main on write; updated if a replay later diverges (the only in-place rewrite of a FightDoc; all other fields untouched) |
+| `start` | object | *(added B-2)* `{ ally: { id: string, snapshot: <verbatim serializeCharacter output at begin> }, enemies: [{ statblockId: string, instanceId: string }] }` — enemies in the order passed to `startCombat`. On replay the ally is restored into the re-rolled pack and its combatant profile is re-derived through the engine's character→combatant export; the UI does no profile math |
+| `script` | array | *(added B-2)* **The replay script:** every host call from begin to record, in order — `{op:'declare', actionId, targetId?}` \| `{op:'respond', triggerId, choice:'take'\|'decline', targetId?}` \| `{op:'step'}`. Rejected declares are included (they are host calls that emit `declare:rejected`). `declarations` is derived from it |
+| `events` | array | *(added B-2)* Every `RuntimeEvent` observed from begin to record, verbatim and in order (`type, at, actor?, target?, payload, why`) — the reference stream for divergence pointing |
+
+**FightDoc replay rule (B-2):** (1) re-roll the pack from the world's stored parameters; (2) if its bytes differ from the stored `pack.json`, report a *pack* divergence before any combat; (3) otherwise restore the ally from `start.ally.snapshot`, spawn `start.enemies`, and re-apply `script` in order; (4) compare the new events with `events` index by index — the first mismatch is the flagged divergence and `outcome` becomes `diverged`; (5) a world with null parameters, or a record without `script` (legacy), shows replay as unavailable — never guessed. The B-2 fields are additive: `formatVersion` stays `1` (Migration Policy rule 2); legacy records without them still list and load.
 
 **Integrity rules (all enforced in main, the only writer):**
 - Every write is atomic: temp file + rename in the same directory; a crash never leaves a half-written document.
@@ -76,6 +81,7 @@ The generated pack, written **verbatim** — the exact string the app serialized
 - Unknown fields in any document are **tolerated and preserved** on rewrite (forward compatibility); missing optional fields get defaults. Required-field violation ⇒ the document is skipped and reported, never silently repaired.
 - `worldId` cascade: deleting a world removes `worlds/<id>`, `snapshots/<id>/`, `fights/<id>/` in that order, then clears `settings.lastWorldId` if it pointed at it.
 - The renderer never receives or sends paths — only ids and names (NFR-Security).
+- FightDoc (B-2): `script[].op` ∈ `declare | respond | step` with each entry's fields type-checked and `choice` ∈ `take | decline`; `start.enemies[]` items are `{statblockId, instanceId}` strings; `start.ally.snapshot.kind === 'character'`; `events` is an array; every document is capped at 16 MiB.
 
 ## Seed Data
 
@@ -112,6 +118,7 @@ Forward-only, load-time, implemented in `main/storage.ts` (Coder) to the rules b
 | # | Description | Artifact |
 |---|-------------|----------|
 | 1 | File-store contract: directory layout, document shapes, canonical serialization, integrity + migration rules | `specs/database.md` (this document — DB-owned) |
+| 2 | B-2/B-3 (human-approved 2026-09-26): FightDoc gains `start`, `script`, `events` + replay rule + integrity rules; SnapshotDoc note corrected — character snapshots carry no RNG (RNG words live in `FightDoc.combat.rng`). Additive, `formatVersion` stays 1 | `specs/database.md` |
 
 No `src/migrations/*` files exist **by design**: the stack idiom for a JSON file store is the store contract itself, implemented under `main`'s module contract. These paths are therefore spoken for at Planner time and excluded from every session's `Owns`:
 

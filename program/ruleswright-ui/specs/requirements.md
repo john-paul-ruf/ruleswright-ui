@@ -80,7 +80,7 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
   - [ ] Serialize (`serializeCharacter`) to a named snapshot stored on disk; snapshots list, load, and delete.
   - [ ] Restore (`restoreCharacter`) reproduces the state; restoring against a mismatched pack is rejected with a clear error (snapshot pack identity is checked).
   - [ ] Snapshots persist across app restarts.
-  - [ ] Snapshot views expose the serialized RNG state.
+  - [ ] Snapshot views show the snapshot's pack identity (id, schemaVersion, contentHash). *(Revised 2026-09-26, B-3: character snapshots carry no RNG state; RNG display moved to fight records, FR-14.)*
 
 ### FR-11: Start a fight
 - **User story:** As the developer-player, I want to assemble a fight from my character plus bestiary spawns, so that I can enter combat in the world I rolled.
@@ -111,7 +111,7 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
   - [ ] The active world's seed is always visible (FR-1).
   - [ ] "Rerun same seed" regenerates the pack from the stored theme + seed + knobs and reports byte-identical vs. the stored pack — a pass/fail, not a shrug.
   - [ ] A recorded fight can be replayed: the UI stores the declaration sequence and re-applies it against a fresh fight in the re-rolled pack, flagging any divergence in the event log rather than silently continuing.
-  - [ ] RNG state is inspectable through snapshot views (FR-10).
+  - [ ] RNG state is inspectable through fight-record views: each record shows its combat snapshot's four RNG words. *(Revised 2026-09-26, B-3.)*
 
 ### FR-15: Theme-driven mood
 - **User story:** As the developer-player, I want the app's mood to respond to the world I rolled, so that dark-fantasy and zombie-urban feel like different games.
@@ -186,6 +186,6 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
 - **Provenance:** event metadata — `why.rule` (the pack artifact responsible) and `why.rolls` (the dice, quoted).
 - **Stepwise combat:** the begin → declare → resolve → end loop advanced explicitly via `declare`/`step`.
 - **Theater-of-mind:** the spatial model without positions or grids.
-- **Snapshot:** serialized character/combat state including RNG words, carrying pack identity for restore checks.
+- **Snapshot:** serialized character or combat state carrying pack identity for restore checks. Character snapshots carry no RNG state; combat snapshots carry the four RNG words.
 - **Derived stats:** hp / ac / saves resolved through the pack's own formulas — never hardcoded in the engine or the UI.
 - **Surface:** one of the library's three import entry points: `ruleswright/runtime`, `ruleswright/compiler`, `ruleswright/schema`.
