@@ -1,0 +1,90 @@
+/*
+ * Design tokens (M04, FR-15). Mood tables are design.md verbatim; `data-mood` on <html>
+ * selects the mood, archive is the default. The bare `[data-mood]` selectors also let a
+ * subtree preview another mood's tokens (theme-card swatches).
+ */
+
+:root {
+  --font-ui: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --radius-s: 2px;
+  --radius-m: 4px;
+  --radius-l: 8px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --text-40: 40px;
+  --text-32: 32px;
+  --text-24: 24px;
+  --text-20: 20px;
+  --text-18: 18px;
+  --text-16: 16px;
+  --text-14: 14px;
+  --text-12: 12px;
+  --text-11: 11px;
+  --text-10: 10px;
+
+  --dur-fast: 150ms;
+  --dur-event: 120ms;
+  --dur-mood: 300ms;
+
+  --content-max: 1152px;
+}
+
+:root,
+[data-mood='archive'] {
+  --font-display: 'Inter', system-ui, sans-serif;
+  --font-reading: 'Inter', system-ui, sans-serif;
+  --base: #101113;
+  --surface: #17191c;
+  --surface2: #1e2124;
+  --hairline: rgba(255,255,255,.12);
+  --ink: #e7e7e5;
+  --dim: #9aa1a8;
+  --accent: #c8a86a;
+  --accent-strong: #dcbf85;
+  --accent-ink: #171204;
+  --accent2: #8aa0b8;
+  --danger: #e06a6a;
+  --ok: #8fbf9a;
+}
+
+[data-mood='fantasy'] {
+  --font-display: 'Cinzel', serif;
+  --font-reading: 'Spectral', serif;
+  --base: #0b0a12;
+  --surface: #131120;
+  --surface2: #1a1730;
+  --hairline: rgba(212,196,255,.14);
+  --ink: #eae3d6;
+  --dim: #a89fc0;
+  --accent: #d8a94e;
+  --accent-strong: #f0c469;
+  --accent-ink: #1a1206;
+  --accent2: #a08cf0;
+  --danger: #e06a78;
+  --ok: #8fbf9a;
+}
+
+[data-mood='urban'] {
+  --font-display: 'Oswald', sans-serif;
+  --font-reading: 'Inter', system-ui, sans-serif;
+  --base: #0c0f0d;
+  --surface: #141814;
+  --surface2: #1a201b;
+  --hairline: rgba(196,220,196,.13);
+  --ink: #e4e8e0;
+  --dim: #93a396;
+  --accent: #e56432;
+  --accent-strong: #f4794a;
+  --accent-ink: #170a05;
+  --accent2: #a8b840;
+  --danger: #e05555;
+  --ok: #8fbf7f;
+}
