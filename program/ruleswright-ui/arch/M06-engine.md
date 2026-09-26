@@ -86,3 +86,18 @@ export function viewOf(rt: Runtime, c: Character): CharacterView;
 export function serialize(rt: Runtime, c: Character): CharacterSnapshot;   // serializeCharacter, verbatim (CA-06)
 export function restore(rt: Runtime, snapshot: unknown): Outcome<Character>; // restoreCharacter; foreign pack → E-SNAP-01
 ```
+
+
+<!-- v1-shell SESSION-E1-r2 -->
+## Realized — v1-shell SESSION-E1-r2
+
+### SESSION-E1 lease r2 — engine end-of-combat rule (engine `01dcf77`)
+
+Engine M03 (runtime/combat), `../Ruleswright/src/runtime/combat/combat.ts` + `src/runtime/snapshots.ts`:
+
+- **End rule `combat.sideDefeated` (D-26, engine-universal, not pack data):** after every resolution (declared or taken reactive action), if every combatant of one non-empty side has `hp.current ≤ 0`, then `state.phase = 'combat-over'`, open `pendingTriggers` lapse (cleared), and one event is emitted:
+  `{ type: 'combat:ended', payload: { winner: 'allies' | 'enemies', defeated: 'allies' | 'enemies' }, why: { rule: 'combat.sideDefeated', rolls: [] } }` (no actor/target; `at` = the resolving turn's clock). It comes right after the final `action:resolved`.
+- `step()` at `combat-over` returns `{ kind: 'combat-over' }` (existing variant). `declare()` throws `combat is over` (existing guard). `respond()` finds no pending offer and throws its existing "no pending trigger" error.
+- **Downed combatants (hp ≤ 0):** turn advancement (`endTurn`, and `step()` when the active combatant is already down) passes over them, so no `turn:began` is emitted and no declare is demanded. When the rest of the order is all down, the round completes and the next round starts at the first standing combatant. They are offered no triggers.
+- **Snapshots:** the combat envelope is unchanged (DB contract `snapshots.schema.json` has no phase field). `deserializeCombat` derives `phase` from the frozen hp: `combat-over` when the end rule holds, else `awaiting-declare` as before. `new Combat(runtime, fight.serialize())` carries `phase` verbatim.
+- **Public types:** no public TypeScript declaration changed (`StepOutcome`, `CombatState`, `CombatPhase`, `CombatSnapshot`, `RuntimeEvent` are all as before). The new surface is the `combat:ended` event type string and its payload. The internal helpers `isDowned` and `defeatedSide` are exported from `combat.ts` but not from the `ruleswright/runtime` barrel.
