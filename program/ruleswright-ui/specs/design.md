@@ -113,6 +113,10 @@ Glyph set only, chosen for mood-neutrality: ✦ ▲ ◆ ✻ ⟳ 🎲. No icon li
 | Determinism strip | Rerun-same-seed + replay panel | pass (ok), fail (danger + diff pointer) |
 | Snapshot card | Named snapshot + rng words | default, restore hover |
 | Mock mood switch | Fixed top-right ✦/▲/◆ chips — **mock-only affordance; not an app feature** | — |
+| Trigger offer (DF-1) | Combat control-column panel, one surface2 row per `pendingTriggers` entry: reactor · action, triggerId (mono), matching event as provenance (type, rolls verbatim, `why.rule`), target select only when the reaction takes a target, **Take** / **Decline** → `respond(triggerId, 'take'\|'decline', targetId?)` | shown only in phase `awaiting-trigger-response`; Declare/Step disabled while any offer is open; the log's `trigger:offered` row is provenance only |
+| Combat-over banner (DF-1) | Panel above the combat grid, accent left rule: kicker (round), outcome headline from the library's `combat-over` report verbatim, event provenance (mono), actions Record this fight · View records · ← Back to Fight assembly | shown only after `step()` returns `combat-over`; all combat controls disabled; log stays reviewable |
+| Fight record row (B-3) | surface/surface2 row in Fight → Records and Combat → Replay & records: name, outcome chip, rounds · events · age, `rng a:<hex8> b:<hex8> c:<hex8> d:<hex8>` (mono, from the stored `combat.rng`), Replay | complete (chip), diverged (chip-danger + first divergent event), abandoned (chip) |
+| Snapshot pack-identity line (B-3) | Snapshot card data line `pack <id> · schema <n> · <contentHash>` (mono, full hash, wraps) — **supersedes the "rng words" of the Snapshot card row** (D-20: character snapshots carry no RNG) | — |
 
 ---
 
@@ -128,6 +132,7 @@ Glyph set only, chosen for mood-neutrality: ✦ ▲ ◆ ✻ ⟳ 🎲. No icon li
 | Combat | `mocks/combat.html` | FR-12/13: **event log as primary panel** (filters, roll/mutation/system rows), declare+step controls, combatant column, DeclareRejection example, replay records |
 | Shell states | `mocks/shell.html` | FR-1/16: three empty states, error-card gallery |
 | Design language | `mocks/design-language.html` | The visual spec itself: live tokens, typography, components, motion/a11y — per mood |
+| Combat — trigger & end states (DF-1) | `mocks/combat.html` | FR-12/14: Trigger offers panel (`awaiting-trigger-response`), combat-over banner, record rows with RNG words — shown inline as state examples |
 
 **Global shell (implemented, not mocked as a separate screen):** one persistent top bar — Ruleswright glyph + world name + `theme · seed` chip (FR-1), nav Roll / World / Character / Fight, and Import/Export within Roll/World. Active surface is marked by accent underline. The `archive` mood covers shell states with no world open.
 
