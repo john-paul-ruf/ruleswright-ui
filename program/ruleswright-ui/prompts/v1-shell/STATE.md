@@ -1,0 +1,186 @@
+# State Tracker — Ruleswright (UI) / v1-shell
+
+## Program / Feature / Intent / Sessions
+- **Program:** Ruleswright (UI) — `program/ruleswright-ui/`
+- **Feature:** `v1-shell` — the whole approved v1 (FR-1…FR-17) on an empty repo
+- **Intent:** An Electron shell where you roll a world, browse it, play one character, fight stepwise with provenanced events, and see determinism, all through the Ruleswright library with zero UI rules math.
+- **Sessions:** 7 (SESSION-01 … SESSION-06 + cross-repo SESSION-E1, D-22). Planned 2026-09-26 against repo HEAD `350d1f1` and engine HEAD `664d24f` (`../Ruleswright`, clean tree, dist built 2025-09-25 23:26).
+
+## Session Status
+| # | Session | Modules | Owns | Status | Checkpoint | Completed | Notes |
+|---|---------|---------|------|--------|------------|-----------|-------|
+| 01 | Spine + first journey | M18 M01 M02 M03 M06 M07 M09 M11 M16 M17 | root configs, `scripts/check-engine.mjs`, `src/main/**`, `src/preload/**`, `src/shared/**`, renderer bootstrap, `engine/{errors,compiler,schema}.ts`, `persistence/**`, `store/worlds.ts`, `views/roll/**`, `tests/{support,main,lint,scripts}/**`, `tests/engine/{errors,compiler,schema}.test.ts`, `tests/store/worlds.test.ts`, `e2e/{fixtures,global-setup}.ts`, `e2e/journey.spec.ts` | done | 4/4 (c0 recheck-only) | 2026-09-26 | CAP-01 journey verified. Commits ca1d972, 77d8e63, 5fcf552, b9f3518 |
+| 02 | Design system + shell | M04 M05 M08 M09 M10 M16 M11–M15 | `styles/**`, `ui/**`, `moods/**`, `shell/**`, `store/ui.ts`, `App.tsx`, `main.tsx`, `views/roll/index.tsx`, `views/{world,character,fight,combat}/index.tsx`, `tests/{styles,moods}/**`, `e2e/shell.spec.ts` | pending | — | — | CAP-04 owner |
+| 03 | Roll surface | M11 M09 | `views/roll/**`, `store/worlds.ts`, `tests/store/worlds-manage.test.ts`, `e2e/roll.spec.ts`, `e2e/journey.spec.ts` | pending | — | — | CAP-02, CAP-03 owner |
+| 04 | World surface | M12 M06 M09 | `views/world/**`, `engine/determinism.ts`, `store/determinism.ts`, `tests/engine/determinism.test.ts`, `tests/store/determinism.test.ts`, `e2e/world.spec.ts` | pending | — | — | CAP-05, CAP-06 owner |
+| 05 | Character surface | M13 M06 M09 | `views/character/**`, `engine/runtime.ts`, `store/character.ts`, `tests/engine/runtime.test.ts`, `tests/store/character.test.ts`, `e2e/character.spec.ts` | pending | — | — | CAP-07, CAP-08 owner (B-3 approved, D-20: snapshot cards show pack identity; RNG display moved to CAP-10) |
+| E1 | Engine (cross-repo): class actions + `profileFromCharacter` | engine M01 M03 M04 M05 | `../Ruleswright/{src/schema/{artifacts,validate}.ts, src/compiler/themes/{dark-fantasy,zombie-urban}.json, src/compiler/stages/classes.ts, src/runtime/character-profile.ts, src/runtime/index.ts, src/index.ts, README.md, tests/schema/validate.test.ts, tests/runtime/combat/character-profile.test.ts, tests/proofs/docs-run.test.ts, tests/compiler/{pipeline,coverage-floor}.test.ts}` | pending | — | — | CA-08 producer. Never builds engine `dist/` (H-7) |
+| 06 | Fight & Combat + replay | M14 M15 M06 M09 (M01 M02 for FightDoc) | `views/{fight,combat}/**`, `engine/{combat,combat-profile,replay}.ts`, `store/combat.ts`, `tests/engine/{combat,replay}.test.ts`, `tests/store/combat.test.ts`, `e2e/{combat,replay}.spec.ts`, `src/shared/model.ts`, `src/main/{storage,ipc}.ts`, `tests/main/{storage,ipc}.test.ts` | blocked | — | — | gated on SESSION-E1 + c0 release gate, Designer pass (DF-1 + B-3 mock). DB/Spec text committed `a5dfbf7` |
+
+(All renderer paths are under `src/renderer/src/`. Exact globs are in each SESSION's front matter; those are authoritative for leasing.)
+
+## Wave Plan
+| Wave | Sessions | Why concurrent |
+|------|----------|----------------|
+| 1 | SESSION-01, SESSION-E1 | SESSION-01 creates every root manifest, the IPC contract, main storage, and the e2e harness that all UI sessions read. SESSION-E1 writes only in `../Ruleswright` and never touches `dist/`, so it cannot disturb the installed engine copy (H-7). E1 may also run alongside wave 2/3; it only has to finish before SESSION-06. The Designer pass (D-24) is not a session and runs in parallel from the start. |
+| 2 | SESSION-02 | Alone: builds the design system, shell routing, and the surface placeholders that every surface session consumes. It edits `views/roll/index.tsx` (SESSION-01's file), so it must follow 01 and precede 03. |
+| 3 | SESSION-03, SESSION-04, SESSION-05 | Leases checked path by path: disjoint surface directories, disjoint engine files (`determinism.ts` vs `runtime.ts`), disjoint store files (`worlds.ts` vs `determinism.ts` vs `character.ts`), disjoint test files. All three read `store/worlds.ts` and only 03 writes it. 04 reads the `active` and `exportPack` members, which 03 does not change. Shared exclusive resource `e2e:out` serializes only their `pnpm e2e` steps. Fills the concurrency cap of 3. |
+| 4 | SESSION-06 | Alone. Depends on E1, 04 (rerun path, determinism store) and 05 (ally = active character), and on the Designer pass. Its c0 rebuilds the engine `dist/` and runs `pnpm install` here (H-7), which would swap the engine under any other in-flight UI session, so nothing else runs with it. It leases `src/shared/model.ts`, `src/main/{storage,ipc}.ts` and `pnpm-lock.yaml`, which no other pending session holds. |
+
+## Dependency Graph
+```
+S01 ──▶ S02 ──┬──▶ S03
+              ├──▶ S04 ──┐
+              └──▶ S05 ──┴──▶ S06 ◀── E1 (engine, cross-repo, any time before) · Designer pass (DF-1 + B-3 mock)
+E1 ─────────────────────────────▶ S06 (c0 release gate: engine build → pnpm install → check:engine → CA-08 recheck)
+(S06 needs S05's character store for the ally, and S04's determinism store + rerun path for the Fight strip and replay re-roll.)
+```
+
+## Architecture Reference (feature-specific; full config in PROGRAM-CONFIG.MD)
+- The renderer runs the engine. Main is the only writer of `userData/`. Only `src/renderer/src/engine/**` may import `ruleswright` (lint rule + self-test).
+- IPC is request/response only, with `IpcResult` envelopes. The renderer never sees paths. Channel table in `src/shared/ipc-contract.ts` (SESSION-01).
+- The pack gate is `new Runtime(parsed)` (CA-02). Pack bytes stay verbatim end to end (CA-01).
+- Test isolation hook: env `RULESWRIGHT_USER_DATA` → `app.setPath('userData', …)` (D-12). E2E: Playwright `_electron` against `out/main/index.js` (D-16).
+- Deviations from `specs/architecture.md`, all mechanical and recorded here: 5th store `store/determinism.ts` (D-11); engine files split into `combat.ts`, `combat-profile.ts`, `replay.ts` (lease precision); `world:list` returns `{worlds, skipped}` (D-06); Playwright added to the test stack (D-16); CSP delivered by meta tag plus main-side network block (D-13).
+
+## Scope Summary
+| ID | Module | Sessions | Change |
+|----|--------|----------|--------|
+| M01 | shared | 01 (06 FightDoc) | create |
+| M02 | main | 01 (06 FightDoc) | create |
+| M03 | preload | 01 | create |
+| M04 | styles | 02 | create |
+| M05 | moods | 02 | create |
+| M06 | engine | 01, 04, 05, 06 | create (per-file split) |
+| M07 | persistence | 01 | create |
+| M08 | ui | 02 | create |
+| M09 | store | 01, 02, 03, 04, 05, 06 | create (per-file split) |
+| M10 | shell | 02 | create |
+| M11 | views/roll | 01 → 02 → 03 | create, then craft |
+| M12–M15 | views/world, character, fight, combat | 02 placeholders → 04, 05, 06 | create |
+| M16 | app | 01 → 02 | create |
+| M17 | tests | all | create |
+| M18 | build | 01 | create |
+
+**Out of scope / dispositions:** no quests or campaign features; no pack editing; no grid UI; single character; no auto-update (requirements Non-Goals). Packaging beyond `electron-builder.yml` config (actual dmg signing and notarization) is not gated in v1 (architecture Open Questions). Combat-log virtualization is deferred: measured in SESSION-06 c4, not built up front (architecture).
+
+## Design Decisions
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| D-01 | Feature `v1-shell` = all of v1 in 6 sessions | Empty repo; one coherent product. Split by surface columns after a minimal spine (see Granularity Note). |
+| D-02 | SESSION-01 implements the **entire** DB store contract (worlds, settings, snapshots, fights) plus all IPC channels | One module, one validation discipline. Consumers never edit `src/main` (only exception: SESSION-06 for the B-2 FightDoc amendment). |
+| D-03 | Imported packs take `theme/seed/knobs` from `manifest.provenance`, but only when the theme is in `listThemes()` and the seed is an integer; otherwise all three are null | FR-5 conditions unavailability on parameters being *unknown*. Provenance is a claim, and the rerun byte-compare is the verification. Never partially filled. |
+| D-04 | Theme picker discovers themes from exported `ThemeTemplate` values that `loadTheme(id)` resolves to the same object | The library has no enumerator (probe: `loadTheme` is a 2-case switch). FR-2 forbids a UI-side list. This picks up future exported themes automatically. |
+| D-05 | Imported packs are stored canonical: `JSON.stringify(JSON.parse(text))` | `database.md` defines canonical serialization as `JSON.stringify(pack)`. Pretty-printed imports would otherwise always fail rerun. |
+| D-06 | `world:list` → `{worlds, skipped}` | `database.md`: "skipped and reported, never silently repaired". Architecture's table said `WorldMeta[]`. Mechanical extension. |
+| D-07 | The active character is session-scoped. Persistence across restarts is via named snapshots only | `database.md` defines no active-character document. Inventing one would be a schema change. **Confirmed by the human, 2026-09-26.** |
+| D-08 | Fonts come from `@fontsource/*` npm packages (OFL-1.1), bundled locally by Vite | Satisfies "self-hosted woff2, offline, CSP-safe" without hand-vendoring binaries. |
+| D-09 | Combat uses the library's default dice (`new Rng(0)`). The UI passes no `rng` | `Rng` is not exported. A UI-written RNG would be UI randomness logic. Fights stay deterministic, so replay holds. Seed-independence is noted for the engine program. |
+| D-10 | Pack gate = `new Runtime(parsed)` (catch `PackLoadError`) | Probe: bare `validatePack(json)` returns 60 deferred E-FORM-01 cards on a valid pack. The real DSL checker (`packDslChecker`) is not exported. `Runtime` is the library's full load validator. |
+| D-11 | New `store/determinism.ts` | Keeps SESSION-04 from leasing `store/worlds.ts`, which SESSION-03 owns concurrently. |
+| D-12 | `RULESWRIGHT_USER_DATA` env overrides `userData` | Needed for isolated, repeatable native e2e. Local desktop app, so no security impact. |
+| D-13 | CSP via `<meta http-equiv>` in `index.html` plus a main-side `webRequest` block on non-local URLs, and window-open/navigation denial | Session header hooks don't fire for `file://` loads. FR-17 wants zero network I/O. |
+| D-14 | Export UI lives on the World plate. Roll has import only | Avoids duplicate test ids and lease contention. Both call the same store action. |
+| D-15 | The "corrupt" verdict is session-scoped (not persisted) | Main has no engine to validate with. Persisting a flag would change WorldDoc (a DB re-entry) for no requirement. |
+| D-16 | Playwright `_electron` e2e harness (`@playwright/test@^1.63`) | Integration proofs must cross the real preload bridge. vitest alone can't. `.gitignore` already anticipated `test-results/` and `playwright-report/`. |
+| D-17 | Default world names: forge `theme · seed`; import `theme · seed` if params are known, else `manifest.title` | FR-3 default naming, extended to imports. |
+| D-18 | **B-1 decided: option A** (human, 2026-09-26). The engine program adds pack-declared class→action data and a runtime export (working name `profileFromCharacter`). The UI wraps it in `engine/combat-profile.ts` and does no profile math. Request: `ENGINE-REQUEST-B1.md` | Keeps "zero rules math" and "rules are data". Options B (UI assembles the profile) and C (statblock pretending to be the character) are rejected. |
+| D-19 | **B-2 approved** (human, 2026-09-26). FightDoc gains additive fields `start` (`{ally:{id, snapshot: verbatim serializeCharacter at begin}, enemies:[{statblockId, instanceId}]}` in `startCombat` order), `script` (every host call in order: `declare`/`respond`/`step`, including rejected declares) and `events` (verbatim `RuntimeEvent[]`). `declarations`, `combat` and `outcome` keep their meaning; `formatVersion` stays 1. Records without `script` → replay unavailable. DB text request: `AUTHOR-REQUEST-B2-B3.md` | Without these, replay can neither rebuild the fight, answer reactions, nor point at the first divergence. Additive per Migration Policy rule 2. |
+| D-20 | **B-3 approved** (human, 2026-09-26). FR-10's RNG criterion moves to fight-record views: each record shows `combat.rng` (four uint32 words `{a,b,c,d}`). Character snapshot cards show pack identity (`id · schema · contentHash`). Spec/DB/Designer text request: `AUTHOR-REQUEST-B2-B3.md` | `CharacterSnapshot` has no RNG (probe); combat snapshots do. SESSION-05 is not gated on the text commits; SESSION-06 is (mock). |
+| D-21 | Planning correction: SESSION-01 adds `fight:set-outcome {worldId, name, outcome}` and types `fight:save` as `{worldId, name, record: FightRecordBody}` derived from `FightDoc` | `database.md` already requires `outcome` to be "updated if a replay later diverges", and the original channel table had no write path for that. Deriving the save body from `FightDoc` lets SESSION-06 add the B-2 fields in `model.ts` without leasing the contract, preload or client files. |
+
+| D-22 | **Engine work runs cross-repo from this plan** (human, 2026-09-26): SESSION-E1 edits `../Ruleswright` source and commits there under the engine's own conventions. Supersedes the requirements note that engine changes run as a separate program; the engine's DB-owned contract still changed only through its DB text (engine `770950f`, database v1.2, Version Registry #3, written by Planner under the human's authorization) | Human instruction "cross repo from here". Keeps the engine's Custom Rules: contracts DB-owned, README executed by tests |
+| D-23 | Bundled class actions (Planner default, content choice, reversible): dark-fantasy warden [strike, cut-down, withdraw, brace, parry], hexer [hurl, long-shot, withdraw, ward-glint, ember-surge], crypt-warden [strike, long-shot, withdraw, brace, ward-glint]; zombie-urban scavenger [baton-blow, crossbow-bolt, fall-back, dodge-roll], fixer [baton-blow, pistol-shot, barricade, wrench-parry, adrenal-spike], medic [baton-blow, fall-back, dodge-roll] | Existing action ids only; excludes the monster-flavored `casting` actions; each class gets a main attack, a move and (mostly) a reaction so the trigger path is exercised |
+| D-24 | Human authorized (2026-09-26): Planner writes the approved B-2/B-3 Spec/DB text (done, `a5dfbf7`), and Designer is dispatched without further approval for one pass covering DF-1 (combat.html trigger offers + combat-over) and the B-3 mocks (character.html snapshot cards → pack identity; fight/combat record rows → four RNG words). Planner has no subagent tool in its session, so Orchestrator dispatches that Designer pass at run start | Human instruction; removes the last human gate from SESSION-06 |
+| D-25 | `profileFromCharacter(runtime, character: Character, id?) → { profile, balances }`; conditions are not carried into combat in v1 (`StartCombatRequest` has no field) | Contract detail fixed in SESSION-E1 CA-08; conditions limit reported as engine follow-up, not a UI gap |
+
+## Verification Baseline
+**Inspected sources:** `specs/{idea,requirements,design,architecture,database}.md`, `mocks/*.html` (grep-level), `../Ruleswright/{package.json,README.md,dist/*.d.ts,dist/compiler.js (loadTheme)}`, and `src/{compiler/generate.ts,compiler/pipeline.ts,runtime/runtime.ts,runtime/combat/{combat,resolve}.ts,runtime/conditions.ts}`. No prior STATE, handoffs, `.program/ledger.md` or `.program/blockers.md` exist for this repo (`.program/` was absent). The engine repo's own `.program/` belongs to a different program and was not reconciled.
+
+**Toolchain (resolved path, version), actual:**
+- node `/Users/the.phoenix/.nvm/versions/node/v24.20.0/bin/node` v24.20.0
+- pnpm `/Users/the.phoenix/.nvm/versions/node/v24.20.0/bin/pnpm` 10.15.0. pnpm 10 blocks dependency build scripts unless allow-listed, and it skips pre/post scripts.
+- The npm registry is reachable. Resolved versions: electron@33 → 33.4.11; electron-vite@2 → 2.3.0 (peer vite ^4 || ^5); vite@5 → 5.4.21; react@18 → 18.3.1; zustand@5 → 5.0.15; electron-builder@25 → 25.1.8; vitest@2 → 2.1.9; @playwright/test → 1.63.0; @vitejs/plugin-react@4 → 4.7.0; typescript@5.6 → 5.6.3; eslint@8 → 8.57.1; @fontsource/{cinzel,spectral,oswald,inter,jetbrains-mono} → 5.3.0 (OFL-1.1).
+
+**Engine library (actual, plan-time node probes against `../Ruleswright/dist`, scripts kept in `.program/probe-*.mjs`, gitignored):**
+- `generateCampaign` dark-fantasy·42 took 6.8 ms and produced 15,863 bytes. Two runs were byte-identical. `packContentHash` = `a5b8b1b2`. Seed 43 hash differs (`6fb9844d`).
+- `listThemeKnobs`: dark-fantasy `threat`(enum), `spell-density`(range 1–5), `grittiness`(enum), `demihuman-caps`(enum). zombie-urban `threat`, `infection-rate`, `scavenging`, `adrenaline-mode`. Knob rejections are thrown as `GenerationError` with `E-SCHEMA-01` cards (unknown knob, out of range, non-integer range value).
+- `validatePack(validPack)` without a checker returns 60 E-FORM-01 "deferred" cards. `new Runtime(validPack)` succeeds. `new Runtime({schemaVersion:1})` throws `PackLoadError` with 16 cards.
+- Character semantics: state is mutated in place. Build, pool, spell, condition and restore errors throw with card lists (rule ids recorded in SESSION-05). `restoreCharacter` across worlds throws E-SNAP-01.
+- Combat: `declare` rejection is an event (`declare:rejected`), not a throw. Combat RNG is `Rng(0)`. The trigger phase exists and both packs have reactive actions.
+- The engine's own gates (`pnpm test`, `verify:package`) were **not re-run** by Planner. Inherited from engine final report `664d24f`: green. The UI treats engine API drift as an Author re-entry.
+
+**This repo's gates:** none exist yet. All are planned and unverified until SESSION-01 c1 creates them:
+| Gate | Effective command | Scope | Status | Owner |
+|---|---|---|---|---|
+| engine guard | `node scripts/check-engine.mjs` (+ self-test `tests/scripts/check-engine.test.ts`) | sibling dist, installed copy | **green** (Orchestrator, S01 receive @ b9f3518) | S01 c1 |
+| typecheck | `tsc --noEmit` over node/web/test projects | all TS | **green** (S01 receive) | S01 c1 |
+| lint | `eslint . --ext .ts,.tsx` (+ self-test `tests/lint/boundary.test.ts`) | Custom Rules 1, 3 | **green** (S01 receive) | S01 c1 |
+| unit | `vitest run` (node env, `tests/**/*.test.ts`) | engine wrappers against the real library, main handlers against real fs, stores over the in-process bridge | **green** 8 files / 74 tests, ~0.6 s (S01 receive) | S01 c1+ |
+| build | `electron-vite build` → `out/` | bundles | **green** (via e2e globalSetup, S01 receive) | S01 c1 |
+| e2e | `playwright test` (globalSetup rebuilds `out/`, writes `test-results/build-identity.json`) | real Electron app | **green** journey 1/1, ~3 s + build (Orchestrator re-run, head b9f3518 dirty false); GUI display available | S01 c4 |
+| contrast | `tests/styles/contrast.test.ts` | token AA pairs + no hex literals in ui | planned. Plan-time computation passes every pair; lowest is urban `danger/surface` 4.78 | S02 c1 |
+
+**Known hazards / constraints:**
+- H-1: `pnpm e2e` writes shared `out/` and `test-results/`. Exclusive resource `e2e:out`: never run two e2e steps concurrently.
+- H-2: Electron e2e needs a GUI session (developer macOS). No headless CI path is planned; report e2e as not run if no display is available rather than claiming a pass.
+- H-3: A `file:` dependency is a copy. After an engine rebuild, run `pnpm install`. `check:engine` fails loudly if the copy is stale.
+- H-4: The sandboxed preload must be CommonJS, so `"type":"module"` is not allowed in `package.json`.
+- H-5: `program/ruleswright-ui/prompts/` is gitignored. Committing the final report there needs `git add -f`.
+- H-6: Workspace file tools are confined to `ruleswright-ui`. SESSION-E1 writes engine files through the run tool (stage under `.program/e1-stage/` then `cp`, or node edit scripts) and commits with `git -C ../Ruleswright … -- <paths>`. Orchestrator's lease check treats `../Ruleswright/…` paths as disjoint from every UI path.
+- H-7: `../Ruleswright/dist/` is shared state: UI sessions' `check:engine` compares it with the installed copy. Only SESSION-06 c0 rebuilds it (`pnpm -C ../Ruleswright verify:package`), then `pnpm install` + `pnpm check:engine` here, with no other UI session in flight.
+- H-8: SESSION-E1 changes the bundled themes, so pack bytes change after the release (plan-time hash `a5b8b1b2` and 15,863 bytes go stale). Worlds forged before the release will honestly fail rerun-same-seed. UI tests compute expected values in-process, so none pin these.
+
+## Capability Readiness
+| ID | Approved behavior / entry point | Required facts + producer owners | CA IDs / prerequisites | Integration owner / checkpoint | Status | Proof / checked sources | Open gaps + correction owners |
+|----|--------------------------------|---------------------------------|------------------------|--------------------------------|--------|-------------------------|-------------------------------|
+| CAP-01 | FR-2/FR-3/FR-1: forge a world on Roll → persisted → restart → reopened + name/seed visible. **First narrow journey** | themes (lib exports, S01 `listThemes`), knobs (`listThemeKnobs`), pack (`generateCampaign`), gate (`new Runtime`), id/sha/timestamps (S01 main storage) | CA-01 CA-02 CA-03 CA-04 CA-05 CA-11 | S01 c4 (`e2e/journey.spec.ts`); UI craft S03 c2 | **verified** (journey, S01 c4 `b9f3518`); UI craft still planned S03 c2 | `e2e/journey.spec.ts` 1/1 passed, re-run by Orchestrator at receive (build identity head b9f3518, dirty false, exit 0) | UI craft S03 c2; journey must stay green through S02/S03 restyle |
+| CAP-02 | FR-3: list/rename/delete-cascade/last-opened/corrupt | S01 main storage + handlers; S01 `open` corrupt map | CA-03 CA-04 | S03 c3 (`e2e/roll.spec.ts`) | planned | — | — |
+| CAP-03 | FR-5: import paste/file (validated, provenance params) + export via native dialog | S01 `importPackText`, `pack:import`/`pack:export`, `exportPack` | CA-01 CA-02 CA-03 | import S03 c3; export S04 c3 | planned | — | — |
+| CAP-04 | FR-1/15/16/17: shell nav, empty states, mood, error cards, offline/CSP | S01 worlds store; S02 moods/shell/ui | CA-05 CA-10 | S02 c4 (`e2e/shell.spec.ts`) | planned | Contrast pre-computed | — |
+| CAP-05 | FR-4: bespoke classes/spells/bestiary/tables + raw fallback | `active.pack` (S01) | CA-02 | S04 c3 (`e2e/world.spec.ts`) | planned | — | — |
+| CAP-06 | FR-14a: rerun same seed → byte pass/fail/unavailable | stored params + bytes (S01), `generateCampaign` | CA-01 CA-03 CA-12 | S04 c3 (incl. tamper test) | planned | Byte-identity probe | — |
+| CAP-07 | FR-6–9: create, progression, pools/spells, conditions | `active.runtime` (S01) + runtime API | CA-05 | S05 c4 (`e2e/character.spec.ts`) | planned | Character probes | — |
+| CAP-08 | FR-10: snapshots save/list/load/delete, restart, pack-identity rejection, **pack identity shown** (B-3, D-20) | S01 snapshot storage; S05 serialize/restore | CA-06 | S05 c4 | planned | E-SNAP-01 probe | B-3 approved (D-20): the criterion is now pack identity on snapshot cards, and RNG display belongs to CAP-10. requirements/database/mock text awaits the Author commit (not a dispatch gate for S05) |
+| CAP-09 | FR-11–13: fight assembly (character + spawns), declare/step/respond loop, provenanced log | ally profile (engine `profileFromCharacter`, **B-1 = A**, SESSION-E1 c2/c3), `spawnMonster`, combat API | CA-05 CA-07 CA-08 | S06 c3 (`e2e/combat.spec.ts`) | blocked | Combat probes; engine contract v1.2 `770950f` | SESSION-E1 (planned) + S06 c0 release gate; Designer pass DF-1 (authorized, D-24) |
+| CAP-10 | FR-14b + RNG inspection (B-3): record the fight (start, script, events), replay against re-rolled pack, flag divergence (pack or first event), persist `outcome: diverged`; record views show the combat RNG words | FightDoc shape (**B-2 approved**, D-19), `fight:set-outcome` (S01, D-21), CAP-06 path, CAP-09 | CA-06 CA-09 CA-12 | S06 c5 (`e2e/replay.spec.ts`) | blocked | — | SESSION-E1; B-2/B-3 text committed `a5dfbf7`; Designer pass for the record-row RNG mock (authorized, D-24) |
+
+**First narrow journey:** CAP-01 via SESSION-01 c4. The path is real Electron main → sandboxed preload → renderer engine → IPC → fs, then restart → reopen. SESSION-02 onward depend on its proof. If it fails, SESSION-02 is not dispatched.
+
+## Contract Agreements
+| ID | Required meaning / authority | Producer → boundary → consumer | Mapping / constraints | Correction + proof owners / checkpoints | Agreement | Producer | Proof / evidence / checked sources |
+|----|------------------------------|-------------------------------|-----------------------|----------------------------------------|-----------|----------|------------------------------------|
+| CA-01 | Pack bytes are identical from forge to disk to rerun compare | `forge` `JSON.stringify(pack)` → IPC string → main verbatim write → `world:open` string → `ActiveWorld.packJson` → S04 compare | No parse or re-serialize in main. `packSha256` = sha256(utf8 bytes). Export copies bytes | S01 c2 (storage test), c4 (journey disk compare); S04 c3 | agreed | **landed** S01 c2 `77d8e63` + c3 `5fcf552`; proof: storage verbatim-bytes + journey disk compare passed (c4 `b9f3518`); S04 c3 rerun compare still planned | `database.md` pack.json; probe byte-identity |
+| CA-02 | A pack is accepted only if the library's full validator accepts it | `JSON.parse` → `new Runtime(parsed)` → `PackLoadError.errors` → `AppError.library` | Bare `validatePack` is not a gate (60 false cards) | S01 c3 | agreed | **landed + proved** S01 c3 `5fcf552` (schema tests + tampered-pack corrupt) | probe; `src/runtime/runtime.ts:73` uses the unexported `packDslChecker` |
+| CA-03 | WorldDoc facts: identity, nullable generation params, schema mirror, digest | S01 main storage ↔ `shared/model.ts` ↔ worlds store | Fields exactly as in `database.md`. Params either all set or all null (D-03). Name 1–80 chars | S01 c2, c3; S03 c3 | agreed | **landed + proved** S01 c2 `77d8e63`/c3 `5fcf552` (storage + provenance tests); S03 c3 UI proof planned | `database.md` WorldDoc |
+| CA-04 | The IPC surface is minimal and validated. No paths cross it | `shared/ipc-contract.ts` → preload → main handlers | `IpcResult`; codes `invalid-input, not-found, name-collision, io, too-large`; names `[\w- ]` ≤64; 16 MiB caps | S01 c2 (`tests/main/ipc.test.ts`) | agreed | **landed + proved** S01 c2 `77d8e63` (ipc 26 tests, incl. `fight:set-outcome`) | architecture IPC table (+ D-06) |
+| CA-05 | Every failure is shown verbatim from its source | library throws / IPC errors / others → `toAppError` → `ErrorCard` | `GenerationError`, `PackLoadError`, `CharacterBuildError`, `RuntimeRuleError` → cards. `declare:rejected` event → inline card. KnobRejection arrives as GenerationError cards (never thrown alone) | S01 c3; S02 c2; S06 c3 | agreed | **landed** S01 c3 `5fcf552` (`toAppError`/`fromIpcError`, errors tests; journey roll-error verbatim E-SCHEMA-01); S02 c2 ErrorCard + S06 c3 planned | probes (all four classes observed) |
+| CA-06 | Character snapshot body is the verbatim library envelope; restore checks pack identity | `serializeCharacter` → SnapshotDoc `{packIdentity: snap.pack, snapshot: snap}` → `restoreCharacter` | No wrapping or re-keying. Mismatch → E-SNAP-01 card. No RNG in the body: cards show `packIdentity` (B-3, D-20). RNG words come from `FightDoc.combat.rng` (CAP-10) | S01 c2 (storage); S05 c4; S06 c5 (RNG on records) | agreed | storage **landed** S01 c2 `77d8e63` (verbatim body test); restore/E-SNAP-01 proof S05 c4 planned | probe `snap` shape, E-SNAP-01 |
+| CA-07 | Event log shows every event with provenance verbatim | `rt.events.on` → combat store `log` → `EventRow` | type, at, actor, target, payload, `why.rule`, `why.rolls` verbatim. Nothing dropped | S06 c2, c3 | agreed | planned | `runtime.d.ts` RuntimeEvent; probe events |
+| CA-08 | The ally combatant *is* the active character, with no UI rules math | character → `CombatantProfile` → `startCombat` | Decided A: engine export `profileFromCharacter(runtime, character: Character, id?) → { profile: CombatantProfile, balances: EconomyBalances }` (full field mapping in SESSION-E1 CA-08); actions = union of `content.classes.<id>.actions` (engine database v1.2, `770950f`); UI wrapper only. **Provisional** against SESSION-E1's landed source: S06 c0 re-checks `runtime.d.ts` after the release build | SESSION-E1 c2 (producer) + c3 (engine acceptance); S06 c0 release gate, c1 wrapper, c3 proof | agreed (A) | planned (SESSION-E1) | `runtime.d.ts` (only `profileFromStatblock`); README fakes it with `spawnMonster` |
+| CA-09 | A fight record can reproduce the fight and locate the first divergence | combat store → FightDoc → replay | Approved (D-19), additive, `formatVersion` 1: `start {ally:{id, snapshot}, enemies:[{statblockId, instanceId}]}`; `script` of `declare{actionId,targetId?}` / `respond{triggerId,choice,targetId?}` / `step`; `events` verbatim. `declarations`/`combat`/`outcome` unchanged; `outcome` written via `fight:set-outcome` (D-21). Replay: re-rolled pack bytes ≠ stored → diverged (pack); else restore ally → B-1 profile → re-apply script → first event-index mismatch → diverged. No `script` → unavailable. DB text committed `a5dfbf7` (matches this row); S06 c5 still rechecks it at its start | `database.md` committed `a5dfbf7`; S01 c2 `fight:set-outcome`; S06 c5 realizes `model.ts`/storage and proves | agreed | planned | `database.md` FightDoc vs `StartCombatRequest`, `Combat.respond` |
+| CA-10 | Mood follows the world's theme | `meta.theme` → `moodForTheme` → `data-mood` | dark-fantasy→fantasy, zombie-urban→urban, else/null→archive | S02 c3, c4 | agreed | planned | `design.md` FR-15 |
+| CA-11 | The theme list is the library's, not the UI's | compiler exports → `listThemes()` → Roll | ThemeTemplate-shaped export where `loadTheme(id) === value` | S01 c3 | agreed | **landed + proved** S01 c3 `5fcf552` (compiler tests: ids dark-fantasy, zombie-urban) | `dist/compiler.js` `loadTheme` switch |
+| CA-12 | Rerun pass means byte-identical, and nothing less | stored params + bytes → `generateCampaign` → strict string equality | Null params → unavailable. No hash-only pass | S04 c1, c3 | agreed | planned | FR-14, `database.md` packSha256 note |
+
+## Current Blockers
+| ID | Class (AUTHOR re-entry) | Affects | Required next action | Owner | Evidence to clear |
+|----|-------------------------|---------|----------------------|-------|-------------------|
+| **B-1** | engine API gap. **Decided A** (D-18); **engine work runs cross-repo from this plan** (D-22). Contract v1.2 committed in the engine (`770950f`) | CAP-09, CAP-10, CA-08, SESSION-06 | Dispatch SESSION-E1 (wave 1). Then SESSION-06 c0 performs the release gate (engine `verify:package` → `pnpm install` → `check:engine` → CA-08 recheck). No human action | Orchestrator → Coder (SESSION-E1) | E1 c3 committed in `../Ruleswright`; S06 c0 release gate green |
+| **B-2** | **Cleared** 2026-09-26: FightDoc text committed `a5dfbf7` (Planner, human-authorized, D-24) | — | SESSION-06 c5 realizes it | — | done |
+| **B-3** | Spec + DB text **cleared** (`a5dfbf7`). Mock changes remain: `character.html` snapshot cards → `pack <id> · schema <n> · <contentHash>`; `combat.html`/`fight.html` record rows → four RNG words in mono | CAP-10 mock only (SESSION-05 not gated) | Designer pass (authorized, D-24), same pass as DF-1 | Orchestrator → Designer | Mock commit |
+| **DF-1** | design-fill; human also authorized the Designer call (D-24) | SESSION-06 (CAP-09) | Add to `mocks/combat.html`: the trigger-offer control (take/decline per `pendingTriggers` entry, with the matching event as provenance) and the combat-over announcement | Orchestrator → Designer (dispatch at run start, with B-3 mocks) | Mock commit |
+
+SESSION-01…05 and SESSION-E1 are ready. No human gate remains; SESSION-06 waits only on E1 and the Designer pass.
+
+## Handoff Notes
+(Orchestrator appends Coder Handoff `notes` / `followUp` verbatim after each session. Empty at plan time.)
+
+### SESSION-01 — done 2026-09-26 (checkpoint 4; commits ca1d972, 77d8e63, 5fcf552, b9f3518)
+**notes (verbatim):** Spine + CAP-01 first narrow journey proven in real Electron (lease r1). Commits: c1 `ca1d972`, c2 `77d8e63`, c3 `5fcf552`, c4 `b9f3518`. CAP-01: integration proof passed (`e2e/journey.spec.ts`). CAP-02/03/08/10: producer contributions only (main storage + handlers + `importPackText`/`exportPack`), not user-capability proofs. Contract agreements produced: CA-01 (`createStorage().saveWorld/openWorld/readPackBytes`, `forge().packJson`), CA-02 (`openPack` = `JSON.parse` → `new Runtime`), CA-03 (`WorldDoc` in `src/shared/model.ts`, all-or-none params in `saveWorld` + `importPackText`), CA-04 (`IPC`/`IpcContract`/`RuleswrightApi` in `src/shared/ipc-contract.ts`, `createIpcHandlers`, preload), CA-05 (`toAppError`/`fromIpcError`), CA-06 (snapshot storage), CA-11 (`listThemes` via namespace exports + `loadTheme(id) === value`). Resolved versions: electron 33.4.11, electron-vite 2.3.0, vite 5.4.21, @playwright/test 1.63.0 (also vitest 2.1.9, react 18.3.1, zustand 5.0.15, typescript 5.6.3, eslint 8.57.1). The library's rule id for an out-of-range range knob is `E-SCHEMA-01`, message `knob "spell-density" must be <= 5, got 99.` (feeds CA-05). No deviation from the prompt's IPC types. `RULESWRIGHT_USER_DATA` isolation and call-time dialog stubbing both work as designed; dialog stubbing is proven through the fake dialogs in the handler and store tests, and the e2e stub helpers exist but no spec uses them yet.
+
+**followUp (verbatim):** SESSION-03 owns CAP-02/CAP-03 UI and journey proofs (rename/delete/import/corrupt chip). S03 import proof and S04 export proof remain planned. SESSION-05 owns the CA-06 restore/E-SNAP-01 proof. SESSION-06 owns CA-09 and the B-2 FightDoc fields in `model.ts`. `FightRecordMeta` = `Omit<FightDoc, 'declarations'|'combat'>` will grow when B-2 fields are added, so S06 should revisit `fightMeta` in `storage.ts`. SESSION-02 replaces `App.tsx`/`main.tsx`, restyles `views/roll`, and adds style imports; test ids must stay stable. `release/` (electron-builder output dir) is not gitignored. This was outside the "append /out/ only" scope; the Orchestrator may want to add it. The e2e dialog stubs `stubSaveDialog`/`stubOpenDialog` are built but not yet exercised by any spec. The first consumer is S03/S04. Arch delta written to `.program/signal/SESSION-01.arch.md`.
+
+**surprises (summary; raw in `.program/results/SESSION-01.result.md`):** bare validatePack 56 cards (not 60); manifest.id is theme id; fight save enforces optional B-2 fields when present; world:open host failures land in `corrupt[id]`; 4 commits (c0 recheck-only).
+
+**Orchestrator receive:** lease clean (all 4 commits inside Owns); gates run at receive: check:engine 0, typecheck 0, lint 0, vitest 74/74 exit 0, e2e journey 1/1 exit 0 (build identity b9f3518, dirty false). Arch delta integrated `43f660c`.
