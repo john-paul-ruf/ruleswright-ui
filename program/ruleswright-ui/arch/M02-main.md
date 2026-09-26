@@ -11,3 +11,13 @@
 
 ## Change history
 - v1-shell plan: created (planned).
+
+
+<!-- v1-shell SESSION-01 -->
+## Realized — v1-shell SESSION-01
+
+### M02 main — realized (`77d8e63`)
+- `storage.ts`: `createStorage(root)` → `Storage` with `listWorlds/openWorld/readPackBytes/saveWorld/renameWorld/deleteWorld/getSettings/setSettings/list|save|load|deleteSnapshot/list|save|load|deleteFight/setFightOutcome`; exports `StorageError {code: IpcErrorCode}` and `sha256Hex`. Fight save also enforces the optional B-2 fields when present (`script` ops, `start` shape, `events` array) per current `database.md`.
+- `dialogs.ts`: exports the `Dialogs` interface (`saveJson(defaultName)`, `openJson()` → path | null).
+- `ipc.ts`: exports `Handler`, `IpcHandlers`.
+- `window.ts`: signature is `createMainWindow(bounds: WindowBounds | null, onClose: (b) => Promise<void>)` (not `createMainWindow(settings)`); close is deferred until bounds are persisted.

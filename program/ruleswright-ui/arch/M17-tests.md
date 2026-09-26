@@ -10,3 +10,14 @@
 
 ## Change history
 - v1-shell plan: created (planned).
+
+
+<!-- v1-shell SESSION-01 -->
+## Realized — v1-shell SESSION-01
+
+### M17 tests — realized
+- `tests/support/in-process-bridge.ts` also exports `createFakeDialogs()` / `FakeDialogs` (`savePath`, `openPath`, `saveRequests`); `createInProcessBridge(root, dialogs?)` structured-clones payloads/results like IPC.
+- `tests/support/eslint.d.ts`: minimal ambient types for `eslint@8` (no `@types/eslint` dependency).
+- `e2e/fixtures.ts`: `test` fixture `rw: RulesWrightApp {app, page, userData, requests, restart(), stubSaveDialog(path|null), stubOpenDialog(path|null)}`; re-exports `expect`.
+
+Module edges realized: M02→M01, M03→M01, M06→M01 (errors/schema), M07→M01, M09→M06/M07/M01, M11→M09/M06(types)/M01(types), M16→M09/M11.

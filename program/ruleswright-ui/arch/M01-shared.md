@@ -12,3 +12,11 @@
 
 ## Change history
 - v1-shell plan: created (planned).
+
+
+<!-- v1-shell SESSION-01 -->
+## Realized — v1-shell SESSION-01
+
+### M01 shared — realized (`77d8e63`)
+- `ipc-contract.ts` adds: `IpcContract` (channel → `{req, res}` map), `Channel`, `IpcRequest<C>`, `IpcResponse<C>`, `ApiMethod<C>`, `Deleted`, `IpcErrorCode`; constants `MAX_DOC_BYTES` (16 MiB), `MAX_WORLD_NAME` (80), `MAX_RECORD_NAME` (64), `RECORD_NAME_PATTERN`; compile-time guard `IPC_COVERS_EVERY_CHANNEL`. `IPC` is keyed by API method name (`worldList: 'world:list'`, …), so `RuleswrightApi` = one method per channel.
+- `model.ts` adds `FightRecordBody` (D-21) and the constant `FIGHT_OUTCOMES`.

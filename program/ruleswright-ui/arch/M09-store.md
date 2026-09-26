@@ -14,3 +14,10 @@ Stores never throw to views; failures land as `AppError` fields.
 
 ## Change history
 - v1-shell plan: created (planned).
+
+
+<!-- v1-shell SESSION-01 -->
+## Realized — v1-shell SESSION-01
+
+### M09 store — realized (`5fcf552`)
+- `worlds.ts` exports `createWorldsStore()` (a fresh store per call, for restart-style tests) plus `useWorldsStore`, `ActiveWorld`, `WorldsState`, `ExportOutcome`.

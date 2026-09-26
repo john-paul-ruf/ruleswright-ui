@@ -7,3 +7,9 @@
 
 ## Change history
 - v1-shell plan: created (planned).
+
+
+<!-- v1-shell SESSION-01 -->
+## Realized — v1-shell SESSION-01
+
+### M07 persistence — realized (`5fcf552`) as planned.
