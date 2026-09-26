@@ -28,3 +28,11 @@ Stores never throw to views; failures land as `AppError` fields.
 
 ### M09 store — `ui.ts` realized (`ae1c762`)
 - `type Surface = 'roll'|'world'|'character'|'fight'|'combat'`; `useUiStore` `{ surface: Surface; navigate(surface): void }`, initial `'roll'`.
+
+
+<!-- v1-shell SESSION-04 -->
+## Realized — v1-shell SESSION-04
+
+### M09 store — `determinism.ts` realized (SESSION-04 c1 `33481cf`)
+- `createDeterminismStore(worlds: StoreApi<WorldsState> = useWorldsStore)`, `useDeterminismStore`: `{ byWorld: Record<worldId, RerunResult | 'running'>; rerun(): Promise<void> }`. `rerun` reads `worlds.active` (`meta`, `packJson` verbatim, CA-01), stores `'running'`, yields one macrotask, then stores the result under the world id. No durable write. Reads `useWorldsStore` only.
+- Types exported: `RerunResult` (re-export), `RerunState`, `DeterminismState`.

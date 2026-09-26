@@ -49,3 +49,13 @@
   when the class action union is empty. Active conditions are not carried (v1 limit).
 - **Known engine gap (not changed; outside lease):** `Combat` never transitions to `phase: 'combat-over'`. The
   `StepOutcome` variant exists, but no combatant-defeated or side-defeated rule sets it.
+
+
+<!-- v1-shell SESSION-04 -->
+## Realized — v1-shell SESSION-04
+
+### M06 engine — `determinism.ts` realized (SESSION-04 c1 `33481cf`, c2 `d310755`)
+- `type RerunResult = {status:'pass'; bytes; ms} | {status:'fail'; offset; storedLength; rerunLength; storedExcerpt; rerunExcerpt} | {status:'unavailable'; reason} | {status:'error'; error: AppError}`.
+- `rerunSameSeed(meta: Pick<WorldMeta,'theme'|'seed'|'knobs'>, storedPackJson: string): RerunResult` — `generateCampaign({theme: loadTheme(theme), seed, knobs})` → `JSON.stringify` → strict `===` with the stored string (CA-12). `bytes` = UTF-8 byte length; `offset` = first differing UTF-16 index (or the shorter length); excerpts = `slice(offset−40, offset+40)` of each; library throws → `toAppError('rerun', e)`.
+- `rerunUnavailableReason(meta): string | null` — `'generation parameters unknown (imported pack)'` when any param is null; `'theme not provided by this engine build'` when the theme is not in `listThemes()`.
+- Imports: `ruleswright/compiler` (`generateCampaign`, `loadTheme`), `./compiler` (`listThemes`), `./errors`.

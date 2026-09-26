@@ -14,3 +14,12 @@ Each placeholder (S02) renders the correct empty state so routing is complete be
 
 ## Change history
 - v1-shell plan: created (planned).
+
+
+<!-- v1-shell SESSION-04 -->
+## Realized — v1-shell SESSION-04
+
+### M12 views/world — realized (SESSION-04 c2 `d310755`)
+- Files: `index.tsx` (`WorldView`), `sections.ts` (`sectionsOf(pack): WorldSection[]` — bespoke classes/spells/bestiary/tables, then every other content subsection and top-level section except `content`/`progression` as raw), `details.tsx` (`EntryDetail`, `entryMeta`, `entryTitle`, `verbatim`), `world.css`.
+- Imports: store (`worlds`, `determinism`, `ui`), ui, shell `EmptyState`, engine `determinism.rerunUnavailableReason` (runtime) + `engine/schema` types.
+- Test ids: `world-nav-<sectionId>`, `world-entry-<entryId>`, `world-detail`, `world-raw-toggle`, `world-raw`, `world-determinism` (strip; `data-state` idle|unavailable|fail), `world-determinism-pointer`, `world-export-status`; plus the shared `rerun-same-seed`, `export-pack`, `ok-card` (pass strip), `error-card` (library error / export error), `empty-state`.
