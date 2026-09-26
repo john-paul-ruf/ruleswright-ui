@@ -1,0 +1,33 @@
+**/.DS_Store
+.DS_Store
+/tmp
+/out-tsc
+
+/node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+/.pnp
+.pnp.js
+
+.vscode/*
+/.idea/
+/.idea/
+/.zencoder/
+
+
+# Build output
+/dist/
+
+# Test / e2e output
+/test-results/
+/playwright-report/
+
+# demiurge
+/.program/
+/program-agents/
+/program/ruleswright-ui/prompts/
+/program/ruleswright-ui/demiurge.yaml
+/program/ruleswright-ui/img-source/
+/program/ruleswright-ui/runs/
+/program/ruleswright-ui/STATE.md
