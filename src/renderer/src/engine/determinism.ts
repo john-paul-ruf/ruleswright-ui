@@ -26,19 +26,22 @@ function firstDifference(a: string, b: string): number {
   return n;
 }
 
+/** FR-14a: why a rerun cannot run for these params (null when it can), without generating anything. */
+export function rerunUnavailableReason(meta: Pick<WorldMeta, 'theme' | 'seed' | 'knobs'>): string | null {
+  if (meta.theme === null || meta.seed === null || meta.knobs === null) return 'generation parameters unknown (imported pack)';
+  if (!listThemes().some((t) => t.id === meta.theme)) return 'theme not provided by this engine build';
+  return null;
+}
+
 /**
  * FR-14a: `generateCampaign` with the world's stored theme/seed/knobs, `JSON.stringify`, then strict
  * string equality with the stored pack bytes (CA-12). Unknown params are `unavailable`, never faked.
  * `ms` is display-only timing.
  */
 export function rerunSameSeed(meta: Pick<WorldMeta, 'theme' | 'seed' | 'knobs'>, storedPackJson: string): RerunResult {
-  const { theme, seed, knobs } = meta;
-  if (theme === null || seed === null || knobs === null) {
-    return { status: 'unavailable', reason: 'generation parameters unknown (imported pack)' };
-  }
-  if (!listThemes().some((t) => t.id === theme)) {
-    return { status: 'unavailable', reason: 'theme not provided by this engine build' };
-  }
+  const unavailable = rerunUnavailableReason(meta);
+  if (unavailable !== null) return { status: 'unavailable', reason: unavailable };
+  const { theme, seed, knobs } = meta as { theme: string; seed: number; knobs: Record<string, string | number> };
   const started = performance.now();
   let rerun: string;
   try {

@@ -1,0 +1,249 @@
+/* World surface (M12) — mocks/world.html. Tokens only; 220px / 380px column widths are the mock's. */
+
+.world-strip,
+.world-export {
+  margin-top: var(--space-6);
+}
+
+.world-export-status {
+  font-size: var(--text-12);
+  color: var(--dim);
+}
+
+.world-rerun-mark.is-pass {
+  color: var(--ok);
+}
+
+.world-rerun-mark.is-fail {
+  color: var(--danger);
+}
+
+.world-pointer p {
+  white-space: pre-wrap;
+}
+
+.world-pointer p + p {
+  margin-top: var(--space-1);
+}
+
+.world-strip .errorcard {
+  margin-top: var(--space-2);
+}
+
+.world-body {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--space-6);
+  margin-top: var(--space-8);
+  align-items: start;
+}
+
+/* ── Artifact subnav ─────────────────────────────────── */
+.world-subnav {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2);
+}
+
+.world-subnav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 10px 14px;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color var(--dur-fast),
+    background-color var(--dur-fast);
+}
+
+.world-subnav-label::first-letter {
+  text-transform: uppercase;
+}
+
+.world-subnav-item:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+
+.world-subnav-item[aria-current='true'] {
+  border-left-color: var(--accent);
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.world-subnav-count {
+  font-size: var(--text-11);
+}
+
+.world-subnav-rule {
+  margin: var(--space-2) 0;
+  border: 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.world-subnav-kicker {
+  padding: var(--space-1) 14px;
+}
+
+/* ── List + detail ───────────────────────────────────── */
+.world-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.world-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.world-section-kicker::first-letter {
+  text-transform: uppercase;
+}
+
+.world-note {
+  margin-top: var(--space-2);
+  font-size: var(--text-12);
+}
+
+.world-detail {
+  min-width: 0;
+}
+
+.world-detail-name {
+  margin-top: var(--space-1);
+  font-size: var(--text-24);
+}
+
+.world-block,
+.world-fields,
+.world-progression {
+  margin-top: var(--space-4);
+}
+
+.world-block-body {
+  margin-top: var(--space-1);
+}
+
+.world-key {
+  font-size: var(--text-11);
+  color: var(--dim);
+}
+
+.world-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.world-block-body .world-fields,
+.world-progression > .world-fields:first-of-type {
+  margin-top: 0;
+}
+
+.world-field {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.world-value {
+  margin: 0;
+  font-size: var(--text-12);
+  overflow-wrap: anywhere;
+}
+
+.world-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.world-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-12);
+  overflow-wrap: anywhere;
+}
+
+.world-dsl {
+  font-size: var(--text-12);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.world-grid-scroll {
+  overflow-x: auto;
+}
+
+.world-grid {
+  border-collapse: collapse;
+  font-size: var(--text-11);
+}
+
+.world-grid th,
+.world-grid td {
+  padding: 2px var(--space-2) 2px 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.world-grid th {
+  font-weight: 400;
+  color: var(--dim);
+}
+
+.world-grid th[scope='row'],
+.world-grid thead th:first-child {
+  text-align: left;
+}
+
+.world-source {
+  margin-top: var(--space-4);
+  font-size: var(--text-10);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+/* ── Raw view ────────────────────────────────────────── */
+.world-raw-section {
+  margin-top: var(--space-8);
+}
+
+.world-content > .world-raw-section:first-child {
+  margin-top: 0;
+}
+
+.world-raw {
+  margin-top: var(--space-3);
+}
+
+.world-raw .json-view {
+  color: var(--dim);
+}
+
+@media (max-width: 1023px) {
+  .world-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .world-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
