@@ -27,13 +27,16 @@ function packOf(userData: string): unknown {
   return JSON.parse(readFileSync(join(dir, id, 'pack.json'), 'utf8'));
 }
 
-/** The same fight the app starts: Brynn (profileFromCharacter, id `brynn`) vs two spawned wights. */
-function referenceFight(pack: unknown): { fight: Combat; events: RuntimeEvent[] } {
+/** The same fight the app starts: Brynn (profileFromCharacter, id `brynn`) vs `wights` spawned barrow-wights. */
+function referenceFight(pack: unknown, wights = 2): { fight: Combat; events: RuntimeEvent[] } {
   const rt = new Runtime(pack as ConstructorParameters<typeof Runtime>[0]);
   const ally = profileFromCharacter(rt, createCharacter(rt, { name: 'Brynn', race: 'hillfolk', classes: [{ id: 'warden', level: 1 }] }), 'brynn');
   const events: RuntimeEvent[] = [];
   rt.events.on((e) => events.push(e));
-  const enemies = ['barrow-wight-1', 'barrow-wight-2'].map((id) => ({ id, profile: spawnMonster(rt, 'barrow-wight', id) }));
+  const enemies = Array.from({ length: wights }, (_, i) => `barrow-wight-${i + 1}`).map((id) => ({
+    id,
+    profile: spawnMonster(rt, 'barrow-wight', id),
+  }));
   return { fight: startCombat(rt, { allies: [{ id: 'brynn', ...ally }], enemies }), events };
 }
 
@@ -92,10 +95,8 @@ async function layoutFacts(page: Page) {
   });
 }
 
-test('CAP-09: assemble Brynn vs 2 wights, declare/step/decline to combat-over, every event verbatim', async ({ rw }) => {
-  const page = rw.page;
-
-  // Forge dark-fantasy · 42 and create Brynn (hillfolk · warden 1).
+/** Forge dark-fantasy · 42 and create Brynn (hillfolk · warden 1); Fight shows no-character before that. */
+async function forgeWithBrynn(page: Page): Promise<void> {
   await page.getByTestId('nav-roll').click();
   await page.getByTestId('roll-theme-dark-fantasy').click();
   await page.getByTestId('roll-seed').fill('42');
@@ -110,6 +111,37 @@ test('CAP-09: assemble Brynn vs 2 wights, declare/step/decline to combat-over, e
   await page.getByTestId('char-level').fill('1');
   await page.getByTestId('char-create').click();
   await expect(page.getByTestId('char-hp')).toHaveText('27');
+}
+
+/** Fight → add `n` barrow-wights → Begin. */
+async function beginAgainstWights(page: Page, n: number): Promise<void> {
+  await page.getByTestId('nav-fight').click();
+  await page.getByTestId('fight-add-enemy').selectOption('barrow-wight');
+  for (let i = 0; i < n; i += 1) await page.getByTestId('fight-add-enemy-submit').click();
+  await page.getByTestId('fight-begin').click();
+  await expect(page.getByTestId('combat-phase')).toHaveText('awaiting-declare');
+}
+
+/** Keyboard only: Tab until the control with `testId` has focus (bounded). */
+async function tabTo(page: Page, testId: string): Promise<void> {
+  for (let i = 0; i < 80; i += 1) {
+    if ((await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.testid)) === testId) return;
+    await page.keyboard.press('Tab');
+  }
+  throw new Error(`Tab never reached ${testId}`);
+}
+
+/** Keyboard only: choose an option of a focused select by typing its label (type-ahead, no popup). */
+async function typeInto(page: Page, testId: string, label: string, value: string): Promise<void> {
+  await tabTo(page, testId);
+  await page.keyboard.type(label);
+  await expect(page.getByTestId(testId)).toHaveValue(value);
+}
+
+test('CAP-09: assemble Brynn vs 2 wights, declare/step/decline to combat-over, every event verbatim', async ({ rw }) => {
+  const page = rw.page;
+
+  await forgeWithBrynn(page);
 
   // Fight assembly: the ally is the character; enemies are bestiary spawns.
   await page.getByTestId('nav-fight').click();
@@ -239,4 +271,97 @@ test('CAP-09: assemble Brynn vs 2 wights, declare/step/decline to combat-over, e
   await page.getByTestId('combat-back').click();
   await expect(page.getByTestId('fight-surface')).toBeVisible();
   await shot(page, 'fight-assembly-fantasy-narrow');
+});
+
+test('keyboard only: one full round by Tab, Enter and select type-ahead, rows in lockstep with the library', async ({ rw }) => {
+  const page = rw.page;
+  await forgeWithBrynn(page);
+  await beginAgainstWights(page, 2);
+  const ref = referenceFight(packOf(rw.userData));
+  const rows = page.getByTestId('combat-event');
+  await expect(rows).toHaveCount(ref.events.length);
+
+  let tried = 0;
+  for (let calls = 0; !ref.events.some((e) => e.type === 'round:completed'); calls += 1) {
+    if (calls > 200) throw new Error('round 1 never completed');
+    const entry = nextEntry(ref.fight, tried);
+    const out = apply(ref, entry);
+    if (entry.op === 'declare') {
+      await typeInto(page, 'combat-declare-select', entry.actionId, entry.actionId);
+      await typeInto(page, 'combat-target-select', entry.targetId ?? 'no target', entry.targetId ?? '');
+      await tabTo(page, 'combat-declare');
+      tried = out.some((e) => e.type === 'declare:rejected') ? tried + 1 : 0;
+    } else if (entry.op === 'respond') {
+      await tabTo(page, 'combat-trigger-decline-0');
+    } else {
+      await tabTo(page, 'combat-step');
+      tried = 0;
+    }
+    await page.keyboard.press('Enter');
+    await expect(rows).toHaveCount(ref.events.length);
+  }
+  expect(await page.evaluate(() => document.activeElement?.matches(':focus-visible'))).toBe(true);
+  await expect(page.getByTestId('combat-round')).toHaveText(`round ${ref.fight.state.round}`);
+  expect(await rows.evaluateAll((els) => els.map((el) => el.getAttribute('data-type')))).toEqual(ref.events.map((e) => e.type));
+  await shot(page, 'combat-keyboard-round-fantasy-wide');
+});
+
+/** Where the log's scroller is, and whether its newest row is inside the visible box. */
+async function scrollFacts(page: Page) {
+  return page.evaluate(() => {
+    const el = document.querySelector('.combat-scroll') as HTMLElement;
+    const all = el.querySelectorAll('[data-testid="combat-event"]');
+    const newest = all[all.length - 1]?.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    return {
+      atTop: el.scrollTop === 0,
+      atBottom: el.scrollHeight - el.scrollTop - el.clientHeight < 2,
+      newestVisible: !!newest && newest.top >= box.top - 1 && newest.bottom <= box.bottom + 1,
+    };
+  });
+}
+
+test('a 500-event log keeps every row, follows the newest row at the bottom, and never yanks a reader who scrolled up', async ({ rw }) => {
+  const page = rw.page;
+  await forgeWithBrynn(page);
+  await beginAgainstWights(page, 4);
+  const ref = referenceFight(packOf(rw.userData), 4);
+  const rows = page.getByTestId('combat-event');
+
+  // Seed a long log: Step while awaiting a declare re-emits `turn:began` without advancing (a real library event).
+  await page.getByTestId('combat-step').focus();
+  while (ref.events.length < 500) {
+    ref.fight.step();
+    await page.keyboard.press('Enter');
+  }
+  await expect(rows).toHaveCount(ref.events.length);
+  expect(await rows.evaluateAll((els) => els.map((el) => el.getAttribute('data-type')))).toEqual(ref.events.map((e) => e.type));
+  expect(await scrollFacts(page)).toEqual({ atTop: false, atBottom: true, newestVisible: true });
+  await shot(page, 'combat-500-bottom-fantasy-wide');
+
+  // Scrolled to the top, a new event lands without moving the reader.
+  const log = page.locator('.combat-scroll');
+  await log.hover();
+  await page.mouse.wheel(0, -1_000_000);
+  await expect.poll(async () => (await scrollFacts(page)).atTop).toBe(true);
+  expect((await scrollFacts(page)).newestVisible).toBe(false);
+  ref.fight.step();
+  await page.getByTestId('combat-step').press('Enter');
+  await expect(rows).toHaveCount(ref.events.length);
+  expect(await scrollFacts(page)).toMatchObject({ atTop: true, newestVisible: false });
+  await shot(page, 'combat-500-top-fantasy-wide');
+
+  // Back at the bottom, the newest row is visible and new rows are followed again.
+  await log.hover();
+  await page.mouse.wheel(0, 1_000_000);
+  await expect.poll(async () => (await scrollFacts(page)).atBottom).toBe(true);
+  expect((await scrollFacts(page)).newestVisible).toBe(true);
+  const started = Date.now();
+  ref.fight.step();
+  await page.getByTestId('combat-step').press('Enter');
+  await expect(rows).toHaveCount(ref.events.length);
+  const ms = Date.now() - started;
+  expect(await scrollFacts(page)).toMatchObject({ atBottom: true, newestVisible: true });
+  expect(ms).toBeLessThan(1000);
+  expect(ref.events.length).toBeGreaterThan(500);
 });
