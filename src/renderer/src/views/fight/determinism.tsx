@@ -1,6 +1,7 @@
 /** The Fight determinism strip (FR-14, mocks/fight.html): rerun same seed (read-only reuse of store/determinism). */
 import { useDeterminismStore } from '../../store/determinism';
 import { useWorldsStore } from '../../store/worlds';
+import { RecordsPanel } from './records';
 import { Button, DeterminismStrip, ErrorCard, Panel, Panel2 } from '../../ui';
 
 function RerunStrip(): JSX.Element {
@@ -58,12 +59,13 @@ export function DeterminismPanel(): JSX.Element {
     <Panel kicker="Determinism">
       <div className="fight-determinism">
         <RerunStrip />
-        <Panel2 pad="s" data-testid="fight-replay">
+        <Panel2 pad="s">
           <p className="row-title">Replay a recorded fight</p>
           <p className="fight-note">
             A record stores the fight&apos;s start and every host call; replay re-applies them to a fresh fight in the re-rolled
             pack. Any divergence is flagged in the log instead of silently continuing (FR-14).
           </p>
+          <RecordsPanel />
         </Panel2>
       </div>
     </Panel>

@@ -206,6 +206,65 @@ describe('fights (D-21)', () => {
   });
 });
 
+describe('fights — B-2 replay fields (CA-09)', () => {
+  const B2 = {
+    ...FIGHT,
+    combat: { kind: 'combat', round: 4, rng: { a: 1, b: 2, c: 3, d: 4 } },
+    start: {
+      ally: { id: 'brynn', snapshot: { kind: 'character', state: { name: 'Brynn' } } },
+      enemies: [{ statblockId: 'barrow-wight', instanceId: 'barrow-wight-1' }],
+    },
+    script: [
+      { op: 'declare', actionId: 'strike', targetId: 'barrow-wight-1' },
+      { op: 'declare', actionId: 'strike' },
+      { op: 'respond', triggerId: 'brynn.parry', choice: 'decline' },
+      { op: 'respond', triggerId: 'brynn.parry', choice: 'take', targetId: 'barrow-wight-1' },
+      { op: 'step' },
+    ],
+    events: [{ type: 'combat:start' }, { type: 'turn:began' }],
+    futureField: { kept: true },
+  } as const;
+
+  it('stores start/script/events verbatim (unknown fields kept); the list projects rng, round and event count only', async () => {
+    const { id } = await storage.saveWorld(WORLD, PACK);
+    await storage.saveFight(id, 'barrow watch', B2 as never);
+    const doc = await storage.loadFight(id, 'barrow watch');
+    expect(doc).toMatchObject(B2);
+    const [meta] = await storage.listFights(id);
+    expect(Object.keys(meta ?? {}).sort()).toEqual(
+      ['createdAt', 'eventCount', 'formatVersion', 'id', 'name', 'outcome', 'rng', 'round', 'worldId'].sort(),
+    );
+    expect(meta).toMatchObject({ rng: { a: 1, b: 2, c: 3, d: 4 }, round: 4, eventCount: 2 });
+  });
+
+  it('a legacy record without the B-2 fields still lists and loads', async () => {
+    const { id } = await storage.saveWorld(WORLD, PACK);
+    await storage.saveFight(id, 'legacy', FIGHT);
+    expect(await storage.listFights(id)).toMatchObject([{ name: 'legacy', rng: { a: 1, b: 2, c: 3, d: 4 }, round: null, eventCount: null }]);
+    const doc = await storage.loadFight(id, 'legacy');
+    expect([doc.script, doc.start, doc.events]).toEqual([undefined, undefined, undefined]);
+  });
+
+  it('rejects a bad op, a bad choice, bad enemies, a non-character ally, non-array events and an oversize record', async () => {
+    const { id } = await storage.saveWorld(WORLD, PACK);
+    const bad = [
+      { ...B2, script: [{ op: 'jump' }] },
+      { ...B2, script: [{ op: 'declare' }] },
+      { ...B2, script: [{ op: 'respond', triggerId: 't', choice: 'maybe' }] },
+      { ...B2, script: [{ op: 'declare', actionId: 'strike', targetId: 7 }] },
+      { ...B2, start: { ...B2.start, enemies: [{ statblockId: 'barrow-wight' }] } },
+      { ...B2, start: { ...B2.start, ally: { id: 'brynn', snapshot: { kind: 'party' } } } },
+      { ...B2, events: {} },
+    ];
+    for (const [i, record] of bad.entries()) {
+      await expect(storage.saveFight(id, `bad ${i}`, record as never), JSON.stringify(record)).rejects.toMatchObject({ code: 'invalid-input' });
+    }
+    const huge = { ...B2, events: ['x'.repeat(16 * 1024 * 1024)] };
+    await expect(storage.saveFight(id, 'huge', huge as never)).rejects.toMatchObject({ code: 'too-large' });
+    expect(await storage.listFights(id)).toEqual([]);
+  });
+});
+
 describe('atomic writes', () => {
   it('leaves no .tmp- files behind', async () => {
     const { id } = await storage.saveWorld(WORLD, PACK);

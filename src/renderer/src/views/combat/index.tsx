@@ -4,7 +4,8 @@ import { EmptyState } from '../../shell/EmptyState';
 import { spatialLabel, useCombatStore, type RuntimeEvent } from '../../store/combat';
 import { useUiStore } from '../../store/ui';
 import { useWorldsStore } from '../../store/worlds';
-import { Button, Chip, CombatOverBanner } from '../../ui';
+import { Button, Chip, CombatOverBanner, Panel } from '../../ui';
+import { RECORD_NAME_INPUT, RecordsPanel } from '../fight/records';
 import { CombatantsPanel, OffersPanel, PhasePanel } from './controls';
 import { EventLog } from './log';
 import './combat.css';
@@ -35,6 +36,9 @@ export function CombatView(): JSX.Element {
           <PhasePanel state={state} />
           <OffersPanel state={state} />
           <CombatantsPanel state={state} />
+          <Panel pad="s" kicker="Replay & records">
+            <RecordsPanel recordable />
+          </Panel>
         </aside>
       </div>
     </div>
@@ -70,9 +74,14 @@ function OverBanner(): JSX.Element | null {
       headline={ended ? `winner ${String(ended.payload.winner)} · defeated ${String(ended.payload.defeated)}` : 'combat-over'}
       provenance={ended ? `${ended.type} · why.rule ${ended.why.rule}` : undefined}
       actions={
-        <Button ref={back} data-testid="combat-back" onClick={() => navigate('fight')}>
-          ← Back to Fight assembly
-        </Button>
+        <>
+          <Button variant="primary" data-testid="combat-over-record" onClick={() => document.getElementById(RECORD_NAME_INPUT)?.focus()}>
+            Record this fight…
+          </Button>
+          <Button ref={back} data-testid="combat-back" onClick={() => navigate('fight')}>
+            ← Back to Fight assembly
+          </Button>
+        </>
       }
     />
   );

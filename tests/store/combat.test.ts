@@ -1,3 +1,5 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { begin, perform, subscribe, type Combat, type RuntimeEvent, type ScriptEntry } from '../../src/renderer/src/engine/combat';
 import { allyProfile } from '../../src/renderer/src/engine/combat-profile';
@@ -14,10 +16,12 @@ const KNOBS = { threat: 'medium', 'spell-density': 3, grittiness: 'heroic', 'dem
 const BRYNN = { name: 'Brynn', race: 'hillfolk', classes: [{ id: 'warden', level: 1 }] };
 
 let cleanup: () => void;
+let root: string;
 
 beforeEach(() => {
   const tmp = makeTmpDir('combat-store-');
   cleanup = tmp.cleanup;
+  root = tmp.dir;
   setPersistence(createInProcessBridge(tmp.dir));
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
@@ -175,5 +179,47 @@ describe('combat store over the real library', () => {
     expect([s.fight, s.state, s.start, s.enemies, s.log, s.script]).toEqual([null, null, null, [], [], []]);
     old?.step();
     expect(store.getState().log).toEqual([]);
+  });
+});
+
+describe('record & replay through the store (CAP-10 producer)', () => {
+  it('records the finished fight, replays it complete, and marks a tampered record diverged on disk', async () => {
+    const { worlds, store } = await setup();
+    store.getState().addEnemy('barrow-wight');
+    store.getState().addEnemy('barrow-wight');
+    store.getState().begin();
+    let tried = 0;
+    for (let calls = 0; !store.getState().over && calls < 2000; calls += 1) {
+      const fight = store.getState().fight as Combat;
+      const entry = nextEntry(fight, tried);
+      if (entry.op === 'declare') {
+        store.getState().declare(entry.actionId, entry.targetId);
+        tried = store.getState().rejection ? tried + 1 : 0;
+      } else if (entry.op === 'respond') store.getState().respond(entry.triggerId, entry.choice);
+      else {
+        store.getState().step();
+        tried = 0;
+      }
+    }
+    const s = store.getState();
+    expect(s.declarations).toHaveLength(s.script.filter((e) => e.op === 'declare').length);
+    expect(await store.getState().record('barrow watch')).toBe(true);
+    const [meta] = store.getState().records;
+    const fight = s.fight as Combat;
+    expect(meta).toMatchObject({ name: 'barrow watch', outcome: 'complete', eventCount: s.log.length, round: fight.state.round });
+    expect(meta?.rng).toEqual(fight.state.rng);
+
+    await store.getState().replay('barrow watch');
+    expect(store.getState().replayed?.result).toEqual({ status: 'complete' });
+
+    const worldId = worlds.getState().active?.meta.id as string;
+    const file = join(root, 'fights', worldId, 'barrow watch.json');
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    const [a, b, ...rest] = doc.script;
+    writeFileSync(file, JSON.stringify({ ...doc, script: [b, a, ...rest] }));
+    await store.getState().replay('barrow watch');
+    expect(store.getState().replayed?.result).toMatchObject({ status: 'diverged', stage: 'events' });
+    expect(store.getState().records[0]?.outcome).toBe('diverged');
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ ...doc, script: [b, a, ...rest], outcome: 'diverged' });
   });
 });

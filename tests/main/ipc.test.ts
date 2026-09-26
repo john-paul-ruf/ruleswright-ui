@@ -103,6 +103,20 @@ describe('payload validation (CA-04)', () => {
     expect(r).toMatchObject({ ok: false, error: { code: 'not-found', operation: 'world:open' } });
   });
 
+  it('fight:save refuses a script entry with an unknown op (B-2) and writes nothing', async () => {
+    const worldId = await saveWorld();
+    const before = snapshotTree(root);
+    const record = { declarations: [], combat: {}, outcome: 'complete', script: [{ op: 'step' }, { op: 'undo' }], events: [] };
+    const r = await handlers['fight:save']({ worldId, name: 'n', record });
+    expect(r).toEqual({
+      ok: false,
+      error: { code: 'invalid-input', message: 'script[1] is not a valid declare/respond/step entry', operation: 'fight:save' },
+    });
+    expect(snapshotTree(root)).toEqual(before);
+    const good = await handlers['fight:save']({ worldId, name: 'n', record: { ...record, script: [{ op: 'step' }] } });
+    expect(good).toMatchObject({ ok: true, value: { name: 'n', eventCount: 0 } });
+  });
+
   it('settings:set accepts only lastWorldId', async () => {
     const worldId = await saveWorld();
     expect(await handlers['settings:set']({ lastWorldId: worldId })).toMatchObject({

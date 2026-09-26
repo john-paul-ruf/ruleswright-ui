@@ -228,6 +228,9 @@ function fightMeta(doc: Json): FightRecordMeta {
     name: doc.name as string,
     createdAt: doc.createdAt as string,
     outcome: doc.outcome as FightOutcome,
+    rng: isObject(doc.combat) ? (doc.combat.rng ?? null) : null,
+    round: isObject(doc.combat) && typeof doc.combat.round === 'number' ? doc.combat.round : null,
+    eventCount: Array.isArray(doc.events) ? doc.events.length : null,
   };
 }
 

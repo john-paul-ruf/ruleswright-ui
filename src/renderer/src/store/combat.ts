@@ -5,11 +5,15 @@
  * Never throws to views.
  */
 import { create as createStore, type StoreApi } from 'zustand';
+import type { IpcResult } from '../../../shared/ipc-contract';
+import type { FightRecordMeta } from '../../../shared/model';
 import * as combat from '../engine/combat';
 import type { Combat, CombatState, EnemySpec, FightStart, PendingTrigger, RuntimeEvent, ScriptEntry } from '../engine/combat';
 import { allyProfile } from '../engine/combat-profile';
-import type { AppError } from '../engine/errors';
-import { serialize } from '../engine/runtime';
+import { fromIpcError, toAppError, type AppError } from '../engine/errors';
+import { recordingOf, replay, type Declaration, type Recording, type ReplayResult } from '../engine/replay';
+import { serialize, type Outcome } from '../engine/runtime';
+import { getPersistence } from '../persistence/client';
 import { useCharacterStore, type CharacterStore } from './character';
 import { useWorldsStore, type WorldsState } from './worlds';
 
@@ -39,11 +43,23 @@ export interface CombatStore {
   /** What the fight was started from (B-2); captured at begin, before `startCombat`. */
   start: FightStart | null;
   script: ScriptEntry[];
+  /** The declare calls with the combatant active when each was issued (FightDoc `declarations`). */
+  declarations: Declaration[];
+  /** This world's fight records (FR-14b), newest first. */
+  records: FightRecordMeta[];
+  recordsError: AppError | null;
+  /** The latest replay: its record name, verdict and the replayed events. */
+  replayed: { name: string; result: ReplayResult; events: RuntimeEvent[] } | null;
   begin(): boolean;
   declare(actionId: string, targetId?: string): void;
   step(): void;
   respond(triggerId: string, choice: 'take' | 'decline', targetId?: string): void;
   end(): void;
+  refreshRecords(): Promise<void>;
+  /** FR-14b: save the open fight (start, script, events, combat snapshot) under `name`. */
+  record(name: string): Promise<boolean>;
+  /** FR-14b: replay a stored record; a divergence also rewrites its `outcome` to `diverged`. */
+  replay(name: string): Promise<void>;
 }
 
 type Source<S> = Pick<StoreApi<S>, 'getState' | 'subscribe'>;
@@ -60,7 +76,17 @@ const IDLE = {
   filters: { round: 'all', type: 'all' },
   start: null,
   script: [],
+  declarations: [],
 } as const satisfies Partial<CombatStore>;
+
+async function bridge<T>(operation: string, request: () => Promise<IpcResult<T>>): Promise<Outcome<T>> {
+  try {
+    const r = await request();
+    return r.ok ? r : { ok: false, error: fromIpcError(r.error) };
+  } catch (e) {
+    return { ok: false, error: toAppError(operation, e) };
+  }
+}
 
 /** The ally's combatant id: the character's name as an id (`Brynn` → `brynn`). */
 function allyIdOf(name: string): string {
@@ -97,9 +123,14 @@ export function createCombatStore(
       return r.value;
     }
 
+    const worldId = (): string | null => worlds.getState().active?.meta.id ?? null;
+
     return {
       enemies: [],
       ...IDLE,
+      records: [],
+      recordsError: null,
+      replayed: null,
 
       addEnemy(statblockId) {
         const taken = new Set(get().enemies.map((e) => e.instanceId));
@@ -145,8 +176,11 @@ export function createCombatStore(
       /** FR-12: a rejection is an event, shown beside Declare; the call is still recorded. */
       declare(actionId, targetId) {
         const entry: ScriptEntry = targetId === undefined ? { op: 'declare', actionId } : { op: 'declare', actionId, targetId };
+        const combatantId = get().fight?.state.active ?? '';
         const r = call(entry, (fight) => combat.declare(fight, actionId, targetId));
-        if (r) set({ rejection: r.rejection });
+        if (!r) return;
+        const declaration = { combatantId, action: actionId, options: targetId === undefined ? {} : { targetId } };
+        set({ rejection: r.rejection, declarations: [...get().declarations, declaration] });
       },
 
       step() {
@@ -165,6 +199,64 @@ export function createCombatStore(
         unsubscribe = null;
         set({ ...IDLE });
       },
+
+      async refreshRecords() {
+        const id = worldId();
+        if (id === null) {
+          set({ records: [] });
+          return;
+        }
+        const r = await bridge('fight:list', () => getPersistence().fightList({ worldId: id }));
+        if (worldId() !== id) return;
+        set(r.ok ? { records: r.value, recordsError: null } : { recordsError: r.error });
+      },
+
+      async record(name) {
+        const id = worldId();
+        const { fight, start, script, log, declarations, over } = get();
+        if (id === null || !fight || !start) return false;
+        const rec: Recording = recordingOf(fight, start, script, log, declarations);
+        const r = await bridge('fight:save', () =>
+          getPersistence().fightSave({
+            worldId: id,
+            name,
+            record: {
+              declarations: rec.declarations,
+              combat: rec.combat,
+              outcome: over ? 'complete' : 'abandoned',
+              start: rec.start,
+              script: rec.script,
+              events: rec.events,
+            },
+          }),
+        );
+        if (!r.ok) {
+          set({ recordsError: r.error });
+          return false;
+        }
+        set({ recordsError: null });
+        await get().refreshRecords();
+        return true;
+      },
+
+      async replay(name) {
+        const active = worlds.getState().active;
+        if (!active) return;
+        const loaded = await bridge('fight:load', () => getPersistence().fightLoad({ worldId: active.meta.id, name }));
+        if (!loaded.ok) {
+          set({ recordsError: loaded.error });
+          return;
+        }
+        const doc = loaded.value as unknown as Partial<Recording>;
+        const { result, events } = replay(active.meta, active.packJson, doc);
+        set({ replayed: { name, result, events }, recordsError: null });
+        if (result.status !== 'diverged') return;
+        const r = await bridge('fight:set-outcome', () =>
+          getPersistence().fightSetOutcome({ worldId: active.meta.id, name, outcome: 'diverged' }),
+        );
+        if (!r.ok) set({ recordsError: r.error });
+        await get().refreshRecords();
+      },
     };
   });
 
@@ -172,8 +264,10 @@ export function createCombatStore(
   worlds.subscribe((next, prev) => {
     if (next.active?.runtime === prev.active?.runtime) return;
     store.getState().end();
-    store.setState({ enemies: [] });
+    store.setState({ enemies: [], records: [], recordsError: null, replayed: null });
+    void store.getState().refreshRecords();
   });
+  void store.getState().refreshRecords();
 
   return store;
 }

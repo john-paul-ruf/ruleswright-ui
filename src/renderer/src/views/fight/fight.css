@@ -70,6 +70,34 @@
   color: var(--dim);
 }
 
+/* Fight records (FR-14b, B-3): shared by the Fight and Combat surfaces. */
+.records,
+.records-list,
+.records-replay {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.records {
+  margin-top: var(--space-3);
+}
+
+.records-form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.records-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 50vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 /* Below the mock's `md` breakpoint the panels stack. */
 @media (max-width: 767px) {
   .fight-sides,
