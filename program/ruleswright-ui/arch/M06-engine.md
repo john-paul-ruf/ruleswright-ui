@@ -101,3 +101,19 @@ Engine M03 (runtime/combat), `../Ruleswright/src/runtime/combat/combat.ts` + `sr
 - **Downed combatants (hp ≤ 0):** turn advancement (`endTurn`, and `step()` when the active combatant is already down) passes over them, so no `turn:began` is emitted and no declare is demanded. When the rest of the order is all down, the round completes and the next round starts at the first standing combatant. They are offered no triggers.
 - **Snapshots:** the combat envelope is unchanged (DB contract `snapshots.schema.json` has no phase field). `deserializeCombat` derives `phase` from the frozen hp: `combat-over` when the end rule holds, else `awaiting-declare` as before. `new Combat(runtime, fight.serialize())` carries `phase` verbatim.
 - **Public types:** no public TypeScript declaration changed (`StepOutcome`, `CombatState`, `CombatPhase`, `CombatSnapshot`, `RuntimeEvent` are all as before). The new surface is the `combat:ended` event type string and its payload. The internal helpers `isDowned` and `defeatedSide` are exported from `combat.ts` but not from the `ruleswright/runtime` barrel.
+
+
+<!-- v1-shell SESSION-06 -->
+## Realized — v1-shell SESSION-06
+
+### M06 engine — new modules
+- `engine/combat.ts` (imports `ruleswright/runtime` `bestiaryIds, spatialFromPack, spawnMonster, startCombat`; `ruleswright/schema` type `Pack`; `./errors`; types from `./runtime`):
+  `listSpawnable(rt)`, `spawnProfile(rt, statblockId, instanceId): Outcome<CombatantProfile>`,
+  `begin(rt, ally: {profile, balances?}, enemies: EnemySpec[]): Outcome<Combat>` (ally id = `profile.id`),
+  `declare(fight, actionId, targetId?): Outcome<{events, rejection}>` (events captured by a per-call sink — the library returns the whole round),
+  `step(fight): Outcome<StepOutcome>`, `respond(fight, triggerId, choice, targetId?): Outcome<RuntimeEvent[]>` (own events),
+  `perform(fight, entry: ScriptEntry)`, `subscribe(rt, sink): () => void`, `spatialLabel(pack)`.
+  Types: `EnemySpec`, `FightStart`, `ScriptEntry`, `AllyCombatant`, `DeclareResult` + re-exports (Combat, CombatState, CombatPhase, CombatantProfile, CombatantState, RuntimeEvent, StepOutcome, PendingTrigger, CombatSnapshot, CharacterSnapshot, DeclareOptions).
+- `engine/combat-profile.ts` (imports `ruleswright/runtime` `profileFromCharacter`): `allyProfile(rt, character, id?): Outcome<CharacterCombatant>` (CA-08, B-1 = A).
+- `engine/replay.ts` (imports `ruleswright/runtime` `serializeCombat`; `./combat`, `./combat-profile`, `./determinism` `rerunSameSeed`, `./errors`, `./runtime` `restore`, `./schema` `openPack`):
+  `recordingOf(fight, start, script, events, declarations): Recording`, `replay(meta, storedPackJson, rec): {result: ReplayResult, events}`; types `Recording`, `ReplayResult`, `Declaration`.

@@ -66,3 +66,12 @@ Imports M06 (`engine/runtime`, `engine/errors`, type `engine/schema`), M07, M01 
   - `importFromFile(): Promise<boolean | 'cancelled'>` — `pack:import` (native dialog) → `importFromText(packText)`.
 - New export `interface DeleteCounts { snapshots: number; fights: number }`.
 - Behavior: every user action (`forge`, `open`, `importFromText`, `importFromFile`, `rename`, `deleteCounts`, `remove`) first clears `forgeError`, `openError` and `importError`, so only one action error is current at a time.
+
+
+<!-- v1-shell SESSION-06 -->
+## Realized — v1-shell SESSION-06
+
+### M09 store — new module
+- `store/combat.ts` (imports engine/combat, engine/combat-profile, engine/errors, engine/replay, engine/runtime, persistence/client, store/character, store/worlds; shared ipc-contract/model types):
+  `createCombatStore(worlds?, characters?)`, `useCombatStore` {enemies, addEnemy, removeEnemy, fight, state, hpAtStart, pending, log, rejection, error, over, filters, setFilters, start, script, declarations, records, recordsError, replayed, begin, declare, step, respond, end, refreshRecords, record, replay};
+  selectors `roundsOf`, `typesOf`, `visibleLog`, `offerEvents`; re-exports `listSpawnable, spatialLabel, spawnProfile` + combat types for views.

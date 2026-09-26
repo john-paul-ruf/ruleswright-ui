@@ -44,3 +44,11 @@ Test ids: `char-surface`, `char-name-display`, `char-hp`, `char-ac`, `char-saves
 
 ### M11 views/roll — split files
 `index.tsx` (RollView: header + sections), `WorldList.tsx` (rows, inline rename, delete `ConfirmDialog`, corrupt chip + verdict card, skipped lines), `ImportPanel.tsx` (paste + file; success → `navigate('world')`), `ForgeForm.tsx` (ThemeCards, seed + randomize, knobs from `KnobSpec`; success → `navigate('world')`), `glyphs.ts` (mood → ✦/▲/◆), `roll.css` (tokens only). Imports `moods/map` read-only for glyph/mood of theme cards and rows.
+
+
+<!-- v1-shell SESSION-06 -->
+## Realized — v1-shell SESSION-06
+
+### M14/M15 views
+- `views/fight/{index.tsx, determinism.tsx, records.tsx, fight.css}`; `views/combat/{index.tsx, log.tsx, controls.tsx, combat.css}`. `views/fight/records.tsx` imports `views/combat/log` (`LogRow`); `views/combat/index.tsx` imports `views/fight/records` (`RecordsPanel`, `RECORD_NAME_INPUT`). Views reach the engine only through `store/combat`.
+- Test ids: `fight-surface, fight-spatial, fight-begin, fight-ally, fight-enemy-<instanceId>, fight-enemy-remove-<instanceId>, fight-add-enemy, fight-add-enemy-submit, fight-rerun, fight-determinism, fight-records, fight-record-<name>, fight-record-rng-<name>, fight-replay-<name>, fight-replay-status (data-status), fight-replay-event, fight-replay-divergence` · `combat-surface, combat-log, combat-event (data-type, data-round), combat-filter-round, combat-filter-type, combat-phase, combat-round, combat-active, combat-declare-select, combat-target-select, combat-declare, combat-step, combat-rejection, combat-offers, combat-trigger-<n>, combat-trigger-target-<n>, combat-trigger-take-<n>, combat-trigger-decline-<n>, combat-combatant-<id>, combat-over, combat-over-record, combat-back, combat-record-name, combat-record`.
