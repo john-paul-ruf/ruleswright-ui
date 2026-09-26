@@ -1,48 +1,31 @@
 # M09 — store (`src/renderer/src/store/`)
 
-**Status:** planned. **Imports:** M06, M07, M01.
+**Status:** realized. **Imports (mechanical, non-test):** `zustand`, M06 (`../engine/*`), M07 (`../persistence/client`), M01 (`../../../shared/*`), intra-module `./worlds`/`./character`. Stores never throw to views; failures land as `AppError` fields.
 
-| File | Session | Responsibility |
+| File | Session | Responsibility (realized) |
 |---|---|---|
-| `worlds.ts` | S01 c3 (core), S03 (manage/import/export) | themes, world list + skipped docs, `active {meta, packJson, pack, runtime}`, session-scoped `corrupt` map, forge/open/startup; rename/delete/import/export |
-| `ui.ts` | S02 | active surface (`roll|world|character|fight|combat`), `navigate(surface)` |
-| `determinism.ts` | S04 | rerun-same-seed state per world id (D-11) |
-| `character.ts` | S05 | active character (session-scoped, D-07), progression/pools/spells/conditions actions, snapshots list/save/load/delete |
-| `combat.ts` | S06 | fight assembly, combat state mirror, accumulated event log, record/replay |
+| `worlds.ts` | S01 c3 (core), S03 (manage/import/export) | themes, world list + skipped docs, `active {meta, packJson, pack, runtime}`, session-scoped `corrupt` map, forge/open/startup; rename/delete/import/export — see below. |
+| `ui.ts` | S02 c3 | `type Surface = 'roll'|'world'|'character'|'fight'|'combat'`; `useUiStore {surface, navigate(surface)}`, initial `'roll'`. Session-scoped, never persisted. |
+| `determinism.ts` | S04 c1 `33481cf` | rerun-same-seed state per world id (D-11) — see below. |
+| `character.ts` | S05 c2 `18119f9` | active character (session-scoped, D-07), progression/pools/spells/conditions actions, snapshots list/save/load/delete — see below. |
+| `combat.ts` | S06 c2 `8ac723d` | fight assembly, combat state mirror, accumulated event log, record/replay — see below. |
 
-Stores never throw to views; failures land as `AppError` fields.
+## `store/worlds.ts`
+- `createWorldsStore()` (a fresh store per call, for restart-style tests) plus `useWorldsStore`, `ActiveWorld {meta, packJson, pack, runtime}`, `WorldsState`, `ExportOutcome = {status:'saved'|'cancelled'} | {status:'error'; error}`.
+- `startup()` — themes (`listThemes()`), world list + skipped docs (`world:list` → `{worlds, skipped}`), then reopen `settings.lastWorldId` if still listed (pack re-validated through the gate).
+- `forge({themeId, seed, knobs})` — engine gate → persist → activate (`active.packJson` is the saved string, never re-stringified, CA-01) → `rememberLast` (`settings:set` `lastWorldId`) → `refresh()`. Inputs stay in the view on failure.
+- `open(worldId)` — `world:open` string → `openPack` gate re-validates (CA-02); failures land in `openError` **and** the session-scoped `corrupt[worldId]` verdict (D-15, not persisted); a successful open drops the verdict.
+- `exportPack(worldId)` — `pack:export` via main's native dialog; exports exactly the stored `pack.json` bytes.
+- SESSION-03 additions (additive; existing members unchanged): `importError: AppError | null` (last import rejection — paste or file; nothing written when set), `forgeMs: number | null` (display-only generation time of the last successful forge), `rename(worldId, name): Promise<AppError | null>` (`world:rename` → `active.meta` follows if same id → `refresh()`), `deleteCounts(worldId): Promise<DeleteCounts | AppError>` (`snapshot:list` + `fight:list` lengths for the delete confirm), `remove(worldId): Promise<AppError | null>` (`world:delete`; main cascades + clears `lastWorldId` → `active = null` if it was open, verdict dropped from `corrupt` → `refresh()`), `importFromText(text): Promise<boolean>` (`importPackText` gate → `world:save` with `theme/seed/knobs` = provenance params or all `null` (D-03), canonical bytes (D-05), name = `suggestedName` (D-17) → `open(newId)` → `refresh()`), `importFromFile(): Promise<boolean | 'cancelled'>` (`pack:import` native dialog → `importFromText(packText)`).
+- New export `interface DeleteCounts { snapshots: number; fights: number }`.
+- Behavior: every user action (`forge`, `open`, `importFromText`, `importFromFile`, `rename`, `deleteCounts`, `remove`) first clears `forgeError`, `openError` and `importError`, so only one action error is current at a time.
 
-## Change history
-- v1-shell plan: created (planned).
-
-
-<!-- v1-shell SESSION-01 -->
-## Realized — v1-shell SESSION-01
-
-### M09 store — realized (`5fcf552`)
-- `worlds.ts` exports `createWorldsStore()` (a fresh store per call, for restart-style tests) plus `useWorldsStore`, `ActiveWorld`, `WorldsState`, `ExportOutcome`.
-
-
-<!-- v1-shell SESSION-02 -->
-## Realized — v1-shell SESSION-02
-
-### M09 store — `ui.ts` realized (`ae1c762`)
-- `type Surface = 'roll'|'world'|'character'|'fight'|'combat'`; `useUiStore` `{ surface: Surface; navigate(surface): void }`, initial `'roll'`.
-
-
-<!-- v1-shell SESSION-04 -->
-## Realized — v1-shell SESSION-04
-
-### M09 store — `determinism.ts` realized (SESSION-04 c1 `33481cf`)
-- `createDeterminismStore(worlds: StoreApi<WorldsState> = useWorldsStore)`, `useDeterminismStore`: `{ byWorld: Record<worldId, RerunResult | 'running'>; rerun(): Promise<void> }`. `rerun` reads `worlds.active` (`meta`, `packJson` verbatim, CA-01), stores `'running'`, yields one macrotask, then stores the result under the world id. No durable write. Reads `useWorldsStore` only.
+## `store/determinism.ts` (SESSION-04 c1 `33481cf`)
+- `createDeterminismStore(worlds: StoreApi<WorldsState> = useWorldsStore)`, `useDeterminismStore`: `{byWorld: Record<worldId, RerunResult | 'running'>; rerun(): Promise<void>}`. `rerun` reads `worlds.active` (`meta`, `packJson` verbatim, CA-01), stores `'running'`, yields one macrotask, then stores the result under the world id. No durable write. Reads `useWorldsStore` only.
 - Types exported: `RerunResult` (re-export), `RerunState`, `DeterminismState`.
 
-
-<!-- v1-shell SESSION-05 -->
-## Realized — v1-shell SESSION-05
-
-### M09 store — `character.ts` realized (`18119f9`)
-Imports M06 (`engine/runtime`, `engine/errors`, type `engine/schema`), M07, M01 types, and `store/worlds` (reads `active.runtime`, `active.meta.id` only).
+## `store/character.ts` (SESSION-05 c2 `18119f9`)
+Imports M06 (`engine/runtime`, `engine/errors`, type `engine/schema`), M07, M01 types, and intra-module `store/worlds` (reads `active.runtime`, `active.meta.id` only).
 - `createCharacterStore(worlds = useWorldsStore)` (fresh store per call, for tests) and `useCharacterStore`.
 - State: `worldId`, `character: Character | null` (live library object — SESSION-06 ally source), `view: CharacterView | null`,
   `poolsAtRest` (pool values at create / restore / last rest), `lastEvents`, `errors: Partial<Record<'create'|'progress'|'pools'|'spells'|'conditions'|'snapshots', AppError>>`
@@ -51,27 +34,19 @@ Imports M06 (`engine/runtime`, `engine/errors`, type `engine/schema`), M07, M01 
   `refreshSnapshots()`, `saveSnapshot(name)`, `loadSnapshot(name)`, `deleteSnapshot(name)` (async → boolean).
 - Reset: a change of `active.meta.id` **or** of `active.runtime` identity (reopen) clears character/view/errors and reloads snapshots; a rename keeps it.
 
+## `store/combat.ts` (SESSION-06 c2 `8ac723d`)
+Imports engine/combat, engine/combat-profile, engine/errors, engine/replay, engine/runtime, persistence/client, store/character, store/worlds; shared ipc-contract/model types.
+- `createCombatStore(worlds?, characters?)`, `useCombatStore` {enemies, addEnemy, removeEnemy, fight, state, hpAtStart, pending, log, rejection, error, over, filters, setFilters, start, script, declarations, records, recordsError, replayed, begin, declare, step, respond, end, refreshRecords, record, replay};
+  selectors `roundsOf`, `typesOf`, `visibleLog`, `offerEvents`; re-exports `listSpawnable`, `spatialLabel`, `spawnProfile` + combat types for views.
+- Event log (CA-07): every runtime event goes into the store `log` through `subscribe`; nothing is dropped or deduplicated. Store invariant: `log.length === eventsSince(0) − begin count` at every call (negative control: dropping `trigger:declined` fails).
+- Record (c5): `record(name)` snapshots the ally (B-2: `start = {ally: {id, snapshot: serialize(rt, character)}, enemies}`), derives the profile (B-1), and saves `{…envelope, declarations, combat, outcome, start, script, events}` with `outcome: over ? 'complete' : 'abandoned'` via `fight:save` (D-21 `FightRecordBody`).
+- Replay (c5): `fight:load` → `replay(active.meta, active.packJson, doc)`; a divergence also rewrites the record's `outcome` to `diverged` via `fight:set-outcome`, then `refreshRecords()`.
 
-<!-- v1-shell SESSION-03 -->
-## Realized — v1-shell SESSION-03
-
-### M09 store — `store/worlds.ts` (additive; existing members unchanged)
-- `WorldsState` gains:
-  - `importError: AppError | null` — last import rejection (paste or file); nothing written when set.
-  - `forgeMs: number | null` — display-only generation time of the last successful forge.
-  - `rename(worldId: string, name: string): Promise<AppError | null>` — `world:rename` → `active.meta` follows if same id → `refresh()`.
-  - `deleteCounts(worldId: string): Promise<DeleteCounts | AppError>` — `snapshot:list` + `fight:list` lengths for the delete confirm.
-  - `remove(worldId: string): Promise<AppError | null>` — `world:delete` (main cascades + clears `lastWorldId`) → `active = null` if it was open, verdict dropped from `corrupt` → `refresh()`.
-  - `importFromText(text: string): Promise<boolean>` — `importPackText` gate → `world:save` with `theme/seed/knobs` = provenance params or all `null` (D-03), canonical bytes (D-05), name = `suggestedName` (D-17) → `open(newId)` → `refresh()`.
-  - `importFromFile(): Promise<boolean | 'cancelled'>` — `pack:import` (native dialog) → `importFromText(packText)`.
-- New export `interface DeleteCounts { snapshots: number; fights: number }`.
-- Behavior: every user action (`forge`, `open`, `importFromText`, `importFromFile`, `rename`, `deleteCounts`, `remove`) first clears `forgeError`, `openError` and `importError`, so only one action error is current at a time.
-
-
-<!-- v1-shell SESSION-06 -->
-## Realized — v1-shell SESSION-06
-
-### M09 store — new module
-- `store/combat.ts` (imports engine/combat, engine/combat-profile, engine/errors, engine/replay, engine/runtime, persistence/client, store/character, store/worlds; shared ipc-contract/model types):
-  `createCombatStore(worlds?, characters?)`, `useCombatStore` {enemies, addEnemy, removeEnemy, fight, state, hpAtStart, pending, log, rejection, error, over, filters, setFilters, start, script, declarations, records, recordsError, replayed, begin, declare, step, respond, end, refreshRecords, record, replay};
-  selectors `roundsOf`, `typesOf`, `visibleLog`, `offerEvents`; re-exports `listSpawnable, spatialLabel, spawnProfile` + combat types for views.
+## Change history
+- v1-shell plan: created (planned, per-file table above).
+- SESSION-01 c3 (`5fcf552`): `worlds.ts` core realized.
+- SESSION-02 c3 (`ae1c762`): `ui.ts` realized.
+- SESSION-03 c1 (`511ec2b`): `worlds.ts` manage/import additions.
+- SESSION-04 c1 (`33481cf`): `determinism.ts` realized.
+- SESSION-05 c2 (`18119f9`): `character.ts` realized.
+- SESSION-06 c2 (`8ac723d`) + c5 (`98a14e3`): `combat.ts` store realized; record/replay.
