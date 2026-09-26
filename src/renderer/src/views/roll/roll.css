@@ -1,0 +1,229 @@
+/* Roll surface (M11) — layout per mocks/roll.html. Tokens only. */
+
+.roll-lede {
+  max-width: 42rem;
+  margin-top: var(--space-2);
+  font-size: var(--text-14);
+  color: var(--dim);
+}
+
+.roll-title {
+  margin-top: var(--space-2);
+  font-size: var(--text-32);
+}
+
+.roll-section {
+  margin-top: calc(var(--space-8) + var(--space-2));
+}
+
+.roll-section-forge {
+  margin-top: calc(var(--space-6) * 2);
+}
+
+.roll-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.roll-h2 {
+  font-size: var(--text-20);
+}
+
+.roll-grid-3,
+.roll-grid-2 {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+@media (min-width: 768px) {
+  .roll-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .roll-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.roll-note {
+  margin-top: var(--space-2);
+  font-size: var(--text-12);
+  color: var(--dim);
+}
+
+.roll-standalone-error {
+  margin-top: var(--space-4);
+}
+
+/* ── World rows ─────────────────────────────────────── */
+.worldrow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.worldrow-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.worldrow-glyph {
+  font-size: var(--text-24);
+  line-height: 1;
+  color: var(--accent);
+}
+
+.worldrow-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.worldrow-name {
+  margin-top: var(--space-3);
+  font-size: var(--text-18);
+  overflow-wrap: anywhere;
+}
+
+.worldrow-rename {
+  margin-top: var(--space-3);
+}
+
+.worldrow-params {
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-weight: 400;
+}
+
+.worldrow-data {
+  margin-top: var(--space-1);
+  font-size: var(--text-12);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.worldrow-actions {
+  margin-top: var(--space-4);
+}
+
+.worldrow-error {
+  margin-top: var(--space-3);
+}
+
+.skipped-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+
+.skipped-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-12);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+/* ── Import ─────────────────────────────────────────── */
+.import-panel {
+  margin-top: var(--space-8);
+  border-style: dashed;
+}
+
+.import-title {
+  margin-top: var(--space-1);
+  font-size: var(--text-18);
+}
+
+.import-paste {
+  min-height: 120px;
+  margin-top: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-12);
+  resize: vertical;
+}
+
+.import-actions {
+  margin-top: var(--space-3);
+}
+
+.import-error {
+  margin-top: var(--space-3);
+}
+
+/* ── Forge ──────────────────────────────────────────── */
+.seed-row {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.seed-row .input {
+  font-family: var(--font-mono);
+}
+
+.seed-row .btn {
+  flex-shrink: 0;
+}
+
+.knob {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.knob-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.knob-label {
+  font-size: var(--text-14);
+  font-weight: 600;
+}
+
+.knob-decl {
+  font-size: var(--text-10);
+  color: var(--dim);
+}
+
+.knob-desc {
+  font-size: var(--text-12);
+  color: var(--dim);
+}
+
+.knob-control {
+  flex-shrink: 0;
+  width: auto;
+  min-width: 96px;
+}
+
+.knob-error {
+  margin-top: var(--space-4);
+}
+
+.forge-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.forge-button {
+  padding: var(--space-3) var(--space-8);
+  font-size: var(--text-16);
+}

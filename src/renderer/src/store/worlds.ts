@@ -161,6 +161,7 @@ export function createWorldsStore() {
 
       /** FR-3: rename (1–80 chars, main-validated); the open world's meta follows. */
       async rename(worldId, name) {
+        set({ ...NO_ACTION_ERRORS });
         const r = await call('world:rename', () => getPersistence().worldRename({ worldId, name }));
         if (!r.ok) return r.error;
         const active = get().active;
@@ -171,6 +172,7 @@ export function createWorldsStore() {
 
       /** FR-3: what a delete cascades over, so the confirm can name the counts (database.md). */
       async deleteCounts(worldId) {
+        set({ ...NO_ACTION_ERRORS });
         const snapshots = await call('snapshot:list', () => getPersistence().snapshotList({ worldId }));
         if (!snapshots.ok) return snapshots.error;
         const fights = await call('fight:list', () => getPersistence().fightList({ worldId }));
@@ -180,6 +182,7 @@ export function createWorldsStore() {
 
       /** FR-3: delete with cascade (main also clears `lastWorldId`); closes the world if it was open. */
       async remove(worldId) {
+        set({ ...NO_ACTION_ERRORS });
         const r = await call('world:delete', () => getPersistence().worldDelete({ worldId }));
         if (!r.ok) return r.error;
         const { [worldId]: _gone, ...corrupt } = get().corrupt;
