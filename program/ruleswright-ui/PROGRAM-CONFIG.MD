@@ -1,0 +1,148 @@
+# PROGRAM-CONFIG — Ruleswright (UI)
+
+> Authoritative program configuration. Created by Planner on the first planning run
+> (feature `v1-shell`, 2026-09-26) from the Author handoff (`specs/*.md`, `mocks/*.html`).
+> Stack and module structure are parsed from `specs/architecture.md`, not re-derived.
+> File name is `PROGRAM-CONFIG.MD` (tracked name; macOS is case-insensitive).
+
+## Program
+
+| Field | Value |
+|---|---|
+| Name (P_NAME) | Ruleswright (UI) |
+| Slug (P_SLUG) | `ruleswright-ui` |
+| Program root | `program/ruleswright-ui/` (repo-relative) |
+| Repo | `/Users/the.phoenix/WebstormProjects/ruleswright-ui` (branch `main`) |
+| Intent | Electron desktop shell for the headless Ruleswright engine: roll a world, browse it, play one character, fight stepwise with provenanced events, see determinism. |
+| Sibling engine | `../Ruleswright` — consumed as a library, **never edited** from this program |
+
+## Stack (from `specs/architecture.md` → Stack Decision)
+
+| Layer | Choice | Pinned at plan time (npm, 2026-09-26) |
+|---|---|---|
+| Language | TypeScript strict | `typescript@5.6.3` (same as engine) |
+| Shell | Electron | `electron@^33` (33.4.11 resolves) |
+| Build | electron-vite (main/preload/renderer) | `electron-vite@^2` (2.3.0; peer `vite ^4 \|\| ^5`) + `vite@^5` (5.4.21) |
+| Renderer | React 18 | `react@^18.3.1`, `react-dom@^18.3.1`, `@vitejs/plugin-react@^4` (4.7.0) |
+| State | zustand | `zustand@^5` (5.0.15) |
+| Styling | Plain token CSS (no Tailwind, no CSS-in-JS) | — |
+| Fonts | Self-hosted woff2 via `@fontsource/*` packages bundled by Vite (Design Decision D-08) | `@fontsource/{cinzel,spectral,oswald,inter,jetbrains-mono}@^5.3.0` (all OFL-1.1) |
+| Engine | `"ruleswright": "file:../Ruleswright"` (built `dist/`, v0.1.0) | engine HEAD `664d24f`, dist built 2025-09-25 23:26 |
+| Persistence | Plain JSON files under Electron `userData/` (`specs/database.md` store contract) | — |
+| Packaging | electron-builder (dmg first-class) | `electron-builder@^25` (25.1.8) |
+| Unit tests | vitest, **node environment** | `vitest@^2` (2.1.9) |
+| E2E tests | Playwright `_electron` against the built app | `@playwright/test@^1.63` |
+| Lint | ESLint 8 legacy config (`.eslintrc.cjs`, mirrors engine repo) + `@typescript-eslint@^8` | `eslint@8.57.1` |
+| Package manager | pnpm | resolved `/Users/the.phoenix/.nvm/versions/node/v24.20.0/bin/pnpm` = 10.15.0 |
+| Node (tooling) | Node | resolved `/Users/the.phoenix/.nvm/versions/node/v24.20.0/bin/node` = v24.20.0 (Electron 33 embeds its own Node for main) |
+
+**Toolchain facts every session must honor** (verified at plan time, see STATE Verification Baseline):
+- **pnpm 10 blocks dependency build scripts by default.** `package.json` must carry
+  `"pnpm": { "onlyBuiltDependencies": ["electron", "esbuild"] }` or the Electron binary never downloads.
+- **pnpm does not run `pre*`/`post*` scripts.** Chain guards explicitly (`"dev": "node scripts/check-engine.mjs && electron-vite dev"`).
+- **Do not set `"type": "module"`** in this repo's `package.json`: the sandboxed preload must be CommonJS (electron-vite default). ESM-only helper scripts use `.mjs`.
+- `file:` dependencies are **copied** by pnpm: rebuilding `../Ruleswright` requires `pnpm install` here. `scripts/check-engine.mjs` detects staleness by byte-comparing dist entry files.
+
+## Architecture
+
+- **Pattern:** Electron main = I/O host (fs, dialogs, window, CSP); renderer = engine + UI (engine is pure, bundled in-process); preload = allowlisted typed bridge; `shared` = pure types/constants.
+- **Dependency flow:** `shared ← main`, `shared ← preload`, `shared ← persistence ← store → engine → ruleswright/*`, `views → store + ui + (moods read-only)`, `shell → store/ui + ui`, `ui → styles(tokens)`. `shared` imports nothing. `main` never imports `ruleswright`.
+- **DI:** stores take their persistence client through a module setter (`setPersistence`) so node tests can bind an in-process bridge over the real main handlers.
+- **State:** zustand stores `worlds`, `ui`, `character`, `combat` (+ `determinism` for the FR-14 rerun state — D-11).
+- **Entry points:** `src/main/index.ts` (main), `src/preload/index.ts` (bridge), `src/renderer/index.html` → `src/renderer/src/main.tsx` → `App.tsx`.
+
+## Module Registry
+
+IDs are stable and never reused. Ordered leaves first. All edges are **[D] declared** at plan time
+(the repo holds no source yet); Orchestrator/Archivist flip them to **[R]** as imports land.
+Per-module detail: `program/ruleswright-ui/arch/Mxx-*.md`.
+
+| ID | Module | Path | Owns | Imports From | Key Files |
+|----|--------|------|------|--------------|-----------|
+| M01 | shared | `src/shared/` | IPC channel table, request/response + error envelope, DB record shapes (realization of `specs/database.md`) | — | `ipc-contract.ts`, `model.ts` |
+| M02 | main | `src/main/` | window lifecycle, CSP/network block, fs store, dialogs, IPC handlers | M01 [D] | `index.ts`, `window.ts`, `ipc.ts`, `storage.ts`, `dialogs.ts` |
+| M03 | preload | `src/preload/` | the single `contextBridge` object `window.ruleswright` | M01 [D] | `index.ts` |
+| M04 | styles | `src/renderer/src/styles/` | tokens (mood tables verbatim), base CSS, font faces | — | `tokens.css`, `base.css`, `fonts.css` |
+| M05 | moods | `src/renderer/src/moods/` | theme id → mood id; `data-mood` applier | — | `map.ts` |
+| M06 | engine | `src/renderer/src/engine/` | **only** importer of `ruleswright/*`; typed wrappers + error shaping | `ruleswright` (ext), M01 [D] | `errors.ts`, `compiler.ts`, `schema.ts`, `runtime.ts`, `determinism.ts`, `combat.ts`, `combat-profile.ts`, `replay.ts` |
+| M07 | persistence | `src/renderer/src/persistence/` | typed client over `window.ruleswright` | M01 [D] | `client.ts` |
+| M08 | ui | `src/renderer/src/ui/` | design-system components (tokens only; no store/engine imports) | M04 [D] (CSS) | `*.tsx`, `ui.css` |
+| M09 | store | `src/renderer/src/store/` | all app state + transitions | M06 [D], M07 [D], M01 [D] | `worlds.ts`, `ui.ts`, `determinism.ts`, `character.ts`, `combat.ts` |
+| M10 | shell | `src/renderer/src/shell/` | top bar, nav, surface routing, empty states | M09 [D], M08 [D], M05 [D] | `Shell.tsx`, `TopBar.tsx`, `EmptyState.tsx` |
+| M11 | views/roll | `src/renderer/src/views/roll/` | Roll surface (FR-2/3/5) | M09 [D], M08 [D] | `index.tsx` |
+| M12 | views/world | `src/renderer/src/views/world/` | World surface (FR-4, FR-14 rerun) | M09 [D], M08 [D] | `index.tsx` |
+| M13 | views/character | `src/renderer/src/views/character/` | Character surface (FR-6–10) | M09 [D], M08 [D] | `index.tsx` |
+| M14 | views/fight | `src/renderer/src/views/fight/` | Fight assembly (FR-11, FR-14 replay entry) | M09 [D], M08 [D] | `index.tsx` |
+| M15 | views/combat | `src/renderer/src/views/combat/` | Combat loop + event log (FR-12/13) | M09 [D], M08 [D] | `index.tsx` |
+| M16 | app | `src/renderer/index.html`, `src/renderer/src/main.tsx`, `src/renderer/src/App.tsx` | renderer bootstrap, CSP meta, top-level wiring | M10 [D], M09 [D], M05 [D], M04 [D] | — |
+| M17 | tests | `tests/`, `e2e/` | vitest unit/handler/gate tests; Playwright Electron journeys + fixtures | all [D] | `tests/support/in-process-bridge.ts`, `e2e/fixtures.ts` |
+| M18 | build | `package.json`, `pnpm-lock.yaml`, `electron.vite.config.ts`, `tsconfig*.json`, `.eslintrc.cjs`, `vitest.config.ts`, `playwright.config.ts`, `electron-builder.yml`, `scripts/`, `.gitignore` | toolchain + gates | — | `scripts/check-engine.mjs` |
+
+Edge rule: realized edges are derived mechanically from non-test imports (strip `import type`,
+resolve `export … from` as runtime imports). A symbol grep never settles a module edge.
+
+## Conventions
+
+- **Naming:** files kebab-case (`combat-profile.ts`), React components PascalCase in `.tsx`, stores `useXxxStore`.
+- **Engine boundary:** views/stores never import `ruleswright`; they import engine wrappers and the engine's re-exported types.
+- **Error handling:** every failure becomes an `AppError` (`engine/errors.ts`):
+  `library` (the library's `ErrorCard[]`, verbatim) · `host` (IPC `IpcError`) · `unexpected` (operation + message).
+  Rendered only via the `ErrorCard` component. Never paraphrase library messages. Stores never throw to views.
+- **Logging:** main logs skipped/corrupt documents with `console.warn` (no telemetry, no files).
+- **Docs:** TSDoc on exported functions naming the FR they serve.
+- **Test ids (stable UI contract for e2e; each rendered at most once per screen):**
+  `nav-roll`, `nav-world`, `nav-character`, `nav-fight` · `active-world-name`, `active-world-seed` ·
+  `roll-theme-<themeId>`, `roll-seed`, `roll-seed-randomize`, `roll-knob-<knobId>`, `roll-forge`, `roll-error` ·
+  `world-row` (one per world; contains name text), `world-open`, `world-rename`, `world-delete`, `world-corrupt` ·
+  `import-paste`, `import-paste-submit`, `import-file`, `export-pack` ·
+  `empty-state` · `error-card` · `ok-card` · `rerun-same-seed` ·
+  `char-*`, `fight-*`, `combat-*` defined by their sessions. Changing an existing id requires updating every spec that uses it in the same checkpoint.
+
+## Verification Commands (planned — created by SESSION-01; see STATE Verification Baseline)
+
+| Command | Effective invocation | Scope |
+|---|---|---|
+| `pnpm check:engine` | `node scripts/check-engine.mjs` | sibling dist exists; installed copy version + bytes match |
+| `pnpm typecheck` | `tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test.json` | all TS |
+| `pnpm lint` | `eslint . --ext .ts,.tsx` | incl. engine boundary + hygiene rules |
+| `pnpm test` | `vitest run` (node env; `tests/**/*.test.ts`) | unit, handlers, gate self-tests |
+| `pnpm build` | `node scripts/check-engine.mjs && electron-vite build` → `out/` | bundles |
+| `pnpm e2e` | `playwright test` (globalSetup rebuilds `out/` and records build identity) | Electron journeys |
+| `pnpm verify` | `pnpm check:engine && pnpm typecheck && pnpm lint && pnpm test && pnpm e2e` | full gate |
+
+`pnpm e2e` writes `out/` and `test-results/`: exclusive resource **`e2e:out`**.
+
+## Git
+
+- Branch `main`; author John Paul Ruf <john.paul.ruf@gmail.com>.
+- Commit subject: `v1-shell SESSION-NN: checkpoint N — <what>`.
+- Coder commits with an explicit pathspec = the session's `Owns`. Never `git add -A`, never `reset --hard`, never force-push.
+- `program/ruleswright-ui/prompts/` is **gitignored** (demiurge lines in `.gitignore`); committing a file there requires `git add -f -- <path>`. No session edits the demiurge lines of `.gitignore`.
+
+## Session Defaults
+
+- 2–6 checkpoints; every checkpoint builds and passes `pnpm typecheck && pnpm lint && pnpm test` (+ `pnpm e2e` where the checkpoint says so).
+- Sessions never write `specs/`, `mocks/`, `STATE.md`, `MASTER.md`, `PROGRAM-CONFIG.MD`, or `arch/`.
+
+## Custom Rules
+
+1. **Only `src/renderer/src/engine/**` may import `ruleswright` or `ruleswright/*`** (lint-enforced, incl. type imports).
+2. **Zero rules math in the UI.** Every number shown or used in play comes from a library call or pack data verbatim.
+3. **No nondeterminism into the engine.** The only randomness is the user-initiated seed pick (`crypto.getRandomValues` in the Roll view). `Math.random`, `eval`, `new Function`, `Date.now` inside `engine/` are lint errors.
+4. **Pack gate = `new Runtime(parsed)`** (the library's full validator with its real DSL checker). Bare `validatePack(json)` without a checker emits ~60 deferred E-FORM-01 cards on a valid pack and must not be used as a gate (CA-02).
+5. **Pack bytes are sacred:** `pack.json` is written verbatim and never re-serialized on read (CA-01).
+6. **Tokens only:** no component hardcodes a color, font, or radius. Mood = `data-mood` on `<html>`.
+7. **Renderer never sends or receives filesystem paths.** Ids and names only.
+8. **`src/shared/model.ts` document shapes are DB-owned.** Any change to `Settings`/`WorldDoc`/`SnapshotDoc`/`FightDoc` is a DB re-entry.
+9. **Never fabricate a fact to stay green:** unavailable is not passed; missing params render unavailable.
+
+## Author Sources
+
+| Source | Path | Used by |
+|---|---|---|
+| Idea / requirements | `specs/idea.md`, `specs/requirements.md` | all |
+| Design source (UI-Coder Rule 1) | `specs/design.md` + `mocks/*.html` (`design-language.html` = token spec) | every view/ui/styles session |
+| Architecture | `specs/architecture.md` | all |
+| Data source | `specs/database.md` (store contract; no `src/migrations/` by design) | any session touching M01/M02 storage |
+
+Author artifacts are never in any session's `Owns`. Changes route through Author re-entry (`program-agents/AUTHOR.md`).
