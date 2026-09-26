@@ -1,4 +1,5 @@
 import { generateCampaign, loadTheme } from 'ruleswright/compiler';
+import { Runtime, createCharacter, serializeCharacter } from 'ruleswright/runtime';
 import { validatePack } from 'ruleswright/schema';
 import { describe, expect, it } from 'vitest';
 import { importPackText, openPack, packIdentityOf } from '../../src/renderer/src/engine/schema';
@@ -70,8 +71,21 @@ describe('importPackText (CA-03, D-03, D-05)', () => {
   });
 });
 
+function envelopePackOf(p: typeof pack) {
+  const rt = new Runtime(p);
+  const c = createCharacter(rt, { name: 'Brynn', race: 'hillfolk', classes: [{ id: 'warden', level: 1 }] });
+  return serializeCharacter(rt, c.state).pack;
+}
+
 describe('packIdentityOf', () => {
-  it('matches the snapshot envelope pack block (contentHash a5b8b1b2 for dark-fantasy · 42)', () => {
-    expect(packIdentityOf(pack)).toEqual({ id: pack.manifest.id, schemaVersion: 1, contentHash: 'a5b8b1b2' });
+  it('matches the snapshot envelope pack block the library writes for dark-fantasy · 42', () => {
+    expect(packIdentityOf(pack)).toEqual(envelopePackOf(pack));
+    expect(packIdentityOf(pack)).toMatchObject({ id: pack.manifest.id, schemaVersion: 1 });
+    expect(packIdentityOf(pack).contentHash).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it('does not match another pack’s envelope (negative control: dark-fantasy · 43)', () => {
+    const other = generateCampaign({ theme: loadTheme('dark-fantasy'), seed: 43 });
+    expect(packIdentityOf(pack)).not.toEqual(envelopePackOf(other));
   });
 });
