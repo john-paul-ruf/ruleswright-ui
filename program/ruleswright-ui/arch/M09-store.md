@@ -50,3 +50,19 @@ Imports M06 (`engine/runtime`, `engine/errors`, type `engine/schema`), M07, M01 
 - Actions: `checkBuild(race, classes)`, `create(req): boolean`, `awardXp`, `setLevels`, `spend`, `prepare`, `cast`, `rest`, `apply`, `remove`, `tick`,
   `refreshSnapshots()`, `saveSnapshot(name)`, `loadSnapshot(name)`, `deleteSnapshot(name)` (async → boolean).
 - Reset: a change of `active.meta.id` **or** of `active.runtime` identity (reopen) clears character/view/errors and reloads snapshots; a rename keeps it.
+
+
+<!-- v1-shell SESSION-03 -->
+## Realized — v1-shell SESSION-03
+
+### M09 store — `store/worlds.ts` (additive; existing members unchanged)
+- `WorldsState` gains:
+  - `importError: AppError | null` — last import rejection (paste or file); nothing written when set.
+  - `forgeMs: number | null` — display-only generation time of the last successful forge.
+  - `rename(worldId: string, name: string): Promise<AppError | null>` — `world:rename` → `active.meta` follows if same id → `refresh()`.
+  - `deleteCounts(worldId: string): Promise<DeleteCounts | AppError>` — `snapshot:list` + `fight:list` lengths for the delete confirm.
+  - `remove(worldId: string): Promise<AppError | null>` — `world:delete` (main cascades + clears `lastWorldId`) → `active = null` if it was open, verdict dropped from `corrupt` → `refresh()`.
+  - `importFromText(text: string): Promise<boolean>` — `importPackText` gate → `world:save` with `theme/seed/knobs` = provenance params or all `null` (D-03), canonical bytes (D-05), name = `suggestedName` (D-17) → `open(newId)` → `refresh()`.
+  - `importFromFile(): Promise<boolean | 'cancelled'>` — `pack:import` (native dialog) → `importFromText(packText)`.
+- New export `interface DeleteCounts { snapshots: number; fights: number }`.
+- Behavior: every user action (`forge`, `open`, `importFromText`, `importFromFile`, `rename`, `deleteCounts`, `remove`) first clears `forgeError`, `openError` and `importError`, so only one action error is current at a time.

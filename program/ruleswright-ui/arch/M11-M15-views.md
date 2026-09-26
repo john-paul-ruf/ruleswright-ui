@@ -37,3 +37,10 @@ Test ids: `char-surface`, `char-name-display`, `char-hp`, `char-ac`, `char-saves
 `char-class-<id>`, `char-xp`, `char-xp-amount`, `char-award-xp`, `char-set-level-<classId>`, `char-set-level`, `char-snapshot-name`,
 `char-snapshot-save`, `char-snapshot-load-<name>`, `char-snapshot-delete-<name>`, `char-snapshot-pack-<name>`, `char-name`, `char-race`,
 `char-class`, `char-level`, `char-create`.
+
+
+<!-- v1-shell SESSION-03 -->
+## Realized — v1-shell SESSION-03
+
+### M11 views/roll — split files
+`index.tsx` (RollView: header + sections), `WorldList.tsx` (rows, inline rename, delete `ConfirmDialog`, corrupt chip + verdict card, skipped lines), `ImportPanel.tsx` (paste + file; success → `navigate('world')`), `ForgeForm.tsx` (ThemeCards, seed + randomize, knobs from `KnobSpec`; success → `navigate('world')`), `glyphs.ts` (mood → ✦/▲/◆), `roll.css` (tokens only). Imports `moods/map` read-only for glyph/mood of theme cards and rows.
