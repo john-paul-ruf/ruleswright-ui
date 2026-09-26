@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
+import { Shell } from './shell/Shell';
 import { useWorldsStore } from './store/worlds';
-import { RollView } from './views/roll';
 
 let hasStarted = false;
 
@@ -11,9 +11,5 @@ export function App(): JSX.Element {
     hasStarted = true;
     void useWorldsStore.getState().startup();
   }, []);
-  return (
-    <main>
-      <RollView />
-    </main>
-  );
+  return <Shell />;
 }

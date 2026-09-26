@@ -4,8 +4,8 @@
  */
 import { useState } from 'react';
 import type { KnobSpec, ThemeInfo } from '../../engine/compiler';
-import type { AppError } from '../../engine/errors';
 import { useWorldsStore } from '../../store/worlds';
+import { ErrorCard } from '../../ui';
 import type { Knobs, WorldMeta } from '../../../../shared/model';
 
 type KnobInputs = Record<string, string>;
@@ -23,20 +23,6 @@ function toKnobs(theme: ThemeInfo, inputs: KnobInputs): Knobs {
 
 function paramsLabel(w: WorldMeta): string {
   return w.theme !== null && w.seed !== null ? `${w.theme} · ${w.seed}` : 'parameters unknown';
-}
-
-function ErrorDetails({ error }: { error: AppError }): JSX.Element {
-  if (error.kind !== 'library') return <p>{error.message}</p>;
-  return (
-    <ul>
-      {error.cards.map((card, i) => (
-        <li key={i}>
-          <strong>{card.rule}</strong> <code>{card.jsonPath}</code> {card.message}
-          {card.hint !== undefined && <em> {card.hint}</em>}
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 function KnobControl(props: { knob: KnobSpec; value: string; onChange: (v: string) => void }): JSX.Element {
@@ -72,7 +58,6 @@ function KnobControl(props: { knob: KnobSpec; value: string; onChange: (v: strin
 export function RollView(): JSX.Element {
   const themes = useWorldsStore((s) => s.themes);
   const worlds = useWorldsStore((s) => s.worlds);
-  const active = useWorldsStore((s) => s.active);
   const corrupt = useWorldsStore((s) => s.corrupt);
   const busy = useWorldsStore((s) => s.busy);
   const forgeError = useWorldsStore((s) => s.forgeError);
@@ -100,17 +85,6 @@ export function RollView(): JSX.Element {
 
   return (
     <section>
-      <header>
-        {active ? (
-          <p>
-            <span data-testid="active-world-name">{active.meta.name}</span>{' '}
-            <span data-testid="active-world-seed">{paramsLabel(active.meta)}</span>
-          </p>
-        ) : (
-          <p>No world open.</p>
-        )}
-      </header>
-
       <h2>Roll a world</h2>
       <div role="group" aria-label="Theme">
         {themes.map((t) => (
@@ -153,14 +127,14 @@ export function RollView(): JSX.Element {
       </button>
       {forgeError && (
         <div data-testid="roll-error" role="alert">
-          <ErrorDetails error={forgeError} />
+          <ErrorCard error={forgeError} />
         </div>
       )}
 
       <h2>Worlds</h2>
       {openError && (
         <div role="alert">
-          <ErrorDetails error={openError} />
+          <ErrorCard error={openError} />
         </div>
       )}
       <ul>

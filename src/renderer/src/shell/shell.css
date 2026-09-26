@@ -1,0 +1,102 @@
+/* Shell (M10): top bar + content column. Tokens only. */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--base) 88%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.topbar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-8);
+}
+
+.topbar-world {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.topbar-glyph {
+  font-size: var(--text-18);
+  line-height: 1;
+  color: var(--accent);
+}
+
+.topbar-rule {
+  width: 1px;
+  height: var(--space-6);
+  background: var(--hairline);
+}
+
+.topbar-name {
+  font-size: var(--text-18);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-params {
+  font-family: var(--font-mono);
+  font-weight: 400;
+}
+
+.topbar-none {
+  color: var(--dim);
+}
+
+.topbar-nav {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.navtab {
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color var(--dur-fast),
+    border-color var(--dur-fast);
+}
+
+.navtab:hover {
+  color: var(--ink);
+}
+
+.navtab[aria-current='page'] {
+  border-bottom-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.shell-main {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-8) 40px;
+}
+
+@media (max-width: 640px) {
+  .topbar-inner,
+  .shell-main {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .topbar-mark,
+  .topbar-rule {
+    display: none;
+  }
+}
