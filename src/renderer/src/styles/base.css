@@ -31,10 +31,10 @@ input,
 select,
 textarea {
   font: inherit;
-  color: inherit;
 }
 
 :root {
+  color-scheme: dark;
   background-color: var(--base);
   color: var(--ink);
   transition:

@@ -120,6 +120,7 @@ describe('Custom Rule 6: no hex literals in components', () => {
 
   it('ui/ and shell/ carry no hex color literal', () => {
     const files = ['ui', 'shell'].flatMap((d) => sourceFiles(join(ROOT, 'src/renderer/src', d)));
+    expect(files.length).toBeGreaterThan(0);
     const offenders = files.filter((f) => HEX.test(readFileSync(f, 'utf8')));
     expect(offenders).toEqual([]);
   });
