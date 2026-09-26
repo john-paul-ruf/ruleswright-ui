@@ -24,3 +24,28 @@
 
 ## Change history
 - v1-shell plan: created (planned).
+
+
+<!-- v1-shell SESSION-E1 -->
+## Upstream engine API delta — v1-shell SESSION-E1 (consumed by engine/combat-profile.ts, SESSION-06)
+
+#### SESSION-E1 — engine (`../Ruleswright`) public-API delta (engine commits a5c20ea, 6a5bc0a, f0bf58e)
+
+- **engine M01 schema:** `ClassDef.actions?: KebabId[]` (pack v1.2, `src/schema/artifacts.ts`). `validatePack`/`checkClasses`
+  accepts `actions`: non-array → `E-SCHEMA-01` at `content.classes.<id>.actions`; non-kebab entry or duplicate →
+  `E-SCHEMA-01` at `…actions[i]` (uniqueItems); unresolved id → `E-REF-01` at `…actions[i]` with a nearest-id hint. Empty
+  or absent list is valid. `schemaVersion` stays 1.
+- **engine M04 compiler:** both bundled themes declare class actions (D-23). `stages/classes.ts` unchanged: it
+  already `structuredClone`s class defs verbatim. Pack bytes changed: dark-fantasy·42 15,863 B → 16,056 B
+  (`packContentHash` a5b8b1b2 → 5dc003f3); zombie-urban·42 9,154 B → 9,352 B (d92d1050 → e84a0aed).
+- **engine M03 runtime (new file `src/runtime/character-profile.ts`), exported from `ruleswright/runtime` and via
+  `export *` from the root `ruleswright` barrel (`src/index.ts` unchanged):**
+  ```ts
+  export interface CharacterCombatant { readonly profile: CombatantProfile; readonly balances: EconomyBalances }
+  export function profileFromCharacter(runtime: Runtime, character: Character, id?: string): CharacterCombatant;
+  ```
+  Imports M03-internal only (`evalPackFormula` from `combat/resolve`, `RuntimeRuleError`/`ruleCard`) + M01 types.
+  Throws `RuntimeRuleError` with rule `no-combat-actions` (artifactId = first class id, jsonPath `content.classes`)
+  when the class action union is empty. Active conditions are not carried (v1 limit).
+- **Known engine gap (not changed; outside lease):** `Combat` never transitions to `phase: 'combat-over'`. The
+  `StepOutcome` variant exists, but no combatant-defeated or side-defeated rule sets it.
