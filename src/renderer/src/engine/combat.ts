@@ -90,6 +90,11 @@ export function listSpawnable(rt: Runtime): readonly string[] {
   return bestiaryIds(rt);
 }
 
+/** FR-11: a bestiary spawn's library profile (hp, actions) for the assembly roster. */
+export function spawnProfile(rt: Runtime, statblockId: string, instanceId: string): Outcome<CombatantProfile> {
+  return attempt('fight:spawn', () => spawnMonster(rt, statblockId, instanceId));
+}
+
 /** FR-11: spawn each enemy (`spawnMonster`) and start the fight; initiative rolls land in `combat:start`. */
 export function begin(rt: Runtime, ally: AllyCombatant, enemies: readonly EnemySpec[]): Outcome<Combat> {
   return attempt('fight:begin', () =>

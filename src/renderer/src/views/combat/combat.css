@@ -1,0 +1,126 @@
+/* Combat (M15), mocks/combat.html + DF-1. Tokens only. */
+
+.combat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.combat-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.combat-title {
+  margin-top: var(--space-1);
+  font-size: var(--text-32);
+}
+
+/* The log is the stage; the control column is the mock's 320px `lg` column. */
+.combat-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  align-items: start;
+  gap: var(--space-6);
+}
+
+.combat-column,
+.combat-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.combat-column {
+  gap: var(--space-4);
+}
+
+.combat-stack {
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.combat-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.combat-filters .input {
+  width: auto;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-12);
+}
+
+.combat-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 70vh;
+  margin-top: var(--space-3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.combat-flagged {
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 9%, var(--surface));
+}
+
+.combat-phase {
+  margin-top: var(--space-2);
+  font-size: var(--text-20);
+  color: var(--accent-strong);
+}
+
+.combat-meta {
+  margin-top: var(--space-1);
+  font-size: var(--text-11);
+  color: var(--dim);
+}
+
+.combat-gap {
+  margin-top: var(--space-3);
+}
+
+.combat-gap-s {
+  margin-top: var(--space-2);
+}
+
+.combat-full {
+  width: 100%;
+  justify-content: center;
+}
+
+.combat-step {
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+  font-size: var(--text-16);
+}
+
+.combat-rule {
+  margin: var(--space-4) 0;
+  border: 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.combat-note {
+  margin-top: var(--space-2);
+  font-size: var(--text-10);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.combat-center {
+  text-align: center;
+}
+
+/* Below the mock's `lg` breakpoint the control column stacks under the log. */
+@media (max-width: 1023px) {
+  .combat-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

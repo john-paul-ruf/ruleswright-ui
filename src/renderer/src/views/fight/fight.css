@@ -1,0 +1,79 @@
+/* Fight assembly (M14), mocks/fight.html. Tokens only. */
+
+.fight {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.fight-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.fight-title {
+  margin-top: var(--space-1);
+  font-size: var(--text-32);
+}
+
+.fight-params {
+  margin-top: var(--space-1);
+  font-size: var(--text-12);
+  color: var(--dim);
+}
+
+.fight-sides,
+.fight-determinism {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.fight-determinism {
+  margin-top: var(--space-3);
+}
+
+.fight-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.fight-row {
+  margin-top: var(--space-3);
+}
+
+.fight-stack .fight-row {
+  margin-top: 0;
+}
+
+.fight-add {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.fight-grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.fight-note {
+  margin-top: var(--space-3);
+  font-size: var(--text-12);
+  color: var(--dim);
+}
+
+/* Below the mock's `md` breakpoint the panels stack. */
+@media (max-width: 767px) {
+  .fight-sides,
+  .fight-determinism {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -25,6 +25,8 @@ export interface CombatStore {
   fight: Combat | null;
   /** `structuredClone(fight.state)`, republished after every call. */
   state: CombatState | null;
+  /** Each combatant's hp as the library reported it at begin (the bar's reference, never computed). */
+  hpAtStart: Readonly<Record<string, number>>;
   /** Open trigger offers (a copy of `fight.pendingTriggers`); offers are open iff non-empty. */
   pending: PendingTrigger[];
   log: RuntimeEvent[];
@@ -49,6 +51,7 @@ type Source<S> = Pick<StoreApi<S>, 'getState' | 'subscribe'>;
 const IDLE = {
   fight: null,
   state: null,
+  hpAtStart: {},
   pending: [],
   log: [],
   rejection: null,
@@ -134,7 +137,8 @@ export function createCombatStore(
           set({ error: fight.error });
           return false;
         }
-        publish(fight.value, { fight: fight.value, start, script: [], rejection: null, error: null });
+        const hpAtStart = Object.fromEntries(Object.values(fight.value.state.combatants).map((c) => [c.id, c.hp.current]));
+        publish(fight.value, { fight: fight.value, start, hpAtStart, script: [], rejection: null, error: null });
         return true;
       },
 
@@ -175,6 +179,10 @@ export function createCombatStore(
 }
 
 export const useCombatStore = createCombatStore();
+
+/** Library facts the Fight/Combat surfaces read (views reach the engine only through stores). */
+export { listSpawnable, spatialLabel, spawnProfile } from '../engine/combat';
+export type { CombatState, CombatantState, EnemySpec, PendingTrigger, RuntimeEvent } from '../engine/combat';
 
 /** FR-13: rounds present in the log, ascending. */
 export function roundsOf(log: readonly RuntimeEvent[]): number[] {
