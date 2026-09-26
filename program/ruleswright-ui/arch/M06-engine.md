@@ -59,3 +59,30 @@
 - `rerunSameSeed(meta: Pick<WorldMeta,'theme'|'seed'|'knobs'>, storedPackJson: string): RerunResult` — `generateCampaign({theme: loadTheme(theme), seed, knobs})` → `JSON.stringify` → strict `===` with the stored string (CA-12). `bytes` = UTF-8 byte length; `offset` = first differing UTF-16 index (or the shorter length); excerpts = `slice(offset−40, offset+40)` of each; library throws → `toAppError('rerun', e)`.
 - `rerunUnavailableReason(meta): string | null` — `'generation parameters unknown (imported pack)'` when any param is null; `'theme not provided by this engine build'` when the theme is not in `listThemes()`.
 - Imports: `ruleswright/compiler` (`generateCampaign`, `loadTheme`), `./compiler` (`listThemes`), `./errors`.
+
+
+<!-- v1-shell SESSION-05 -->
+## Realized — v1-shell SESSION-05
+
+### M06 engine — `runtime.ts` realized (`c38946e`)
+Imports `ruleswright/runtime` (functions + types) and `./errors`. Every mutator returns `Outcome<T>`; library throws → `toAppError(operation, e)` (CA-05). Operations: `character:create|award-xp|set-level|spend|prepare|cast|rest|apply-condition|remove-condition|tick`, `snapshot:restore`.
+```ts
+export type { Character, CharacterState, DerivedStats, RuntimeEvent, CharacterSnapshot, ClassEntry } from 'ruleswright/runtime';
+export type Outcome<T> = { ok: true; value: T } | { ok: false; error: AppError };
+export function create(rt: Runtime, req: { name: string; race: string; classes: ClassEntry[] }): Outcome<Character>;
+export function awardXp(rt: Runtime, c: Character, amount: number): Outcome<readonly RuntimeEvent[]>;   // rt.awardXp(facade)
+export function setLevels(rt: Runtime, c: Character, entries: ClassEntry[]): Outcome<readonly RuntimeEvent[]>; // rt.levelSet(facade)
+export function checkBuild(rt: Runtime, race: string, entries: ClassEntry[]): readonly ErrorCard[];      // validateBuild
+export function spend(rt, c, pool: string, amount: number): Outcome<RuntimeEvent>;                      // spendPool(rt, c.state, …)
+export function prepare(rt, c, spellId: string, slotIndex?: number): Outcome<RuntimeEvent>;
+export function cast(rt, c, spellId: string, slotIndex?: number): Outcome<RuntimeEvent>;
+export function restNow(rt, c): Outcome<RuntimeEvent>;
+export function apply(rt, c, conditionId: string): Outcome<RuntimeEvent>;
+export function remove(rt, c, conditionId: string): Outcome<RuntimeEvent>;
+export function tick(rt, c): Outcome<readonly RuntimeEvent[]>;
+export interface CharacterView { state: CharacterState /* structuredClone */; derived: DerivedStats; pools: readonly string[];
+  known: readonly string[]; restrictedActions: readonly string[]; restrictedSpells: readonly string[] }
+export function viewOf(rt: Runtime, c: Character): CharacterView;
+export function serialize(rt: Runtime, c: Character): CharacterSnapshot;   // serializeCharacter, verbatim (CA-06)
+export function restore(rt: Runtime, snapshot: unknown): Outcome<Character>; // restoreCharacter; foreign pack → E-SNAP-01
+```

@@ -23,3 +23,17 @@ Each placeholder (S02) renders the correct empty state so routing is complete be
 - Files: `index.tsx` (`WorldView`), `sections.ts` (`sectionsOf(pack): WorldSection[]` — bespoke classes/spells/bestiary/tables, then every other content subsection and top-level section except `content`/`progression` as raw), `details.tsx` (`EntryDetail`, `entryMeta`, `entryTitle`, `verbatim`), `world.css`.
 - Imports: store (`worlds`, `determinism`, `ui`), ui, shell `EmptyState`, engine `determinism.rerunUnavailableReason` (runtime) + `engine/schema` types.
 - Test ids: `world-nav-<sectionId>`, `world-entry-<entryId>`, `world-detail`, `world-raw-toggle`, `world-raw`, `world-determinism` (strip; `data-state` idle|unavailable|fail), `world-determinism-pointer`, `world-export-status`; plus the shared `rerun-same-seed`, `export-pack`, `ok-card` (pass strip), `error-card` (library error / export error), `empty-state`.
+
+
+<!-- v1-shell SESSION-05 -->
+## Realized — v1-shell SESSION-05
+
+### M13 views/character — realized (`0ad13c8`)
+`index.tsx` (`CharacterView`), `sheet.tsx` (Derived/PoolsSpells/Conditions/Progression panels), `side.tsx` (Snapshots/Create panels), `character.css`.
+Imports M09 (`character`, `worlds`, `ui`), M08, M10 `shell/EmptyState`, and engine **types** only.
+Test ids: `char-surface`, `char-name-display`, `char-hp`, `char-ac`, `char-saves`, `char-pool-<id>`, `char-spend-amount-<id>`, `char-spend-<id>`, `char-rest`,
+`char-slots`, `char-slot-<level>-<i>`, `char-spell-<id>`, `char-prepare-<id>`, `char-cast-<id>`, `char-spells-empty`, `char-condition-select`,
+`char-apply-condition`, `char-tick`, `char-condition-<id>`, `char-remove-<id>`, `char-restricted-actions`, `char-restricted-spells`,
+`char-class-<id>`, `char-xp`, `char-xp-amount`, `char-award-xp`, `char-set-level-<classId>`, `char-set-level`, `char-snapshot-name`,
+`char-snapshot-save`, `char-snapshot-load-<name>`, `char-snapshot-delete-<name>`, `char-snapshot-pack-<name>`, `char-name`, `char-race`,
+`char-class`, `char-level`, `char-create`.

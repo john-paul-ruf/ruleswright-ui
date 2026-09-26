@@ -21,3 +21,10 @@
 - `e2e/fixtures.ts`: `test` fixture `rw: RulesWrightApp {app, page, userData, requests, restart(), stubSaveDialog(path|null), stubOpenDialog(path|null)}`; re-exports `expect`.
 
 Module edges realized: M02→M01, M03→M01, M06→M01 (errors/schema), M07→M01, M09→M06/M07/M01, M11→M09/M06(types)/M01(types), M16→M09/M11.
+
+
+<!-- v1-shell SESSION-05 -->
+## Realized — v1-shell SESSION-05
+
+### M17 tests
+`tests/engine/runtime.test.ts`, `tests/store/character.test.ts`, `e2e/character.spec.ts` (CAP-07/CAP-08/CA-06 proof owner).

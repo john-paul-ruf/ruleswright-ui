@@ -36,3 +36,17 @@ Stores never throw to views; failures land as `AppError` fields.
 ### M09 store — `determinism.ts` realized (SESSION-04 c1 `33481cf`)
 - `createDeterminismStore(worlds: StoreApi<WorldsState> = useWorldsStore)`, `useDeterminismStore`: `{ byWorld: Record<worldId, RerunResult | 'running'>; rerun(): Promise<void> }`. `rerun` reads `worlds.active` (`meta`, `packJson` verbatim, CA-01), stores `'running'`, yields one macrotask, then stores the result under the world id. No durable write. Reads `useWorldsStore` only.
 - Types exported: `RerunResult` (re-export), `RerunState`, `DeterminismState`.
+
+
+<!-- v1-shell SESSION-05 -->
+## Realized — v1-shell SESSION-05
+
+### M09 store — `character.ts` realized (`18119f9`)
+Imports M06 (`engine/runtime`, `engine/errors`, type `engine/schema`), M07, M01 types, and `store/worlds` (reads `active.runtime`, `active.meta.id` only).
+- `createCharacterStore(worlds = useWorldsStore)` (fresh store per call, for tests) and `useCharacterStore`.
+- State: `worldId`, `character: Character | null` (live library object — SESSION-06 ally source), `view: CharacterView | null`,
+  `poolsAtRest` (pool values at create / restore / last rest), `lastEvents`, `errors: Partial<Record<'create'|'progress'|'pools'|'spells'|'conditions'|'snapshots', AppError>>`
+  (a new rejection replaces the record: one error card per screen), `snapshots: SnapshotMeta[]`.
+- Actions: `checkBuild(race, classes)`, `create(req): boolean`, `awardXp`, `setLevels`, `spend`, `prepare`, `cast`, `rest`, `apply`, `remove`, `tick`,
+  `refreshSnapshots()`, `saveSnapshot(name)`, `loadSnapshot(name)`, `deleteSnapshot(name)` (async → boolean).
+- Reset: a change of `active.meta.id` **or** of `active.runtime` identity (reopen) clears character/view/errors and reloads snapshots; a rename keeps it.
