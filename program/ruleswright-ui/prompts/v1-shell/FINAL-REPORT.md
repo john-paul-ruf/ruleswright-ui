@@ -186,4 +186,52 @@ CAP-01…CAP-10 are verified against current sources (`98a14e3`, engine `01dcf77
 | S06 | untokenized literals (70vh, 50vh, 320px; plus S02–S05 lists) | carried — design-system follow-up |
 
 ### Archivist's Note
-(appended below after the final Archivist pass)
+Archivist commits: `0067dc9` (arch/**, PROGRAM-CONFIG.MD, ARCHIVIST-LOG.md, CLEANUP-LEDGER.md) and `0d973ed` (arch M07 M08 M09). `CLEANUP-LEDGER.md` was outside the envelope's named write set (arch/**, PROGRAM-CONFIG.MD, ARCHIVIST-LOG.md); it is an Archivist-owned ledger file, so it was left in place and recorded here. Archivist's raw return, verbatim:
+
+The tree is clean and both commits landed. Verification pass complete — now the structured closing note.
+
+## Archivist Note
+
+- **role:** archivist
+- **registryUpdated:** true
+- **reconciled:**
+  - `arch/M01-shared.md`
+  - `arch/M02-main.md`
+  - `arch/M03-preload.md`
+  - `arch/M04-styles.md`
+  - `arch/M05-moods.md`
+  - `arch/M06-engine.md`
+  - `arch/M10-shell.md`
+  - `arch/M11-M15-views.md`
+  - `arch/M12-world.md`
+  - `arch/M13-character.md`
+  - `arch/M14-fight.md`
+  - `arch/M15-combat.md`
+  - `arch/M16-app.md`
+  - `arch/M17-tests.md`
+  - `arch/M18-build.md`
+- **conventionsAdded:**
+  - — (none minted: the Principle 4 two-axis test crossed on neither axis — fewer than five related medium-confidence findings and fewer than three related high-confidence findings in what this feature actually needed; recorded honestly in `CLEANUP-LEDGER.md` rather than queued)
+- **proposedForFramework:**
+  - Known upcoming blockers reported on first occurrence, without waiting for a recurrence threshold: (1) **M12–M15 ↔ M10 module-level cycle** — the views import `shell/EmptyState` and `Shell.tsx` imports all five views; no file imports a file that imports it back (`EmptyState.tsx` imports only `store/ui` + `ui`), recorded verbatim in PROGRAM-CONFIG rather than erased; (2) **M12 → M06 runtime import** — `views/world/index.tsx` imports `engine/determinism.rerunUnavailableReason` directly, a views→engine edge absent from the plan-time dependency flow, recorded here rather than collapsed; (3) **M01/M02 FightDoc B-2 envelope** — `FightRecordMeta` list projection = envelope + outcome + `rng` + `round` + `eventCount`, verified mechanically at `98a14e3`/`dcac5c4` and described as present in the tree, not as future work.
+- **logEntry:** 2026-09-26 final pass entry appended to `program/ruleswright-ui/ARCHIVIST-LOG.md` (created this pass; one dated entry per run).
+
+### cleanupBriefs
+
+- **title:** `release/` absent from `.gitignore` (electron-builder output dir)
+- **targetArea:** `program/ruleswright-ui/.gitignore` / `electron-builder.yml`
+- **confidence:** high
+- **proposedPlannerTask:** build a cleanup program that appends `/release/` to `.gitignore` in the same checkpoint discipline every other role holds — explicit pathspec, never `-A`/`.`, with `git check-ignore release/` as the closing assertion and no source or test edits
+- **requiredChecks:**
+  - `git check-ignore release/` passes after the line lands (and fails before, as it must)
+  - whole vitest + Playwright gates stay green; build identity records head `98a14e3e444f538be3f11fb6831b558eb40c8ed4`, dirty false, porcelainSha256 `e3b0c442…`
+
+### standingRecommendations
+
+- **pattern:** Plan-time probes should drive the actual host loop (declare → step → respond to the end), not read type declarations — the M06 upstream end-of-combat rule and the Unprepare/next-level-XP gap are both instances; when the engine program adds the APIs, the UI re-entry is a planned Coder lease, not a renderer checkpoint-0 investigation
+- **cycles:** 1
+- **instances:** 1
+- **firstSeen:** v1-shell
+- **status:** open
+
+**Scope and inspection limits (reported, not implied reconciled):** `../Ruleswright` engine internals beyond the public barrel consumed here; `mocks/*.html` beyond grep-level; provider/quota configuration. The engine repo's own `.program/` belongs to a different program and was not reconciled. Every realized claim in the rewritten `arch/` files traces to approved sources (git, `STATE.md`, run report) at `7fac292`/`98a14e3`/`01dcf77`; nothing Archivist wrote contradicts the next line down in the same file, or a sibling file — re-read after writing, the same discipline Coder applies to a diff before committing. `PLANNER.md`, `CODER.md`, `UI-CODER.md`, `ORCHESTRATOR.md` are byte-identical to how this pass found them — a claim about Archivist, proving Archivist did not write, and therefore evidence of nothing else; the two standing recommendations above have not been adopted since the prior pass (the engine follow-ups are named, owned, and planned, not implemented in this feature).
