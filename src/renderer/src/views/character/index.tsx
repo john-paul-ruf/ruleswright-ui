@@ -1,9 +1,10 @@
-/** Character surface (M13, FR-6–10), per mocks/character.html: sheet column + snapshots/create side column. */
+/** Character surface (M13, FR-6–10, FR-18), per mocks/character.html: sheet column + snapshots/create side column. */
 import { EmptyState } from '../../shell/EmptyState';
 import { useCharacterStore } from '../../store/character';
 import { useUiStore } from '../../store/ui';
 import { useWorldsStore } from '../../store/worlds';
 import { Button, WorldPlate } from '../../ui';
+import { InventoryPanel } from './inventory';
 import { ConditionsPanel, DerivedPanel, PoolsSpellsPanel, ProgressionPanel } from './sheet';
 import { CreatePanel, SnapshotsPanel } from './side';
 import './character.css';
@@ -42,6 +43,7 @@ export function CharacterView(): JSX.Element {
               <DerivedPanel view={view} pack={pack} />
               <PoolsSpellsPanel view={view} pack={pack} />
               <ConditionsPanel view={view} pack={pack} />
+              <InventoryPanel key={`inventory-${meta.id}`} view={view} />
               <ProgressionPanel view={view} pack={pack} />
             </>
           ) : (

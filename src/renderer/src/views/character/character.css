@@ -163,6 +163,64 @@
   overflow-wrap: anywhere;
 }
 
+/* Inventory (FR-18). */
+.char-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.char-item-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.char-item-qty {
+  font-size: var(--text-20);
+  color: var(--accent-strong);
+}
+
+.char-item-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.char-item-kind {
+  margin-left: var(--space-1);
+}
+
+.char-inv-empty {
+  text-align: center;
+  font-size: var(--text-14);
+}
+
+.char-row-kicker {
+  margin-bottom: var(--space-1);
+}
+
+.char-seed {
+  width: 96px;
+  flex: none;
+}
+
+.char-hint {
+  margin-top: var(--space-2);
+}
+
+.char-events-kicker {
+  margin-top: var(--space-6);
+}
+
+.char-events {
+  margin-top: var(--space-2);
+}
+
 /* Below the mock's `lg` breakpoint the side column stacks under the sheet. */
 @media (max-width: 1023px) {
   .char-grid {
