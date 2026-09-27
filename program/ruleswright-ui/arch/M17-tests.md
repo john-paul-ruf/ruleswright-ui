@@ -38,3 +38,7 @@
 
 ### loot-inventory SESSION-02 delta — New test ids
 `char-inventory`, `char-inventory-empty`, `char-item-<id>`, `char-item-qty-<id>`, `char-drop-amount-<id>`, `char-drop-<id>`, `char-grant-item`, `char-grant-qty`, `char-grant`, `char-loot-table`, `char-loot-seed`, `char-loot-seed-randomize`, `char-loot`, `char-loot-empty`, `char-inventory-error`, `char-inventory-event-<n>`.
+
+<!-- loot-inventory SESSION-03 -->
+### loot-inventory SESSION-03 delta — fourth mood `wild`
+- **M17 tests**: `contrast.test.ts` `MOODS` gains `'wild'`. `designTable()` reads the 5th column (after archive). The gate asserts 12 non-empty tokens per mood.

@@ -11,3 +11,7 @@
 ## Change history
 - v1-shell plan: created (planned).
 - SESSION-02 c3 (`ae1c762`): realized as planned (`moods/map.ts` + 9 unit tests in `tests/moods/map.test.ts`).
+
+<!-- loot-inventory SESSION-03 -->
+### loot-inventory SESSION-03 delta — fourth mood `wild`
+- **M05 moods** (`src/renderer/src/moods/map.ts`): `MoodId = 'fantasy' | 'urban' | 'wild' | 'archive'`. `MOOD_BY_THEME` adds `wyldwood → wild`. CA-10 mapping now: `dark-fantasy → fantasy`, `zombie-urban → urban`, `wyldwood → wild`, else / null / `__proto__` → `archive`.

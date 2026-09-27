@@ -47,3 +47,7 @@
 - SESSION-04 c2 (`d310755`): World surface.
 - SESSION-05 c3 (`0ad13c8`): Character crafted.
 - SESSION-06 c3 (`269c0e8`), c4 (`bf33cd3`), c5 (`98a14e3`): Fight + Combat surfaces; keyboard round + 500-event log; records + replay.
+
+<!-- loot-inventory SESSION-03 -->
+### loot-inventory SESSION-03 delta — fourth mood `wild`
+- **M11 views/roll** (`glyphs.ts`): `MOOD_GLYPH.wild = '✻'`.

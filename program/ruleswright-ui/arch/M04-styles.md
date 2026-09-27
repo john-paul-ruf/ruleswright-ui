@@ -14,3 +14,10 @@
 - v1-shell plan: created (planned).
 - SESSION-01 c1 (`ca1d972`): minimal `tokens.css` scaffold.
 - SESSION-02 c1 (`f03f38d`) + c2 (`6b9e658`): realized — mood tables verbatim with bare `[data-mood]` selectors, type-role classes, focus ring, hazard stripe, candle glow, reduced-motion → 0s, bundled faces.
+
+<!-- loot-inventory SESSION-03 -->
+### loot-inventory SESSION-03 delta — fourth mood `wild`
+- **M04 styles**:
+  - `tokens.css`: new `[data-mood='wild']` block. `--font-display: 'Spectral', serif`, `--font-reading: 'Spectral', serif`, and the 12 color tokens copied exactly from the design.md `wild` column (AUTHOR-DESIGN-LI `3069b23`).
+  - `base.css`: `:root[data-mood='wild'] body::before` adds the "canopy light" atmosphere: two `radial-gradient(700px 420px at 0%/100% -5%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 55%)`, copied from the mock.
+  - `fonts.css`: adds `@fontsource/spectral/600.css` (a new weight of an already-bundled family; no new dependency).

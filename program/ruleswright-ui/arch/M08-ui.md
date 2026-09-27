@@ -23,3 +23,7 @@ Barrel `ui/index.ts` (imports `ui.css`). Files → exports:
 - v1-shell plan: created (planned).
 - SESSION-02 c2 (`6b9e658`): realized as above.
 - SESSION-02 followUp: ConfirmDialog, DeterminismStrip, EventRow, CombatantRow, RecordRow, SnapshotCard, TriggerOffer, CombatOverBanner, JsonView, ArtifactRow had no consumer at c2; all were consumed and seen rendered by S03–S06 (ConfirmDialog by S03 rename-delete + S05 snapshot-delete; DeterminismStrip/EventRow/RecordRow/SnapshotCard by S04–S06; TriggerOffer/CombatOverBanner by S06; JsonView/ArtifactRow by S04). `OkCard` remains exported with no consumer outside its own module (the World pass strip carries the `ok-card` test id on `DeterminismStrip` instead).
+
+<!-- loot-inventory SESSION-03 -->
+### loot-inventory SESSION-03 delta — fourth mood `wild`
+- **M08 ui** (`types.ts`): `MoodLike` gains `'wild'`. ThemeCard needs no change; it previews through `data-mood`.
