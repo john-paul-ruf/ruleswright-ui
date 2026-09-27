@@ -7,6 +7,9 @@ import {
   applyCondition,
   castSpell,
   createCharacter,
+  dropItem,
+  grantItem,
+  grantLoot,
   knownSpells,
   poolVocabulary,
   prepareSpell,
@@ -28,7 +31,15 @@ import {
 } from 'ruleswright/runtime';
 import { toAppError, type AppError, type ErrorCard } from './errors';
 
-export type { Character, CharacterState, DerivedStats, RuntimeEvent, CharacterSnapshot, ClassEntry } from 'ruleswright/runtime';
+export type {
+  Character,
+  CharacterState,
+  DerivedStats,
+  RuntimeEvent,
+  CharacterSnapshot,
+  ClassEntry,
+  InventoryEntry,
+} from 'ruleswright/runtime';
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; error: AppError };
 
@@ -95,6 +106,33 @@ export function tick(rt: Runtime, c: Character): Outcome<readonly RuntimeEvent[]
   return attempt('character:tick', () => tickConditions(rt, c.state));
 }
 
+/** FR-18: grant a pack-declared item; rejections (`unknown-item`, `invalid-amount`) change nothing. */
+export function grant(rt: Runtime, c: Character, itemId: string, qty: number): Outcome<RuntimeEvent> {
+  return attempt('character:grant-item', () => grantItem(rt, c.state, itemId, qty));
+}
+
+/** FR-18: drop held qty; overdraw is `insufficient-qty` and nothing changes. */
+export function drop(rt: Runtime, c: Character, itemId: string, qty: number): Outcome<RuntimeEvent> {
+  return attempt('character:drop-item', () => dropItem(rt, c.state, itemId, qty));
+}
+
+/** FR-18 / CA-14: roll a loot table with exactly the user's explicit seed — nothing implicit. */
+export function loot(rt: Runtime, c: Character, tableId: string, seed: number): Outcome<readonly RuntimeEvent[]> {
+  return attempt('character:loot', () => grantLoot(rt, c.state, tableId, { seed }));
+}
+
+/** FR-18: the pack's loot tables, by the engine's `-loot` id convention. */
+export function lootTableIds(rt: Runtime): readonly string[] {
+  return Object.keys(rt.pack.tables).filter((id) => id.endsWith('-loot'));
+}
+
+/** FR-18 / CA-13: a pack item as declared — `name`/`kind` verbatim, `null` when absent. */
+export interface ItemOption {
+  id: string;
+  name: string | null;
+  kind: string | null;
+}
+
 /** What the Character surface renders: a detached clone plus library-derived facts. */
 export interface CharacterView {
   state: CharacterState;
@@ -103,9 +141,13 @@ export interface CharacterView {
   known: readonly string[];
   restrictedActions: readonly string[];
   restrictedSpells: readonly string[];
+  /** FR-18: `content.items` in pack order. */
+  items: readonly ItemOption[];
+  /** FR-18: the `-loot` tables offered to Roll loot. */
+  lootTables: readonly string[];
 }
 
-/** FR-6–9: a fresh view of the character (the library mutates `c.state` in place). */
+/** FR-6–9, FR-18: a fresh view of the character (the library mutates `c.state` in place). */
 export function viewOf(rt: Runtime, c: Character): CharacterView {
   return {
     state: structuredClone(c.state),
@@ -114,6 +156,8 @@ export function viewOf(rt: Runtime, c: Character): CharacterView {
     known: knownSpells(rt, c.state),
     restrictedActions: restrictedIds(rt, c.state, 'action'),
     restrictedSpells: restrictedIds(rt, c.state, 'spell'),
+    items: Object.entries(rt.pack.content.items ?? {}).map(([id, def]) => ({ id, name: def.name ?? null, kind: def.kind ?? null })),
+    lootTables: lootTableIds(rt),
   };
 }
 

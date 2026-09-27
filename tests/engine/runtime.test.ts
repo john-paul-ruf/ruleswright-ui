@@ -7,6 +7,10 @@ import {
   cast,
   checkBuild,
   create,
+  drop,
+  grant,
+  loot,
+  lootTableIds,
   prepare,
   restNow,
   restore,
@@ -148,5 +152,71 @@ describe('zombie-urban · 42 — no spell casting', () => {
     expect(view.pools).toEqual(['adrenaline', 'stamina']);
     expect(view.known).toEqual([]);
     expect(view.state.slots).toEqual({});
+  });
+});
+
+describe('inventory & loot wrappers over the real library (FR-18, CA-13/14/05)', () => {
+  it('loot(barrow-loot, 42) grants grave-ward ×1 with loot:rolled then item:granted; the same seed stacks', () => {
+    const rt = runtimeFor('dark-fantasy', 42);
+    const c = brynn(rt);
+    const events = value(loot(rt, c, 'barrow-loot', 42));
+    expect(events.map((e) => [e.type, e.why.rule])).toEqual([
+      ['loot:rolled', 'tables.barrow-loot'],
+      ['item:granted', 'content.items.grave-ward'],
+    ]);
+    expect(c.state.inventory).toEqual([{ id: 'grave-ward', qty: 1 }]);
+    value(loot(rt, c, 'barrow-loot', 42));
+    expect(viewOf(rt, c).state.inventory).toEqual([{ id: 'grave-ward', qty: 2 }]);
+  });
+
+  it('drop overdraw is insufficient-qty with the inventory unchanged; drop 1 emits item:dropped', () => {
+    const rt = runtimeFor('dark-fantasy', 42);
+    const c = brynn(rt);
+    value(loot(rt, c, 'barrow-loot', 42));
+    const r = drop(rt, c, 'grave-ward', 5);
+    expect(rules(r)).toEqual(['insufficient-qty']);
+    if (!r.ok) expect(r.error).toMatchObject({ operation: 'character:drop-item', name: 'RuntimeRuleError' });
+    expect(c.state.inventory).toEqual([{ id: 'grave-ward', qty: 1 }]);
+    expect(value(drop(rt, c, 'grave-ward', 1))).toMatchObject({ type: 'item:dropped', why: { rule: 'content.items.grave-ward' } });
+    expect(c.state.inventory).toEqual([]);
+  });
+
+  it('grant stacks a pack item; an unknown item is unknown-item with nothing changed', () => {
+    const rt = runtimeFor('dark-fantasy', 42);
+    const c = brynn(rt);
+    expect(value(grant(rt, c, 'hearth-bread', 2))).toMatchObject({ type: 'item:granted', why: { rule: 'content.items.hearth-bread' } });
+    expect(c.state.inventory).toEqual([{ id: 'hearth-bread', qty: 2 }]);
+    expect(rules(grant(rt, c, 'nope', 1))).toEqual(['unknown-item']);
+    expect(c.state.inventory).toEqual([{ id: 'hearth-bread', qty: 2 }]);
+  });
+
+  it('a flavor table is loot-grants-nothing, an unknown table unknown-table, an unresolved nested roll unresolvable-ref — inventory unchanged', () => {
+    const rt = runtimeFor('dark-fantasy', 42);
+    const c = brynn(rt);
+    value(grant(rt, c, 'hearth-bread', 1));
+    const held = structuredClone(c.state.inventory);
+    const flavor = loot(rt, c, 'barrow-mood', 42);
+    expect(rules(flavor)).toEqual(['loot-grants-nothing']);
+    if (!flavor.ok) expect(flavor.error).toMatchObject({ operation: 'character:loot', name: 'RuntimeRuleError' });
+    expect(rules(loot(rt, c, 'no-such-table', 42))).toEqual(['unknown-table']);
+    // SESSION-02 c0 probe: barrow-loot seed 4 rolls an entry whose nested table reference does not resolve.
+    expect(rules(loot(rt, c, 'barrow-loot', 4))).toEqual(['unresolvable-ref']);
+    expect(c.state.inventory).toEqual(held);
+  });
+
+  it('lootTableIds are the -loot tables; zombie-urban has none', () => {
+    expect(lootTableIds(runtimeFor('dark-fantasy', 42))).toEqual(['barrow-loot']);
+    expect(lootTableIds(runtimeFor('zombie-urban', 42))).toEqual([]);
+  });
+
+  it('viewOf items carry the pack name/kind verbatim, in pack order', () => {
+    const rt = runtimeFor('dark-fantasy', 42);
+    const view = viewOf(rt, brynn(rt));
+    expect(view.items).toEqual(
+      Object.entries(rt.pack.content.items ?? {}).map(([id, def]) => ({ id, name: def.name, kind: def.kind ?? null })),
+    );
+    expect(view.items.find((i) => i.id === 'grave-ward')).toEqual({ id: 'grave-ward', name: 'Grave Ward', kind: 'charm' });
+    expect(view.lootTables).toEqual(['barrow-loot']);
+    expect(view.state.inventory).toEqual([]);
   });
 });
