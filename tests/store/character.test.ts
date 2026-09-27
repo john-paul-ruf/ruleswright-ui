@@ -1,5 +1,6 @@
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createCharacter, grantItem, grantLoot, Runtime, serializeCharacter } from 'ruleswright/runtime';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { serialize } from '../../src/renderer/src/engine/runtime';
 import { setPersistence } from '../../src/renderer/src/persistence/client';
@@ -152,6 +153,72 @@ describe('character store over the real library and handlers', () => {
     expect(err?.kind === 'library' && err.cards.map((c) => c.rule)).toEqual(['E-SNAP-01']);
     expect(chars.getState().character).toBeNull();
     expect(chars.getState().view).toBeNull();
+  });
+
+  it('inventory: loot/grant/drop publish fresh views and events; rejections set errors.inventory and change nothing (FR-18)', async () => {
+    const { worlds } = await worldWith(42);
+    const chars = createCharacterStore(worlds);
+    chars.getState().create(BRYNN);
+    expect(chars.getState().view?.state.inventory).toEqual([]);
+
+    chars.getState().loot('barrow-loot', 42);
+    expect(chars.getState().view?.state.inventory).toEqual([{ id: 'grave-ward', qty: 1 }]);
+    expect(chars.getState().lastEvents.map((e) => e.type)).toEqual(['loot:rolled', 'item:granted']);
+
+    const held = chars.getState().view;
+    chars.getState().drop('grave-ward', 5);
+    const err = chars.getState().errors.inventory;
+    expect(err).toMatchObject({ kind: 'library', operation: 'character:drop-item' });
+    expect(err?.kind === 'library' && err.cards.map((c) => c.rule)).toEqual(['insufficient-qty']);
+    expect(chars.getState().view).toBe(held);
+    expect(chars.getState().character?.state.inventory).toEqual([{ id: 'grave-ward', qty: 1 }]);
+
+    chars.getState().loot('barrow-loot', 4);
+    const refused = chars.getState().errors.inventory;
+    expect(refused?.kind === 'library' && refused.cards.map((c) => c.rule)).toEqual(['unresolvable-ref']);
+    expect(chars.getState().view).toBe(held);
+
+    chars.getState().grant('hearth-bread', 2);
+    expect(chars.getState().errors.inventory).toBeUndefined();
+    expect(chars.getState().lastEvents.map((e) => e.type)).toEqual(['item:granted']);
+    chars.getState().drop('grave-ward', 1);
+    expect(chars.getState().lastEvents.map((e) => e.type)).toEqual(['item:dropped']);
+    expect(chars.getState().view?.state.inventory).toEqual([{ id: 'hearth-bread', qty: 2 }]);
+  });
+
+  it('a non-empty inventory survives save → restart → load; the file carries the verbatim envelope (CA-06)', async () => {
+    const { worlds, active } = await worldWith(42);
+    const chars = createCharacterStore(worlds);
+    chars.getState().create(BRYNN);
+    chars.getState().loot('barrow-loot', 42);
+    chars.getState().loot('barrow-loot', 42);
+    chars.getState().grant('hearth-bread', 2);
+    const inventory = chars.getState().view?.state.inventory;
+    expect(inventory).toEqual([
+      { id: 'grave-ward', qty: 2 },
+      { id: 'hearth-bread', qty: 2 },
+    ]);
+    expect(await chars.getState().saveSnapshot('packed')).toBe(true);
+
+    // The expectation is recomputed with the library alone, from the stored pack bytes.
+    const rt = new Runtime(JSON.parse(readFileSync(join(root, 'worlds', active.meta.id, 'pack.json'), 'utf8')));
+    const replay = createCharacter(rt, BRYNN);
+    grantLoot(rt, replay.state, 'barrow-loot', { seed: 42 });
+    grantLoot(rt, replay.state, 'barrow-loot', { seed: 42 });
+    grantItem(rt, replay.state, 'hearth-bread', 2);
+    const expected = serializeCharacter(rt, replay.state);
+    const onDisk = JSON.parse(readFileSync(join(root, 'snapshots', active.meta.id, 'packed.json'), 'utf8'));
+    expect(onDisk.snapshot.state.inventory).toEqual(expected.state.inventory);
+    expect(onDisk.snapshot.state.inventory).toEqual(inventory);
+
+    setPersistence(createInProcessBridge(root));
+    const worlds2 = createWorldsStore();
+    const chars2 = createCharacterStore(worlds2);
+    expect(await worlds2.getState().open(active.meta.id)).toBe(true);
+    await settle();
+    expect(chars2.getState().character).toBeNull();
+    expect(await chars2.getState().loadSnapshot('packed')).toBe(true);
+    expect(chars2.getState().view?.state.inventory).toEqual(expected.state.inventory);
   });
 
   it('closing the world resets the character', async () => {

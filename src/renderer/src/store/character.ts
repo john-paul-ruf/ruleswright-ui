@@ -1,5 +1,5 @@
 /**
- * Character store (M09, FR-6–10): one session-scoped character for the active world (D-07) plus
+ * Character store (M09, FR-6–10, FR-18): one session-scoped character for the active world (D-07) plus
  * that world's named snapshots (FR-10). Every mechanic is a library call on `active.runtime`
  * through `engine/runtime`; after each call the store publishes a fresh `viewOf` clone, because
  * the library mutates `character.state` in place. Never throws to views.
@@ -14,7 +14,7 @@ import type { Runtime } from '../engine/schema';
 import { getPersistence } from '../persistence/client';
 import { useWorldsStore, type WorldsState } from './worlds';
 
-export type CharacterSection = 'create' | 'progress' | 'pools' | 'spells' | 'conditions' | 'snapshots';
+export type CharacterSection = 'create' | 'progress' | 'pools' | 'spells' | 'conditions' | 'inventory' | 'snapshots';
 
 export interface CreateRequest {
   name: string;
@@ -46,6 +46,12 @@ export interface CharacterStore {
   apply(conditionId: string): void;
   remove(conditionId: string): void;
   tick(): void;
+  /** FR-18: grant `qty` of a pack item. */
+  grant(itemId: string, qty: number): void;
+  /** FR-18: drop held `qty`. */
+  drop(itemId: string, qty: number): void;
+  /** FR-18 / CA-14: roll a loot table with the user's explicit seed. */
+  loot(tableId: string, seed: number): void;
   refreshSnapshots(): Promise<void>;
   saveSnapshot(name: string): Promise<boolean>;
   loadSnapshot(name: string): Promise<boolean>;
@@ -133,6 +139,9 @@ export function createCharacterStore(worlds: WorldsSource = useWorldsStore) {
       apply: (conditionId) => void mutate('conditions', (rt, c) => rules.apply(rt, c, conditionId)),
       remove: (conditionId) => void mutate('conditions', (rt, c) => rules.remove(rt, c, conditionId)),
       tick: () => void mutate('conditions', (rt, c) => rules.tick(rt, c)),
+      grant: (itemId, qty) => void mutate('inventory', (rt, c) => rules.grant(rt, c, itemId, qty)),
+      drop: (itemId, qty) => void mutate('inventory', (rt, c) => rules.drop(rt, c, itemId, qty)),
+      loot: (tableId, seed) => void mutate('inventory', (rt, c) => rules.loot(rt, c, tableId, seed)),
 
       /** FR-10: this world's snapshots, newest first (main's order). */
       async refreshSnapshots() {
