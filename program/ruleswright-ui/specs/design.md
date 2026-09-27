@@ -15,9 +15,9 @@ The app displays generated artifacts (packs, characters, events). The design tre
 ### The FR-15 mood mechanism (binding definition)
 
 - **Structure:** CSS custom properties on `:root`, scoped by `data-mood` on the document root. Every component consumes tokens only; **no component may hardcode a color, font, or radius**.
-- **Moods:** `fantasy` (dark-fantasy), `urban` (zombie-urban), `archive` (neutral — no-world state, foreign/unknown-pack imports, error overlays before a world exists).
-- **Source:** a static per-theme mapping keyed by theme id (`dark-fantasy → fantasy`, `zombie-urban → urban`, `*unknown* → archive`). The bundled themes carry no usable mood metadata at spec time; when a future theme does, its metadata wins over the mapping if it declares mood-relevant values.
-- **Fonts:** each mood swaps `--font-display` and `--font-reading` (fantasy: Cinzel + Spectral; urban: Oswald + Inter; archive: Inter + Inter). Functional UI text is always Inter; data is always JetBrains Mono.
+- **Moods:** `fantasy` (dark-fantasy), `urban` (zombie-urban), `wild` (wyldwood), `archive` (neutral — no-world state, foreign/unknown-pack imports, error overlays before a world exists).
+- **Source:** a static per-theme mapping keyed by theme id (`dark-fantasy → fantasy`, `zombie-urban → urban`, `wyldwood → wild`, `*unknown* → archive`). The bundled themes carry no usable mood metadata at spec time; when a future theme does, its metadata wins over the mapping if it declares mood-relevant values.
+- **Fonts:** each mood swaps `--font-display` and `--font-reading` (fantasy: Cinzel + Spectral; urban: Oswald + Inter; wild: Spectral 600 + Spectral 400/400-italic; archive: Inter + Inter). Functional UI text is always Inter; data is always JetBrains Mono.
 - **Legibility invariant:** WCAG 2.1 AA holds in every mood. `--dim` ≥ 4.5:1 on `--surface`; `--accent-ink` ≥ 4.5:1 on `--accent`. `--dim` is never used for body copy on `--base`.
 - **Motion invariance:** mood switch animates as a ≤ 300ms crossfade of color variables, honoring `prefers-reduced-motion` (then instant).
 
@@ -39,22 +39,24 @@ The app displays generated artifacts (packs, characters, events). The design tre
 
 **Mood values:**
 
-| Token | fantasy | urban | archive |
-|---|---|---|---|
-| `--base` | `#0b0a12` | `#0c0f0d` | `#101113` |
-| `--surface` | `#131120` | `#141814` | `#17191c` |
-| `--surface2` | `#1a1730` | `#1a201b` | `#1e2124` |
-| `--hairline` | `rgba(212,196,255,.14)` | `rgba(196,220,196,.13)` | `rgba(255,255,255,.12)` |
-| `--ink` | `#eae3d6` | `#e4e8e0` | `#e7e7e5` |
-| `--dim` | `#a89fc0` | `#93a396` | `#9aa1a8` |
-| `--accent` | `#d8a94e` | `#e56432` | `#c8a86a` |
-| `--accent-strong` | `#f0c469` | `#f4794a` | `#dcbf85` |
-| `--accent-ink` | `#1a1206` | `#170a05` | `#171204` |
-| `--accent2` | `#a08cf0` | `#a8b840` | `#8aa0b8` |
-| `--danger` | `#e06a78` | `#e05555` | `#e06a6a` |
-| `--ok` | `#8fbf9a` | `#8fbf7f` | `#8fbf9a` |
+| Token | fantasy | urban | archive | wild |
+|---|---|---|---|---|
+| `--base` | `#0b0a12` | `#0c0f0d` | `#101113` | `#08100f` |
+| `--surface` | `#131120` | `#141814` | `#17191c` | `#0f1a18` |
+| `--surface2` | `#1a1730` | `#1a201b` | `#1e2124` | `#152421` |
+| `--hairline` | `rgba(212,196,255,.14)` | `rgba(196,220,196,.13)` | `rgba(255,255,255,.12)` | `rgba(186,230,200,.13)` |
+| `--ink` | `#eae3d6` | `#e4e8e0` | `#e7e7e5` | `#e3eadf` |
+| `--dim` | `#a89fc0` | `#93a396` | `#9aa1a8` | `#94ab9f` |
+| `--accent` | `#d8a94e` | `#e56432` | `#c8a86a` | `#9cc76a` |
+| `--accent-strong` | `#f0c469` | `#f4794a` | `#dcbf85` | `#b4dc82` |
+| `--accent-ink` | `#1a1206` | `#170a05` | `#171204` | `#0c1605` |
+| `--accent2` | `#a08cf0` | `#a8b840` | `#8aa0b8` | `#d48ac4` |
+| `--danger` | `#e06a78` | `#e05555` | `#e06a6a` | `#e8707a` |
+| `--ok` | `#8fbf9a` | `#8fbf7f` | `#8fbf9a` | `#8fc7a8` |
 
-Atmosphere accents (the only non-token color use): `fantasy` gets a candle-glow radial (`rgba(216,169,78,.07–.10)`) from the top edge; `urban` gets a hazard-stripe motif (45° accent/transparent) on section headers; `archive` gets neither. Both are `color-mix` derivations of the accent, not new colors.
+Atmosphere accents (the only non-token color use): `fantasy` gets a candle-glow radial (`rgba(216,169,78,.07–.10)`) from the top edge; `urban` gets a hazard-stripe motif (45° accent/transparent) on section headers; `wild` gets canopy light — two soft radials from the top corners at `color-mix(in srgb, var(--accent) 6%, transparent)`, fading by 55%; `archive` gets none. All are `color-mix` derivations of the accent, not new colors.
+
+`wild` legibility pre-check (WCAG relative luminance, the contrast gate's nine pairs): `--dim`/`--surface` 7.27 · `--dim`/`--surface2` 6.57 · `--accent-ink`/`--accent` 9.53 · `--ink`/`--base` 15.67 · `--ink`/`--surface` 14.48 · `--ink`/`--surface2` 13.09 · `--danger`/`--surface` 5.95 · `--ok`/`--surface` 9.23 · `--accent`/`--surface` 9.14 — all ≥ 4.5:1. Mood glyph: ✻ (fantasy ✦, urban ▲, archive ◆). Font note: Spectral 600 is a new *weight* of a bundled family (display role); no new family.
 
 ### Typography
 
@@ -115,6 +117,8 @@ Glyph set only, chosen for mood-neutrality: ✦ ▲ ◆ ✻ ⟳ 🎲. No icon li
 | Mock mood switch | Fixed top-right ✦/▲/◆ chips — **mock-only affordance; not an app feature** | — |
 | Trigger offer (DF-1) | Combat control-column panel, one surface2 row per `pendingTriggers` entry: reactor · action, triggerId (mono), matching event as provenance (type, rolls verbatim, `why.rule`), target select only when the reaction takes a target, **Take** / **Decline** → `respond(triggerId, 'take'\|'decline', targetId?)` | shown only in phase `awaiting-trigger-response`; Declare/Step disabled while any offer is open; the log's `trigger:offered` row is provenance only |
 | Combat-over banner (DF-1) | Panel above the combat grid, accent left rule: kicker (round), outcome headline from the library's `combat-over` report verbatim, event provenance (mono), actions Record this fight · View records · ← Back to Fight assembly | shown only after `step()` returns `combat-over`; all combat controls disabled; log stays reviewable |
+| Inventory panel (FR-18) | Character sheet-column panel after Conditions: kicker **Inventory**; held stacks as Item rows (hairline-separated in a panel2 well); a **Grant** row (item select from the pack's `content.items` + qty input + Grant, ghost — mirrors Conditions' apply row); a **Loot** row (`-loot` table select + mono **seed** input with `⟳ Randomize` ghost, same affordance as Roll's seed + **Roll loot**, primary); the last mutation's events as Event rows (`loot:rolled` roll-border, `item:granted` / `item:dropped` mutation-border, `why.rule` mono verbatim); inline Error card for rejections, adjacent to the action | populated, empty held ("Nothing held yet."), no loot tables (loot row replaced by "This pack declares no loot tables."), rejection (error card, nothing changed, inputs keep values), flavor roll (`loot-grants-nothing` error card verbatim) |
+| Item row (FR-18) | surface2 row: item name (`--font-reading`), kind chip, `×qty` (stat numeral, display font, accent-strong), id (mono, dim); right side: Drop qty input (mono, narrow) + **Drop** (ghost) | default, drop rejected (error card below the panel's rows, e.g. `insufficient-qty`) |
 | Fight record row (B-3) | surface/surface2 row in Fight → Records and Combat → Replay & records: name, outcome chip, rounds · events · age, `rng a:<hex8> b:<hex8> c:<hex8> d:<hex8>` (mono, from the stored `combat.rng`), Replay | complete (chip), diverged (chip-danger + first divergent event), abandoned (chip) |
 | Snapshot pack-identity line (B-3) | Snapshot card data line `pack <id> · schema <n> · <contentHash>` (mono, full hash, wraps) — **supersedes the "rng words" of the Snapshot card row** (D-20: character snapshots carry no RNG) | — |
 
@@ -132,6 +136,7 @@ Glyph set only, chosen for mood-neutrality: ✦ ▲ ◆ ✻ ⟳ 🎲. No icon li
 | Combat | `mocks/combat.html` | FR-12/13: **event log as primary panel** (filters, roll/mutation/system rows), declare+step controls, combatant column, DeclareRejection example, replay records |
 | Shell states | `mocks/shell.html` | FR-1/16: three empty states, error-card gallery |
 | Design language | `mocks/design-language.html` | The visual spec itself: live tokens, typography, components, motion/a11y — per mood |
+| Character — Inventory (FR-18) | `mocks/character.html` | FR-18: Inventory panel after Conditions — held Item rows, Grant row, Loot row (table + seed ⟳ + Roll loot), last mutation's Event rows, inline rejection card, both empty states shown as state examples |
 | Combat — trigger & end states (DF-1) | `mocks/combat.html` | FR-12/14: Trigger offers panel (`awaiting-trigger-response`), combat-over banner, record rows with RNG words — shown inline as state examples |
 
 **Global shell (implemented, not mocked as a separate screen):** one persistent top bar — Ruleswright glyph + world name + `theme · seed` chip (FR-1), nav Roll / World / Character / Fight, and Import/Export within Roll/World. Active surface is marked by accent underline. The `archive` mood covers shell states with no world open.

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Character — Ruleswright Mock</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Oswald:wght@500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Spectral:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Oswald:wght@500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <script>const _m=new URLSearchParams(location.search).get('mood');if(_m)document.documentElement.dataset.mood=_m;</script>
 <style>
 :root{--radius-s:2px;--radius-m:4px;--radius-l:8px}
@@ -17,6 +17,11 @@
 --base:#0c0f0d;--surface:#141814;--surface2:#1a201b;--hairline:rgba(196,220,196,.13);
 --ink:#e4e8e0;--dim:#93a396;--accent:#e56432;--accent-strong:#f4794a;--accent-ink:#170a05;
 --accent2:#a8b840;--danger:#e05555;--ok:#8fbf7f}
+[data-mood="wild"]{--font-display:'Spectral',serif;--font-reading:'Spectral',serif;
+--base:#08100f;--surface:#0f1a18;--surface2:#152421;--hairline:rgba(186,230,200,.13);
+--ink:#e3eadf;--dim:#94ab9f;--accent:#9cc76a;--accent-strong:#b4dc82;--accent-ink:#0c1605;
+--accent2:#d48ac4;--danger:#e8707a;--ok:#8fc7a8}
+[data-mood="wild"] .display{font-weight:600}
 [data-mood="archive"]{--font-display:'Inter',sans-serif;--font-reading:'Inter',sans-serif;
 --base:#101113;--surface:#17191c;--surface2:#1e2124;--hairline:rgba(255,255,255,.12);
 --ink:#e7e7e5;--dim:#9aa1a8;--accent:#c8a86a;--accent-strong:#dcbf85;--accent-ink:#171204;
@@ -46,6 +51,10 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
 .statnum{font-family:var(--font-display);font-size:40px;line-height:1;color:var(--accent-strong)}
 .errorcard{border:1px solid color-mix(in srgb,var(--danger) 45%,transparent);background:color-mix(in srgb,var(--danger) 9%,var(--surface));border-radius:var(--radius-m)}
 .vignette:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(1200px 500px at 50% -10%,color-mix(in srgb,var(--accent) 7%,transparent),transparent 60%)}
+[data-mood="wild"] .vignette:before{background:radial-gradient(700px 420px at 0% -5%,color-mix(in srgb,var(--accent) 6%,transparent),transparent 55%),radial-gradient(700px 420px at 100% -5%,color-mix(in srgb,var(--accent) 6%,transparent),transparent 55%)}
+.event{border-left:2px solid var(--hairline);padding:8px 12px;background:var(--surface2);border-radius:var(--radius-s)}
+.event-roll{border-left-color:var(--accent)}
+.event-mut{border-left-color:var(--accent2)}
 .swatch{width:26px;height:10px;border-radius:999px;display:inline-block}
 .mocknav{position:fixed;bottom:12px;right:12px;display:flex;gap:6px;z-index:50;flex-wrap:wrap;max-width:60vw;justify-content:flex-end}
 .mocknav a{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--hairline);background:color-mix(in srgb,var(--surface) 85%,transparent);color:var(--dim);backdrop-filter:blur(4px)}
@@ -57,6 +66,7 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
 <div class="fixed top-3 right-3 z-50 flex gap-1 text-[11px]">
   <button onclick="document.documentElement.dataset.mood='fantasy'" class="chip">✦ fantasy</button>
   <button onclick="document.documentElement.dataset.mood='urban'" class="chip">▲ urban</button>
+  <button onclick="document.documentElement.dataset.mood='wild'" class="chip">✻ wild</button>
   <button onclick="document.documentElement.dataset.mood='archive'" class="chip">◆ archive</button>
 </div>
 
@@ -162,6 +172,103 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
 
         <div class="mt-3 flex gap-2 flex-wrap">
           <button class="btn btn-ghost">+ Apply condition…</button>
+        </div>
+      </section>
+
+      <!-- inventory (FR-18) -->
+      <section class="panel p-5">
+        <div class="flex items-baseline justify-between flex-wrap gap-2">
+          <p class="kicker">Inventory</p>
+          <span class="text-xs" style="color:var(--dim)">items and loot tables come from the pack</span>
+        </div>
+
+        <!-- held stacks -->
+        <div class="space-y-2 mt-3">
+          <div class="panel2 p-3 flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-baseline gap-3 flex-wrap min-w-0">
+              <span class="display text-xl" style="color:var(--accent-strong)">×1</span>
+              <div class="min-w-0">
+                <p class="reading text-base">Grave Ward <span class="chip ml-1">charm</span></p>
+                <p class="mono text-[10px] mt-0.5" style="color:var(--dim)">grave-ward</p>
+              </div>
+            </div>
+            <div class="flex gap-2 items-center">
+              <input class="input mono" style="width:56px;padding:4px 8px" value="1" aria-label="drop qty">
+              <button class="btn btn-ghost" style="padding:4px 10px">Drop</button>
+            </div>
+          </div>
+          <div class="panel2 p-3 flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-baseline gap-3 flex-wrap min-w-0">
+              <span class="display text-xl" style="color:var(--accent-strong)">×3</span>
+              <div class="min-w-0">
+                <p class="reading text-base">Hearth Bread <span class="chip ml-1">provision</span></p>
+                <p class="mono text-[10px] mt-0.5" style="color:var(--dim)">hearth-bread</p>
+              </div>
+            </div>
+            <div class="flex gap-2 items-center">
+              <input class="input mono" style="width:56px;padding:4px 8px" value="5" aria-label="drop qty">
+              <button class="btn btn-ghost" style="padding:4px 10px">Drop</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="errorcard p-3 mt-3">
+          <p class="mono text-[11px]" style="color:var(--danger)">insufficient-qty · cannot drop 5 hearth-bread, holding 3</p>
+          <p class="text-xs mt-1" style="color:var(--dim)">Example rejection — the library's card, verbatim. Nothing changed; the input keeps its value.</p>
+        </div>
+
+        <!-- grant row (mirrors Conditions' apply row) -->
+        <div class="mt-4">
+          <p class="kicker mb-1">Grant</p>
+          <div class="flex gap-2 flex-wrap">
+            <select class="input" style="flex:1 1 180px;width:auto" aria-label="item"><option>oaken-cudgel · weapon</option><option>warded-mail · armor</option><option>grave-ward · charm</option><option>tallow-lantern · gear</option><option>hearth-bread · provision</option><option>barrow-key · key</option></select>
+            <input class="input mono" style="width:70px" value="1" aria-label="grant qty">
+            <button class="btn btn-ghost">Grant</button>
+          </div>
+        </div>
+
+        <!-- loot row -->
+        <div class="mt-4">
+          <p class="kicker mb-1">Loot</p>
+          <div class="flex gap-2 flex-wrap">
+            <select class="input mono" style="flex:1 1 160px;width:auto" aria-label="loot table"><option>barrow-loot</option></select>
+            <input class="input mono" style="width:96px" value="42" aria-label="loot seed">
+            <button class="btn btn-ghost shrink-0"><span aria-hidden="true">⟳</span> Randomize</button>
+            <button class="btn btn-primary shrink-0">Roll loot</button>
+          </div>
+          <p class="text-xs mt-2" style="color:var(--dim)">The loot seed is explicit — typed, or picked by Randomize before the library is called. Same seed, same table, same loot.</p>
+        </div>
+
+        <!-- last mutation's events -->
+        <p class="kicker mt-5">Last roll · events</p>
+        <div class="space-y-2 mt-2">
+          <div class="event event-roll">
+            <p class="kicker" style="font-size:10px">loot:rolled</p>
+            <p class="text-sm mt-1">barrow-loot · seed 42 → grave-ward ×1</p>
+            <p class="mono text-[10px] mt-1" style="color:var(--dim)">why.rule · tables.barrow-loot</p>
+          </div>
+          <div class="event event-mut">
+            <p class="kicker" style="font-size:10px">item:granted</p>
+            <p class="text-sm mt-1">Brynn gains grave-ward ×1</p>
+            <p class="mono text-[10px] mt-1" style="color:var(--dim)">why.rule · content.items.grave-ward</p>
+          </div>
+        </div>
+
+        <!-- state examples -->
+        <p class="kicker mt-5">State examples</p>
+        <div class="grid md:grid-cols-2 gap-3 mt-2">
+          <div class="panel2 p-4 text-center">
+            <p class="text-sm" style="color:var(--ink)">Nothing held yet.</p>
+            <p class="mono text-[10px] mt-1" style="color:var(--dim)">empty inventory · Grant and Loot rows stay available</p>
+          </div>
+          <div class="panel2 p-4 text-center">
+            <p class="text-sm" style="color:var(--ink)">This pack declares no loot tables.</p>
+            <p class="mono text-[10px] mt-1" style="color:var(--dim)">replaces the Loot row · e.g. zombie-urban</p>
+          </div>
+        </div>
+        <div class="errorcard p-3 mt-3">
+          <p class="mono text-[11px]" style="color:var(--danger)">loot-grants-nothing · barrow-loot rolled a flavor entry</p>
+          <p class="text-xs mt-1" style="color:var(--dim)">Example flavor roll — shown verbatim as the library's card; inventory unchanged.</p>
         </div>
       </section>
 

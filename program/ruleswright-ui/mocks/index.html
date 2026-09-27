@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ruleswright — Interactive Prototype</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Oswald:wght@500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Spectral:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Oswald:wght@500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <script>const _m=new URLSearchParams(location.search).get('mood');if(_m)document.documentElement.dataset.mood=_m;</script>
 <style>
 :root{--radius-s:2px;--radius-m:4px;--radius-l:8px}
@@ -17,6 +17,11 @@
 --base:#0c0f0d;--surface:#141814;--surface2:#1a201b;--hairline:rgba(196,220,196,.13);
 --ink:#e4e8e0;--dim:#93a396;--accent:#e56432;--accent-strong:#f4794a;--accent-ink:#170a05;
 --accent2:#a8b840;--danger:#e05555;--ok:#8fbf7f}
+[data-mood="wild"]{--font-display:'Spectral',serif;--font-reading:'Spectral',serif;
+--base:#08100f;--surface:#0f1a18;--surface2:#152421;--hairline:rgba(186,230,200,.13);
+--ink:#e3eadf;--dim:#94ab9f;--accent:#9cc76a;--accent-strong:#b4dc82;--accent-ink:#0c1605;
+--accent2:#d48ac4;--danger:#e8707a;--ok:#8fc7a8}
+[data-mood="wild"] .display{font-weight:600}
 [data-mood="archive"]{--font-display:'Inter',sans-serif;--font-reading:'Inter',sans-serif;
 --base:#101113;--surface:#17191c;--surface2:#1e2124;--hairline:rgba(255,255,255,.12);
 --ink:#e7e7e5;--dim:#9aa1a8;--accent:#c8a86a;--accent-strong:#dcbf85;--accent-ink:#171204;
@@ -35,6 +40,7 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
 .btn-ghost:hover{border-color:var(--accent);color:var(--accent-strong)}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;border:1px solid var(--hairline);font-size:11px;font-weight:600;color:var(--dim)}
 .vignette:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(1200px 500px at 50% -10%,color-mix(in srgb,var(--accent) 7%,transparent),transparent 60%)}
+[data-mood="wild"] .vignette:before{background:radial-gradient(700px 420px at 0% -5%,color-mix(in srgb,var(--accent) 6%,transparent),transparent 55%),radial-gradient(700px 420px at 100% -5%,color-mix(in srgb,var(--accent) 6%,transparent),transparent 55%)}
 .mocknav{position:fixed;bottom:12px;right:12px;display:flex;gap:6px;z-index:50;flex-wrap:wrap;max-width:60vw;justify-content:flex-end}
 .mocknav a{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--hairline);background:color-mix(in srgb,var(--surface) 85%,transparent);color:var(--dim);backdrop-filter:blur(4px)}
 .mocknav a:hover{color:var(--accent-strong);border-color:var(--accent)}
@@ -48,6 +54,7 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
 <div class="fixed top-3 right-3 z-50 flex gap-1 text-[11px]">
   <button onclick="document.documentElement.dataset.mood='fantasy'" class="chip">✦ fantasy</button>
   <button onclick="document.documentElement.dataset.mood='urban'" class="chip">▲ urban</button>
+  <button onclick="document.documentElement.dataset.mood='wild'" class="chip">✻ wild</button>
   <button onclick="document.documentElement.dataset.mood='archive'" class="chip">◆ archive</button>
 </div>
 
@@ -68,10 +75,10 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
   <p class="kicker mt-8">System</p>
   <div class="flow mt-3 space-y-2">
     <a href="shell.html"><p class="font-semibold">Shell · empty states & error cards <span class="arrow float-right">→</span></p><p class="text-xs mt-1" style="color:var(--dim)">no world · no character · no fights · error-card pattern (FR-16)</p></a>
-    <a href="design-language.html"><p class="font-semibold">Design Language · the visual spec <span class="arrow float-right">→</span></p><p class="text-xs mt-1" style="color:var(--dim)">palette · typography · components · three moods, live</p></a>
+    <a href="design-language.html"><p class="font-semibold">Design Language · the visual spec <span class="arrow float-right">→</span></p><p class="text-xs mt-1" style="color:var(--dim)">palette · typography · components · four moods, live</p></a>
   </div>
 
-  <p class="text-xs mt-8" style="color:var(--dim)">Switch mood on any screen (top-right) — dark-fantasy, zombie-urban, and a neutral archive mood render one shared system. In the shipped app the mood is driven by the active world's theme (FR-15); the archive mood covers the no-world state and foreign-pack imports.</p>
+  <p class="text-xs mt-8" style="color:var(--dim)">Switch mood on any screen (top-right) — dark-fantasy, zombie-urban, wyldwood (wild), and a neutral archive mood render one shared system. In the shipped app the mood is driven by the active world's theme (FR-15); the archive mood covers the no-world state and foreign-pack imports.</p>
 
 </main>
 
