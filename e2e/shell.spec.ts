@@ -84,6 +84,13 @@ test('CAP-04: mood follows the open world, bundled fonts, error card, world empt
   expect(await cssVar(page, '--accent')).toBe('#e56432');
   await expect(page.getByTestId('active-world-seed')).toHaveText('zombie-urban · 7');
 
+  // wyldwood (library-discovered, CAP-01) has no dedicated mood yet → archive (CA-10).
+  await page.getByTestId('nav-roll').click();
+  await expect(page.getByTestId('roll-theme-wyldwood')).toBeVisible();
+  await forge(page, 'wyldwood', '7');
+  await expect(page.locator('html')).toHaveAttribute('data-mood', 'archive');
+  await expect(page.getByTestId('active-world-seed')).toHaveText('wyldwood · 7');
+
   // Opening the other world switches the mood back.
   await page.getByTestId('nav-roll').click();
   await page.getByTestId('world-row').filter({ hasText: 'dark-fantasy · 7' }).getByTestId('world-open').click();
