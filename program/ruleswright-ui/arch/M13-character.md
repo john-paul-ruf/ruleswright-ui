@@ -9,3 +9,9 @@
 ## Change history
 - v1-shell plan: created (planned; S02 placeholder renders the correct empty state so routing is complete before the surface lands).
 - SESSION-05 c3 (`0ad13c8`): realized as above.
+
+<!-- loot-inventory SESSION-02 -->
+### loot-inventory SESSION-02 delta — M13 views/character
+- New file `inventory.tsx` → `InventoryPanel({ view })`, rendered in `index.tsx` after `ConditionsPanel` (keyed by world id).
+- New realized edge **M13 → M15**: `inventory.tsx` imports `summaryOf` from `views/combat/log.tsx` (runtime import).
+- `character.css`: `.char-item*`, `.char-inv-empty`, `.char-row-kicker`, `.char-seed`, `.char-hint`, `.char-events*` (tokens only).

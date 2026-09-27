@@ -90,3 +90,16 @@ Imports `ruleswright/runtime` `serializeCombat`; `./combat` (`begin`, `perform`,
 ## Change history (upstream deltas)
 - Arch fragment `.program/signal/SESSION-E1.arch.md` integrated at `2d11736` (upstream API delta).
 - Arch fragment integrated at `f076529` (upstream end-of-combat rule, engine `01dcf77`).
+
+<!-- loot-inventory SESSION-02 -->
+### loot-inventory SESSION-02 delta — M06 engine
+— `engine/runtime.ts`
+- New value imports from `ruleswright/runtime`: `grantItem`, `dropItem`, `grantLoot`.
+- New exports:
+  - `grant(rt, c, itemId, qty): Outcome<RuntimeEvent>` — operation `character:grant-item`.
+  - `drop(rt, c, itemId, qty): Outcome<RuntimeEvent>` — operation `character:drop-item`.
+  - `loot(rt, c, tableId, seed: number): Outcome<readonly RuntimeEvent[]>` — operation `character:loot`; passes exactly `{ seed }` (CA-14).
+  - `lootTableIds(rt): readonly string[]` — `rt.pack.tables` ids ending in `-loot`.
+  - `interface ItemOption { id; name: string | null; kind: string | null }`.
+  - `type InventoryEntry` re-exported from `ruleswright/runtime`.
+- `CharacterView` gains `items: readonly ItemOption[]` (`pack.content.items` in pack order, verbatim, `null` when absent) and `lootTables: readonly string[]`; both filled in `viewOf` (CA-13).

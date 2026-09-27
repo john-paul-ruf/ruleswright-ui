@@ -31,3 +31,10 @@
 - SESSION-04 c1/c3: determinism unit + e2e + world.spec.
 - SESSION-05 c1/c4: runtime.test + character.test + character.spec.
 - SESSION-06 c0–c5: combat/replay units, storage/ipc B-2 tests, combat.spec + replay.spec (RNG words step 2).
+
+<!-- loot-inventory SESSION-02 -->
+### loot-inventory SESSION-02 delta — M17 tests
+- `e2e/inventory.spec.ts` (CAP-02 journey); inventory cases added to `tests/engine/runtime.test.ts` and `tests/store/character.test.ts`.
+
+### loot-inventory SESSION-02 delta — New test ids
+`char-inventory`, `char-inventory-empty`, `char-item-<id>`, `char-item-qty-<id>`, `char-drop-amount-<id>`, `char-drop-<id>`, `char-grant-item`, `char-grant-qty`, `char-grant`, `char-loot-table`, `char-loot-seed`, `char-loot-seed-randomize`, `char-loot`, `char-loot-empty`, `char-inventory-error`, `char-inventory-event-<n>`.

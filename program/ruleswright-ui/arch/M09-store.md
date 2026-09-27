@@ -50,3 +50,9 @@ Imports engine/combat, engine/combat-profile, engine/errors, engine/replay, engi
 - SESSION-04 c1 (`33481cf`): `determinism.ts` realized.
 - SESSION-05 c2 (`18119f9`): `character.ts` realized.
 - SESSION-06 c2 (`8ac723d`) + c5 (`98a14e3`): `combat.ts` store realized; record/replay.
+
+<!-- loot-inventory SESSION-02 -->
+### loot-inventory SESSION-02 delta — M09 store
+— `store/character.ts`
+- `CharacterSection` gains `'inventory'`.
+- New actions `grant(itemId, qty)`, `drop(itemId, qty)`, `loot(tableId, seed)`, each `mutate('inventory', …)`; rejections land in `errors.inventory`, the view is unchanged.
