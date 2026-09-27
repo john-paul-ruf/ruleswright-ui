@@ -76,3 +76,10 @@ leg via `e2e/fixtures.ts` (isolated userData, restart on the same dir); build id
 ## State Update
 Spec/Design revisions; CA-09 evidence (rng, positions, pending offer); tamper refusal; build identity. Arch:
 M06 `resume`/`ResumeResult`, M09 `resume`, M14 Resume. New test ids.
+
+## Orchestrator note (2026-09-28, planning-completeness F5)
+Design `9cb5aa8` row "Resume action (CX)": Resume appears on **Fight → Records only**; "Combat → Replay & records
+rows carry no Resume". `RecordsPanel` is shared (`views/fight/determinism.tsx:68` renders `<RecordsPanel />`,
+`views/combat/index.tsx:40` renders `<RecordsPanel recordable />`). Inside this lease: render Resume only when
+`recordable` is false; do not edit `views/combat/index.tsx`. Proof: the e2e asserts no `fight-resume-*` in the
+Combat view.

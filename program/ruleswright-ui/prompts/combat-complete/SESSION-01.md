@@ -5,7 +5,8 @@
 > **Modules:** M01, M02, M06, M09, M17
 > **Depends on:** human Q4 = (a); AUTHOR-DB-CX committed to `specs/database.md` (the `positions` / `move` parts)
 > **Concurrent with:** —
-> **Owns:** `src/shared/model.ts`, `src/main/storage.ts`, `src/renderer/src/engine/combat.ts`, `src/renderer/src/engine/replay.ts`, `src/renderer/src/store/combat.ts`, `tests/main/storage.test.ts`, `tests/engine/combat.test.ts`, `tests/engine/replay.test.ts`, `tests/store/combat.test.ts`
+> **Owns:** `src/shared/model.ts`, `src/main/storage.ts`, `src/renderer/src/engine/combat.ts`, `src/renderer/src/engine/replay.ts`, `src/renderer/src/store/combat.ts`, `tests/main/storage.test.ts`, `tests/main/ipc.test.ts` (lease r2: the script-entry refusal assertion only), `tests/engine/combat.test.ts`, `tests/engine/replay.test.ts`, `tests/store/combat.test.ts`
+> **Lease revision:** r2 (2026-09-28, Orchestrator, planning-completeness F1–F3; r1 = plan rev 2 `0acfd0d`, no checkpoint accepted under r1)
 > **Reads:** `program/ruleswright-ui/PROGRAM-CONFIG.MD`, `program/ruleswright-ui/specs/database.md`, `program/ruleswright-ui/specs/requirements.md` (FR-11, FR-14), `program/ruleswright-ui/prompts/combat-complete/AUTHOR-REQUEST-CX.md`, `program/ruleswright-ui/arch/M06-engine.md`, `node_modules/ruleswright/dist/runtime.d.ts`, `node_modules/ruleswright/dist/schema.d.ts`, `../Ruleswright/src/runtime/combat/combat.ts`, `../Ruleswright/src/runtime/snapshots.ts`, `src/main/ipc.ts`, `src/renderer/src/views/fight/index.tsx`, `src/renderer/src/views/combat/*.tsx`, `tests/support/in-process-bridge.ts`, `.program/probe-grid.mjs`, `.program/probe-grid2.mjs`
 > **Resources:** —
 > **Checkpoints:** 3
@@ -95,6 +96,7 @@ Recheck each at checkpoint 0 against `database.md` (AUTHOR-DB-CX) and the instal
 | `tests/engine/replay.test.ts` | modify | Repair on grid packs; move cases |
 | `tests/store/combat.test.ts` | modify | Repair; placement/move/record cases; restart leg |
 | `tests/main/storage.test.ts` | modify | Accept/refuse the new shapes |
+| `tests/main/ipc.test.ts` | modify (r2) | Only the assertion at ~l.113 ("fight:save refuses a script entry with an unknown op") updated to the new refusal text; no other change |
 
 ## Implementation
 
@@ -179,6 +181,20 @@ swapped-entries, null-params and legacy-no-script cases preserved.
   instance → `replay(name)` → `complete`; the stored JSON's `start.positions` equals what `begin` passed.
 - Negative control (not committed): drop one entry from the default layout → the store test asserting
   begin succeeds fails with the library's `E-SPAT-01` card; restore.
+
+**Lease revision r2 additions to checkpoint 3 (planning-completeness review, 2026-09-28):**
+- **F1:** `tests/main/ipc.test.ts:113` pins `'script[1] is not a valid declare/respond/step entry'`. Update that
+  one assertion to the refusal text `storage.ts` now produces (`…declare/respond/step/move entry`). Touch nothing
+  else in that file.
+- **F2:** the store also exposes `defaultPositions: Record<string, Position> | null` — the CX-D9 layout for the
+  current roster (`null` on theater packs), recomputed on every roster change and **never** changed by
+  `setPosition`/`move` — and `resetPositions()`, which sets `positions` to `defaultPositions`. SESSION-02's
+  Placement board (design.md row "Placement board (CX)": per-row `default (x, y)`, Home, **Reset to default
+  layout**) reads these; the view must not recompute CX-D9. Store test: `defaultPositions` equals CX-D9 after
+  add/remove enemy and is unchanged by `setPosition`; `resetPositions()` restores it.
+- **F3:** keep the store's `fight: Combat | null` field readable with its current meaning (add `live` alongside,
+  do not rename/replace `fight`): `views/fight/records.tsx:28` (SESSION-06's file) reads `s.fight !== null`.
+  `pnpm typecheck` must pass at c3 with every view file untouched.
 
 **Commit when:** `pnpm typecheck && pnpm lint && pnpm test` all pass (whole repo, 0 failures).
 

@@ -20,12 +20,12 @@
 ## Session Status
 | # | Session | Modules | Owns | Status | Checkpoint | Completed | Notes |
 |---|---------|---------|------|--------|------------|-----------|-------|
-| 01 | Grid spine: positions, reposition, record/replay, unit gates | M01 M02 M06 M09 M17 | `src/shared/model.ts`, `src/main/storage.ts`, `src/renderer/src/engine/{combat,replay}.ts`, `src/renderer/src/store/combat.ts`, `tests/main/storage.test.ts`, `tests/engine/{combat,replay}.test.ts`, `tests/store/combat.test.ts` | pending | — | — | DB ✓ `af47822`; waits on planning-completeness review (relaunched; first attempt h-raWl aborted with the prior orchestrator runtime) |
+| 01 | Grid spine: positions, reposition, record/replay, unit gates | M01 M02 M06 M09 M17 | `src/shared/model.ts`, `src/main/storage.ts`, `src/renderer/src/engine/{combat,replay}.ts`, `src/renderer/src/store/combat.ts`, `tests/main/{storage,ipc}.test.ts`, `tests/engine/{combat,replay}.test.ts`, `tests/store/combat.test.ts` | pending | — | — | DB ✓ `af47822`; planning review ✓ 2026-09-28; **lease r2** (+ `tests/main/ipc.test.ts` assertion; store `defaultPositions`/`resetPositions`; keep `fight`) |
 | 02 | Grid UI: placement, board, reposition; e2e green | M14 M15 M08? M17 | `src/renderer/src/views/fight/{index.tsx,fight.css}`, `src/renderer/src/views/combat/{index,controls,board}.tsx`, `src/renderer/src/views/combat/combat.css`, `src/renderer/src/ui/{Combat.tsx,ui.css,index.ts}`, `e2e/{combat,replay}.spec.ts` | pending | — | — | waits on S01 (Spec ✓ `24601f4`, Design ✓ `9cb5aa8`) |
 | 03 | Turn order, initiative, economy, conditions | M06 M09 M15 M08? M17 | `src/renderer/src/engine/combat.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/combat/{index,controls,order}.tsx`, `src/renderer/src/views/combat/combat.css`, `src/renderer/src/ui/{Combat.tsx,ui.css,index.ts}`, `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts` | pending | — | — | waits on S02 (Design ✓ `9cb5aa8`) |
 | 04 | Ally-side spawns | M01 M02 M06 M09 M14 M17 | `src/shared/model.ts`, `src/main/storage.ts`, `src/renderer/src/engine/{combat,replay}.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{index.tsx,fight.css}`, `tests/main/storage.test.ts`, `tests/engine/{combat,replay}.test.ts`, `tests/store/combat.test.ts`, `e2e/{combat,replay}.spec.ts` | pending | — | — | waits on S03 (DB ✓ `af47822`, Design ✓ `9cb5aa8`) |
 | 05 | Threat-budget encounters | M06 M09 M14 M17 | `src/renderer/src/engine/combat.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{index.tsx,fight.css}`, `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts` | pending | — | — | waits on S04 (Spec ✓ `24601f4`, Design ✓ `9cb5aa8`) |
-| 06 | Resume a recorded fight | M06 M09 M14 M17 | `src/renderer/src/engine/replay.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{records.tsx,fight.css}`, `tests/engine/replay.test.ts`, `tests/store/combat.test.ts`, `e2e/replay.spec.ts` | pending | — | — | waits on S05 (Spec ✓ `24601f4`, Design ✓ `9cb5aa8`) |
+| 06 | Resume a recorded fight | M06 M09 M14 M17 | `src/renderer/src/engine/replay.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{records.tsx,fight.css}`, `tests/engine/replay.test.ts`, `tests/store/combat.test.ts`, `e2e/replay.spec.ts` | pending | — | — | waits on S05 (Spec ✓ `24601f4`, Design ✓ `9cb5aa8`); Resume on Fight → Records only (`recordable` false), F5 note in SESSION-06 |
 
 Brace globs here are shorthand; each SESSION-NN.md `Owns` line is the lease.
 
@@ -110,7 +110,7 @@ declare/respond/step, l.142–154); engine grid-combat FINAL-REPORT; loot-invent
 | `pnpm e2e` | `playwright test` | **not run**. Expected red: `e2e/combat.spec.ts` (3 tests), `e2e/replay.spec.ts` (CAP-10) | inference, unverified |
 | `pnpm verify` | all of the above | red | — |
 
-Commits since `7802c19` (`0acfd0d`, this one) touch only `program/` files; the actual results stand.
+Commits since `7802c19` touch only `program/` files **except `9ea30c4`**, which changes only the `dev` script in `package.json` (no effect on test/typecheck/lint/e2e/verify). Re-run by Archivist 2026-09-28 @ `2b6e063`: identical (18 failed / 181 passed; typecheck single error at `tests/engine/combat.test.ts:119`).
 
 **Known red window:** now → SESSION-01 checkpoint 3 (unit + typecheck) → SESSION-02 checkpoint 3 (e2e).
 Sessions before those checkpoints use lease-scoped gates (`pnpm exec vitest run <files>`) and record the
@@ -147,6 +147,14 @@ rejection → reposition → hit → record → restart → replay `complete`. S
 | CA-04b, CA-05, CA-06 | (rev 1; CA-05 also protects position keys) | see SESSION-04 | — | S04 | CA-04b names committed `af47822`: `start.allySpawns?: [{statblockId, instanceId}]` (non-empty only, ally order after the character) | planned | re-check before S04 dispatch |
 | CA-07, CA-08 | (rev 1) | see SESSION-05 | — | S05 | agreed | ready | planned |
 | CA-09..11 | (rev 1; CA-09 adds positions) | see SESSION-06 | — | S06 | agreed | planned | planned |
+
+## Planning Completeness Review
+- 2026-09-28, Archivist h-yz-7 (attempt 2; attempt 1 h-raWl aborted by an orchestrator runtime restart), base `2b6e063`, sources af47822 / 24601f4 / 9cb5aa8, engine dadf461. Engine surface, DB mapping, design/requirements vs S02–S06, wrapper callers, harness, serial plan: confirmed.
+- F1 (blocker) `tests/main/ipc.test.ts:113` pins the old script-entry refusal text → S01 lease r2 adds that file (assertion only). **Closed in plan.**
+- F2 (blocker for S02) no store source for the default layout → S01 c3 r2: `defaultPositions` + `resetPositions()` + store test. **Closed in plan.**
+- F3 (advisory) `views/fight/records.tsx:28` reads `s.fight` → S01 r2 keeps `fight` alongside `live`. **Closed in plan.**
+- F4 (advisory) baseline text omitted `9ea30c4` → corrected above.
+- F5 (advisory) Resume only on Fight → Records → SESSION-06 Orchestrator note. **Closed in plan.**
 
 ## Current Blockers
 Human decisions: **none open** (Q1–Q4 answered 2026-09-27).
