@@ -15,7 +15,7 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
 ### FR-2: Roll a world
 - **User story:** As the developer-player, I want to pick a theme, set a seed and knobs, and generate a validated campaign pack, so that I can play in that world.
 - **Acceptance criteria:**
-  - [ ] The theme picker reflects the themes the library exposes (currently `dark-fantasy`, `zombie-urban`, loaded via the library's theme loader — not a hardcoded UI-side theme list).
+  - [ ] The theme picker reflects the themes the library exposes (currently `dark-fantasy`, `zombie-urban`, `wyldwood`, loaded via the library's theme loader — not a hardcoded UI-side theme list).
   - [ ] Seed is a numeric input with an explicit "randomize" affordance (a user-initiated UI pick; the engine itself never receives UI-generated randomness).
   - [ ] Knob controls are generated from the theme's machine-readable knob declarations (`listThemeKnobs`), honoring each declaration's type and constraints.
   - [ ] Generate produces a pack via the compiler and validates it with the schema validator before the world opens.
@@ -116,7 +116,7 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
 ### FR-15: Theme-driven mood
 - **User story:** As the developer-player, I want the app's mood to respond to the world I rolled, so that dark-fantasy and zombie-urban feel like different games.
 - **Acceptance criteria:**
-  - [ ] The app's visual mood responds to the active world's theme; the two bundled themes produce clearly distinct moods.
+  - [ ] The app's visual mood responds to the active world's theme; **each bundled theme** (`dark-fantasy`, `zombie-urban`, `wyldwood`) produces a clearly distinct mood.
   - [ ] The mood mechanism is defined in the design phase; where theme data carries usable mood metadata the UI consumes it, otherwise a per-theme mapping keyed by theme id is acceptable for v1.
   - [ ] Legibility never degrades in any mood (see NFR Accessibility).
 
@@ -131,6 +131,15 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
 - **Acceptance criteria:**
   - [ ] Zero network I/O: generate → play works with networking disabled.
   - [ ] The renderer loads no remote content (CSP enforced).
+
+### FR-18: Inventory & loot
+- **User story:** As the developer-player, I want my character to hold pack items and roll the pack's loot tables into their inventory, so that I can exercise the pack's item economy.
+- **Acceptance criteria:**
+  - [ ] Held items show as `{id, qty}` stacks, named from the pack's `content.items` (name, kind), never invented.
+  - [ ] Grant an item from the pack's item list with a qty (`grantItem`), and drop held qty (`dropItem`). Rejections render the library's card verbatim and change nothing.
+  - [ ] Roll a loot table (`grantLoot`) with an explicit numeric **loot seed** the user types or picks with a user-initiated randomize. Offered tables are the pack's `-loot`-suffixed tables. A pack with none shows an honest empty state. A flavor roll shows the library's `loot-grants-nothing` card verbatim.
+  - [ ] Each mutation's events (`loot:rolled`, `item:granted`, `item:dropped`) show with `why.rule` verbatim.
+  - [ ] Inventory survives save → restart → restore through the existing character snapshot (FR-10). No new store.
 
 ## Non-Functional Requirements
 
@@ -157,7 +166,7 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
 
 - Consumes Ruleswright as a library (sibling repo, built `dist/`); never forks or edits the engine's source. Engine changes are a separate program in that repo. Consumption mechanism (file dependency vs vendored dist) is Architecture's call.
 - All mechanics flow through library API calls — the UI implements zero rules math.
-- The UI never injects nondeterminism into engine calls; the only "random" is an explicit user-initiated seed pick.
+- The UI never injects nondeterminism into engine calls; the only "random" is an explicit user-initiated seed pick (the Roll seed and the Character loot seed).
 - Design bar (builder-set, binding): simple, generic surface with best-in-class craft — "art to be proud of." Interpreted as *simple in surface, exceptional in craft*: a restrained feature set executed beautifully, not a sprawling feature set skinned pretty. The design phase owns the concrete expression of this bar.
 - v2 awareness: quests/campaign are coming engine-side. v1 makes no promises about them beyond not precluding them architecturally.
 
@@ -180,7 +189,7 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
 
 - **Pack:** the generated campaign artifact (classes, spells, bestiary, tables, formulas) — JSON, schema-versioned, byte-deterministic for a given theme + seed + knobs.
 - **World:** the app's unit of play — a persisted pack plus its generation parameters (theme, seed, knobs).
-- **Theme:** the input template the compiler turns into a pack; currently `dark-fantasy` and `zombie-urban`.
+- **Theme:** the input template the compiler turns into a pack; currently `dark-fantasy`, `zombie-urban`, `wyldwood`.
 - **Knob:** a declared generation parameter with machine-readable type and validation.
 - **Seed:** the RNG seed controlling generation and, via the runtime's seeded RNG, play.
 - **Provenance:** event metadata — `why.rule` (the pack artifact responsible) and `why.rolls` (the dice, quoted).
