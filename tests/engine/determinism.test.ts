@@ -16,6 +16,14 @@ describe('rerunSameSeed (CA-12, real library)', () => {
     expect(r.status === 'pass' && r.bytes).toBe(packJson.length);
   });
 
+  it('passes a forged seed-42 wyldwood pack byte-for-byte (CAP-01)', () => {
+    const wyld = loadTheme('wyldwood');
+    const wyldKnobs = Object.fromEntries(listThemeKnobs(wyld).map((k) => [k.id, k.default])) as Record<string, string | number>;
+    const wyldJson = JSON.stringify(generateCampaign({ theme: wyld, seed: 42, knobs: wyldKnobs }));
+    const r = rerunSameSeed({ theme: 'wyldwood', seed: 42, knobs: wyldKnobs }, wyldJson);
+    expect(r).toMatchObject({ status: 'pass', bytes: Buffer.byteLength(wyldJson, 'utf8') });
+  });
+
   it('fails a stored string with one digit changed, pointing at that offset', () => {
     const index = packJson.indexOf('"seed":42') + '"seed":'.length;
     const tampered = `${packJson.slice(0, index)}5${packJson.slice(index + 1)}`;

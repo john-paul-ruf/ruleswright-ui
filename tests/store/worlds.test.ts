@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { listThemes } from '../../src/renderer/src/engine/compiler';
 import { setPersistence } from '../../src/renderer/src/persistence/client';
 import { createWorldsStore } from '../../src/renderer/src/store/worlds';
 import { createFakeDialogs, createInProcessBridge, type FakeDialogs } from '../support/in-process-bridge';
@@ -56,7 +57,9 @@ describe('worlds store over the real handlers (CAP-01 unit path)', () => {
     setPersistence(createInProcessBridge(root, dialogs));
     const fresh = createWorldsStore();
     await fresh.getState().startup();
-    expect(fresh.getState().themes.map((t) => t.id)).toEqual(['dark-fantasy', 'zombie-urban']);
+    const ids = fresh.getState().themes.map((t) => t.id);
+    expect(ids).toEqual(listThemes().map((t) => t.id));
+    expect(ids).toEqual(expect.arrayContaining(['dark-fantasy', 'wyldwood', 'zombie-urban']));
     expect(fresh.getState().active?.meta.id).toBe(active.meta.id);
   });
 

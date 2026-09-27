@@ -6,6 +6,7 @@ describe('moodForTheme (CA-10)', () => {
   it.each([
     ['dark-fantasy', 'fantasy'],
     ['zombie-urban', 'urban'],
+    ['wyldwood', 'archive'],
     [null, 'archive'],
     [undefined, 'archive'],
     ['unknown', 'archive'],
