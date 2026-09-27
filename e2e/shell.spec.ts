@@ -84,12 +84,41 @@ test('CAP-04: mood follows the open world, bundled fonts, error card, world empt
   expect(await cssVar(page, '--accent')).toBe('#e56432');
   await expect(page.getByTestId('active-world-seed')).toHaveText('zombie-urban · 7');
 
-  // wyldwood (library-discovered, CAP-01) has no dedicated mood yet → archive (CA-10).
+  // wyldwood (library-discovered, CAP-01) → wild (CA-10, CAP-03): the picker card previews ✻ and the wild swatches.
   await page.getByTestId('nav-roll').click();
-  await expect(page.getByTestId('roll-theme-wyldwood')).toBeVisible();
+  const wildCard = page.getByTestId('roll-theme-wyldwood');
+  await expect(wildCard).toBeVisible();
+  await expect(wildCard.locator('.themecard-glyph')).toHaveText('✻');
+  await expect(wildCard.locator('.swatch-accent')).toHaveCSS('background-color', 'rgb(156, 199, 106)'); // wild --accent #9cc76a
   await forge(page, 'wyldwood', '7');
-  await expect(page.locator('html')).toHaveAttribute('data-mood', 'archive');
+  await expect(page.locator('html')).toHaveAttribute('data-mood', 'wild');
+  expect(await cssVar(page, '--accent')).toBe('#9cc76a');
   await expect(page.getByTestId('active-world-seed')).toHaveText('wyldwood · 7');
+  const spectral = await page.evaluate(async () => {
+    await document.fonts.ready;
+    const loaded = [...document.fonts].some((f) => f.family === 'Spectral' && f.weight === '600' && f.status === 'loaded');
+    return { check: document.fonts.check('600 16px Spectral'), loaded };
+  });
+  expect(spectral).toEqual({ check: true, loaded: true });
+  const canopy = await page.evaluate(() => getComputedStyle(document.body, '::before').backgroundImage);
+  expect(canopy.match(/radial-gradient/g)).toHaveLength(2);
+  await page.screenshot({ path: test.info().outputPath('shell-wild-roll.png'), fullPage: true });
+  const wildRow = page.getByTestId('world-row').filter({ hasText: 'wyldwood · 7' });
+  await page.getByTestId('nav-roll').click();
+  await expect(wildRow.locator('.worldrow-glyph')).toHaveText('✻');
+
+  // CA-12 UI path (closes CAP-01): rerunning the wyldwood world is byte-identical to its stored pack.
+  const wildTheme = loadTheme('wyldwood');
+  const wildPack = generateCampaign({
+    theme: wildTheme,
+    seed: 7,
+    knobs: Object.fromEntries(listThemeKnobs(wildTheme).map((k) => [k.id, k.default])),
+  });
+  await page.getByTestId('nav-world').click();
+  await page.getByTestId('rerun-same-seed').click();
+  await expect(page.getByTestId('ok-card')).toContainText('byte-identical');
+  await expect(page.getByTestId('ok-card')).toContainText(`${Buffer.byteLength(JSON.stringify(wildPack), 'utf8')} bytes`);
+  await expect(page.getByTestId('ok-card')).toHaveAttribute('data-state', 'pass');
 
   // Opening the other world switches the mood back.
   await page.getByTestId('nav-roll').click();
