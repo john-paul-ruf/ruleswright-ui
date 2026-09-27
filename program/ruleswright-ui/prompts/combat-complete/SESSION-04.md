@@ -1,115 +1,107 @@
-# SESSION-04 — Resume a recorded fight
+# SESSION-04 — Both-sided fight assembly: ally-side bestiary spawns, placed, recorded and replayed
 
 > **Program:** Ruleswright (UI)
-> **Feature:** combat-complete
-> **Modules:** M06, M09, M14, M17
-> **Depends on:** SESSION-03 (or SESSION-02 when SESSION-03 is `skipped`); AUTHOR-SPEC-CX (Q3 = a) + AUTHOR-DESIGN-CX (Q3 part) committed
+> **Feature:** combat-complete (plan rev 2; this was SESSION-02 in rev 1)
+> **Modules:** M01, M02, M06, M09, M14, M17
+> **Depends on:** SESSION-03; human Q1 = (a); AUTHOR-DB-CX (`allySpawns` part) committed to `specs/database.md`
 > **Concurrent with:** —
-> **Owns:** `src/renderer/src/engine/replay.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/records.tsx`, `src/renderer/src/views/fight/fight.css`, `tests/engine/replay.test.ts`, `tests/store/combat.test.ts`, `e2e/replay.spec.ts`
-> **Reads:** `program/ruleswright-ui/specs/requirements.md` (FR-14 amended), `program/ruleswright-ui/specs/design.md`, `program/ruleswright-ui/specs/database.md` (FightDoc, unchanged), `src/renderer/src/engine/combat.ts`, `src/renderer/src/views/combat/index.tsx`, `e2e/fixtures.ts`
-> **Resources:** `e2e:out` (checkpoint 3 only)
-> **Checkpoints:** 3
+> **Owns:** `src/shared/model.ts`, `src/main/storage.ts`, `src/renderer/src/engine/combat.ts`, `src/renderer/src/engine/replay.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/index.tsx`, `src/renderer/src/views/fight/fight.css`, `tests/main/storage.test.ts`, `tests/engine/combat.test.ts`, `tests/engine/replay.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts`, `e2e/replay.spec.ts`
+> **Reads:** `program/ruleswright-ui/specs/database.md`, `program/ruleswright-ui/specs/requirements.md` (FR-11, FR-14), `program/ruleswright-ui/mocks/fight.html`, `program/ruleswright-ui/specs/design.md`, `src/main/ipc.ts`, `src/renderer/src/views/fight/records.tsx`, `tests/support/in-process-bridge.ts`, `e2e/fixtures.ts`
+> **Resources:** `e2e:out` (checkpoints 3–4)
+> **Checkpoints:** 4
 
-**Plan applies to Q3 = (a).** On Q3 = (c), mark it `skipped`. On Q3 = (b), Planner must replan this session:
-it needs a DB field and a different engine path (`deserializeCombat`), so this prompt does not apply.
+**On Q1 = (c)** mark `skipped`. **On Q1 = (b)** Planner trims this to checkpoints 2–3 plus a record refusal.
 
 ## Module Context
 | ID | Module | Read | Why |
 |----|--------|------|-----|
-| M06 | engine | `replay.ts` | `resume()`: fresh Runtime on the stored pack, re-apply the script, require identical events |
-| M09 | store | `combat.ts` | `resume(name)` → a live fight continuing the recorded script/log |
-| M14 | views/fight | `records.tsx`, `fight.css` | Resume action on record rows; refusal rendering |
-| M17 | tests | three files | Proofs |
+| M01 | shared | `model.ts` | `FightStartDoc.allySpawns?` — only as DB wrote it (Custom Rule 8) |
+| M02 | main | `storage.ts` FightDoc `start` validation | Validate the field |
+| M06 | engine | `combat.ts`, `replay.ts` | `begin` takes ally spawns (they join `sides.allies`, so reposition re-states them) |
+| M09 | store | `combat.ts` | Ally roster; one id allocator over both sides (CA-05); default layout includes ally spawns |
+| M14 | views/fight | `index.tsx`, `fight.css` | Allies panel "+ Add bestiary spawn…" (already in `mocks/fight.html`); placement board lists them (SESSION-02 board is roster-driven) |
+| M17 | tests | six files | Proofs |
 
 ## Context
-A FightDoc already stores everything needed to rebuild a fight exactly: `start` (ally snapshot, enemies,
-and `allySpawns` from SESSION-02), `script` (every host call), and `events`. Replay already re-applies the
-script on a fresh Runtime and compares events. Resume uses that same path on the **stored pack bytes**; it
-needs no re-roll, so imported worlds work too. When the events match exactly, the rebuilt fight is **handed
-to the combat store live**. The engine's `deserializeCombat` was not chosen because it loses the live
-pool/bound-slot spend and restarts `offerIndex` (CX-D6, AUTHOR-REQUEST-CX Q3).
+FR-11: "either side may hold multiple bestiary-spawned combatants"; the fight mock draws "+ Add bestiary
+spawn…" on the ally side. `startCombat` takes any number of allies. Recording needs `start.allySpawns`
+(AUTHOR-DB-CX, Q1 = a). **Use DB's committed field name** (`allySpawns` is the proposal).
 
 ## Capabilities
-- **CAP-05 Resume (owned here, complete).** Entry: Fight or Combat → Records → **Resume** on a row. Path:
-  1. `fight:load` (IPC) → `engine.resume(storedPackJson, rec)`:
-     - `openPack` → a fresh Runtime
-     - `restore(start.ally.snapshot)` → `allyProfile`
-     - `subscribe`, then `begin(rt, ally, enemies, allySpawns ?? [])`
-     - `perform` each script entry
-     - `events` must deep-equal `rec.events` (same length, `JSON.stringify` per index, the `replay.ts`
-       comparator)
-  2. equal → the store adopts `{fight, start, script, declarations, log: events, hpAtStart}` and
-     re-subscribes its log sink to `fight.runtime`; the view navigates to Combat
-  3. different → refused with the first divergent index, shown like a diverged replay; the store is
-     unchanged
-- Continuing play appends to the adopted `script`. Recording under a **new** name produces a record that
-  replays `complete` from begin. Durable read after restart: resume a record → continue one step → record →
+- **CAP-03 Ally-side spawns (owned here, complete).** Fight → Allies panel → add spawn → placement (grid
+  worlds) → Begin → Combat (SESSION-03 panels show them on `allies`) → reposition includes them → Record →
   restart → replay `complete`.
+- Order matters: initiative ties break by declaration order (`combat.ts` `tieBreaker`), so `[character,
+  ...allySpawns]` order is part of the contract; `sides.allies` keeps it for the restore seam.
 
 ## Contract Agreements
-- **CA-09 resume identity.** The resumed state equals the recorded state:
-  `serializeCombat(resumed, {pairsWith: start.ally.id})` deep-equals the record's `combat`, rng words
-  included. Resumed `pendingTriggers` equal the offers open at record time. The adopted `log` deep-equals
-  `rec.events`. A missing `script`/`start`/`events` → `unavailable` with the existing replay reason text.
-  No partial adoption.
-- **CA-10 hpAtStart.** Capture it from `fight.state` right after `begin` and before the first `perform`,
-  exactly as `store.begin` does today. Never read it from the record.
-- **CA-11 subscription handoff.** Adoption order is: end the old fight's subscription → subscribe the store
-  sink to `fight.runtime` → publish. No event is double-logged or dropped. Proof: one step after adoption
-  appends exactly the events `fight.runtime` emitted for that call.
-- `outcome` is unchanged by resume. A refused resume does **not** rewrite `outcome` (only replay
-  divergence does, per database.md).
+- **CA-04b FightStart allies (provisional against AUTHOR-DB-CX; recheck its text at checkpoint 0).**
+  | Boundary | Mapping |
+  |---|---|
+  | store → engine | `FightStart.allySpawns: SpawnSpec[]` (`EnemySpec` → `SpawnSpec`, keep `export type EnemySpec = SpawnSpec`) |
+  | engine → library | `allies: [{id: ally.profile.id, ...ally}, ...allySpawns.map(s => ({id: s.instanceId, profile: spawnMonster(rt, s.statblockId, s.instanceId)}))]`; `sides.allies` in the same order |
+  | store → IPC | `record.start.allySpawns` only when non-empty |
+  | main | array of `{statblockId: string, instanceId: string}`, else a named refusal |
+  | replay | `rec.start.allySpawns ?? []` |
+- **CA-05 unique combatant ids.** The engine merges duplicate ids silently (EG-1), and positions are keyed by
+  id. `begin()` refuses any collision among the ally id, ally-spawn ids and enemy ids with
+  `{kind:'unexpected', operation:'fight:begin', message:'combatant id "<id>" is used twice — ids must be unique
+  across both sides'}` and never calls `startCombat`. One allocator over both rosters: `${statblockId}-${n}`,
+  smallest unused `n` on either side. Replay re-checks it and returns `error`.
+- **CA-06 legacy compatibility.** FightDocs without `allySpawns` load, list and replay as before.
+- **CA-12 (S01) extended.** The default layout puts ally spawns in the allies column after the character,
+  in roster order.
 
 ## Files to Create/Modify
 | File | Action | What Changes |
 |------|--------|--------------|
-| `src/renderer/src/engine/replay.ts` | modify | `export type ResumeResult = {status:'resumed'; fight: Combat; events: RuntimeEvent[]; hpAtStart: Record<string, number>} \| {status:'diverged'; index; expected?; actual?} \| {status:'unavailable'; reason} \| {status:'error'; error}`; `resume(storedPackJson, rec)`. Share the comparator/rebuild with `replay` (extract a private helper; `replay`'s behavior is unchanged) |
-| `src/renderer/src/store/combat.ts` | modify | `resume(name): Promise<boolean>`, `resumed: {name; result} \| null` for refusal display |
-| `src/renderer/src/views/fight/records.tsx` | modify | `fight-resume-<name>` button beside `fight-replay-<name>`. `fight-resume-status` for refusals. On success, `navigate('combat')` |
-| `src/renderer/src/views/fight/fight.css` | modify | Tokens-only |
-| `tests/engine/replay.test.ts` | modify | CA-09 identity (incl. rng and an open trigger offer), divergence refusal (tampered script), unavailable (legacy) |
-| `tests/store/combat.test.ts` | modify | CA-10/11; resume → step → record → replay `complete` through the in-process bridge |
-| `e2e/replay.spec.ts` | modify | CAP-05 journey |
+| `src/shared/model.ts` | modify | `FightStartDoc.allySpawns?` (DB's name) |
+| `src/main/storage.ts` | modify | Validate it when present |
+| `engine/combat.ts` | modify | `SpawnSpec`; `FightStart.allySpawns`; `begin(rt, ally, enemies, positions?, allySpawns = [])` (append the parameter; S01's order stays) |
+| `engine/replay.ts` | modify | Pass `allySpawns ?? []`; CA-05 check |
+| `store/combat.ts` | modify | `allySpawns`, `addAllySpawn`, `removeAllySpawn`, shared allocator, CA-05, layout, record body, world reset |
+| `views/fight/index.tsx`, `fight.css` | modify | AlliesPanel spawn rows + add/remove per `mocks/fight.html` |
+| tests (4 unit + 2 e2e) | modify | As below |
 
 ## Implementation
 
 ### Checkpoint 0 — recheck (no commit)
-Read the amended FR-14 and the design row. If either is absent, return `blocked`. Confirm the
-`perform`/`begin` signatures after SESSION-02/03. Confirm `records.tsx` ids (`fight-replay-<name>`,
-`fight-replay-status`) at HEAD.
+Read the AUTHOR-DB-CX `allySpawns` text. Absent → `blocked`. Grep `FightStart`/`EnemySpec`/`start.enemies`
+consumers; any outside the lease → Controlled Lease Revision request.
 
-### Checkpoint 1 — engine + store
-Build `resume` and `store.resume` as specified. The unit test for an open trigger offer: record while a
-`parry` offer is pending, from a reference fight where a wight's `attack:rolled` targets a warden. Search
-seeds/steps with the engine in the test setup, or build the record from a script that reaches one. Never
-hand-write events.
+### Checkpoint 1 — model + main + engine + replay
+With unit tests: storage accepts valid/absent, refuses malformed; `begin` with a `hill-spider` ally spawn →
+`side 'allies'`, in `order`; a reposition re-states it (CA-13 equality list holds for it); replay of a record
+with an ally spawn → `complete`; legacy record → unchanged result; duplicate ids → `error`.
 **Commit when:** `pnpm typecheck && pnpm lint && pnpm test` pass.
 
-### Checkpoint 2 — UI
-Resume button + refusal status per AUTHOR-DESIGN-CX. Keyboard reachable.
-**Commit when:** typecheck, lint and test pass, and `pnpm build` exits 0 (under `e2e:out`).
+### Checkpoint 2 — store
+Roster actions, allocator (used by `addEnemy` too), CA-05 refusal (no `startCombat` call, no log rows),
+layout, `record()` body. Restart leg via `tests/support/in-process-bridge.ts`: record → new store → replay
+`complete`.
+**Commit when:** unit gates pass.
 
-### Checkpoint 3 — CAP-05 e2e
-In `e2e/replay.spec.ts`:
-1. begin a fight, step/declare a few calls, record `mid-1` (outcome `abandoned`)
-2. `rw.restart()`
-3. Resume `mid-1` → the Combat surface shows the same round/active/phase and the same log row count as
-   `mid-1`'s stored `events.length`
-4. one more step → record `mid-2` → replay `mid-2` → `complete`
-5. tamper `mid-1`'s stored script (the existing tamper helper pattern) → Resume → refused status with the
-   divergent index; the Combat surface is unchanged
+### Checkpoint 3 — Fight assembly UI
+Rows `fight-ally-spawn-<instanceId>` (meta `spawnMonster · <statblockId> · hp · ac · actions`, same source as
+enemy rows), remove `fight-ally-spawn-remove-<instanceId>`, add `fight-add-ally` + `fight-add-ally-submit`.
+Keep `fight-ally` and its meta text. The placement board lists the spawn with no board change.
+**Commit when:** unit gates pass and `pnpm build` exits 0 (`e2e:out`).
 
-**Commit when:** `pnpm verify` exits 0.
+### Checkpoint 4 — CAP-03 e2e
+- `e2e/combat.spec.ts`: Brynn + `hill-spider` vs 1 `barrow-wight` (grid, positions read from the board): order
+  rows = `ref.fight.state.order`; spider shows `allies`; drive to `combat-over` in lockstep; banner winner =
+  reference `combat:ended` payload.
+- `e2e/replay.spec.ts`: record, `rw.restart()`, replay `complete`; stored `start.allySpawns` equals what the UI
+  showed.
+- Negative control (not committed): delete `allySpawns` from the stored file → replay `diverged` (or the
+  library's refusal, since the spider's position then names a missing combatant — record which); restore.
+**Commit when:** `pnpm verify` exits 0 (record build identity).
 
 ## Verification
-- Per checkpoint: `pnpm typecheck && pnpm lint && pnpm test`. Checkpoint 2: build. Checkpoint 3:
-  `pnpm verify` under `e2e:out`.
-- Integration proof CAP-05 (CA-09/10/11):
-  - Unit leg: real main handlers via `in-process-bridge` on a temp dir.
-  - Packaged leg: the built app via `e2e/fixtures.ts`, isolated userData, `restart()` on the same dir.
-  - Real pieces: storage, engine, preload. The build identity is recorded.
+Unit gates per checkpoint; build at 3; `pnpm verify` at 4. Integration proof CAP-03 (CA-04b/05/06): unit
+restart leg over real main handlers; packaged leg through `e2e/fixtures.ts` (isolated userData, restart on the
+same dir). Custom Rules 7, 8.
 
 ## State Update
-Report: the Spec/Design revisions, CA-09 deep-equality evidence (incl. rng words and a pending offer), the
-tamper refusal, and the build identity. Arch delta: M06 `resume`/`ResumeResult`, M09 `resume`, M14 Resume
-action. Report new test ids.
+DB revision + name used; CA evidence; stored-JSON assertion output; negative control; build identity. Arch
+deltas M01, M02, M06 (`SpawnSpec`, `begin` signature), M09, M14. New test ids.

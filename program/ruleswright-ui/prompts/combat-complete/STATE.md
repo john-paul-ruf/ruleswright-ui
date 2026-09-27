@@ -1,154 +1,163 @@
 # State Tracker — Ruleswright (UI) / combat-complete
 
 ## Program / Feature / Intent / Sessions
-- **Program:** Ruleswright (UI) (`ruleswright-ui`)
-- **Feature:** `combat-complete`
-- **Intent:** the Combat and Fight surfaces cover everything the installed Ruleswright engine supports for
-  combat: turn order + initiative, per-turn action economy, pools/bound slots, conditions, action costs,
-  both-sided assembly, threat-budget encounters, and resume. Spatial play is reported honestly: the engine
-  cannot enable it today.
-- **Human request (verbatim, 2026-09-27):** "can you make the combat section fully implment what
-  ruleswrights supports, turn order, spatial location, etc"
-- **Sessions:** 4 (SESSION-01..04) + Author re-entries (DF-CX-1 design-fill; AUTHOR-DB-CX, AUTHOR-SPEC-CX,
-  AUTHOR-DESIGN-CX pending human answers). See `AUTHOR-REQUEST-CX.md`.
-- **Plan base:** UI HEAD `01d2457`; engine `../Ruleswright` HEAD `f792f49` (clean); installed dist current.
+- **Program:** Ruleswright (UI) (`ruleswright-ui`) · **Feature:** `combat-complete` · **Plan revision 2**
+- **Intent:** the Combat and Fight surfaces cover what the installed engine supports for combat: grid
+  placement/positions/reach (new in engine `dadf461`), turn order + initiative, action economy,
+  pools/bound slots, conditions, action costs/validity, both-sided assembly, threat-budget encounters, resume.
+- **Human requests (verbatim, 2026-09-27):** "can you make the combat section fully implment what ruleswrights
+  supports, turn order, spatial location, etc" · "Ruleswright has been updated, please check again".
+- **Sessions:** 6 (SESSION-01..06) + Author re-entries (DF-CX-1 design-fill, dispatchable now; AUTHOR-DB-CX,
+  AUTHOR-SPEC-CX, AUTHOR-DESIGN-CX after human answers). See `AUTHOR-REQUEST-CX.md` (rev 2).
+- **Plan base (rev 2):** UI HEAD `7802c19` (source = `01d2457`); engine `../Ruleswright` HEAD `dadf461`,
+  clean, last `src/` commit `38c017e`; dist built 17:02 after it; installed copy hard-linked; `check:engine` ok.
+- **Rev 1 (`7802c19`) superseded:** its CAP-06 "spatial not implementable" premise is disproved by
+  `dadf461` (see Scope Summary, dispositions). Sessions renumbered: rev-1 S01→S03, S02→S04, S03→S05, S04→S06.
 
 ## Session Status
 | # | Session | Modules | Owns | Status | Checkpoint | Completed | Notes |
 |---|---------|---------|------|--------|------------|-----------|-------|
-| 01 | Combat surface: turn order, initiative, action economy, conditions | M06 M09 M15 M08? M17 | `src/renderer/src/engine/combat.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/combat/{index,controls,order}.tsx`, `src/renderer/src/views/combat/combat.css`, `src/renderer/src/ui/{Combat.tsx,ui.css,index.ts}`, `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts` | pending | — | — | waits on DF-CX-1 (design-fill, no human) |
-| 02 | Both-sided assembly: ally-side spawns, recorded + replayed | M01 M02 M06 M09 M14 M17 | `src/shared/model.ts`, `src/main/storage.ts`, `src/renderer/src/engine/{combat,replay}.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{index.tsx,fight.css}`, `tests/main/storage.test.ts`, `tests/engine/{combat,replay}.test.ts`, `tests/store/combat.test.ts`, `e2e/{combat,replay}.spec.ts` | pending | — | — | waits on Q1 = (a) → AUTHOR-DB-CX |
-| 03 | Encounter assembly by threat budget | M06 M09 M14 M17 | `src/renderer/src/engine/combat.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{index.tsx,fight.css}`, `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts` | pending | — | — | waits on Q2 = (a) → AUTHOR-SPEC-CX + AUTHOR-DESIGN-CX; `skipped` on Q2 = (b) |
-| 04 | Resume a recorded fight | M06 M09 M14 M17 | `src/renderer/src/engine/replay.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{records.tsx,fight.css}`, `tests/engine/replay.test.ts`, `tests/store/combat.test.ts`, `e2e/replay.spec.ts` | pending | — | — | waits on Q3 = (a) → Spec + Design; `skipped` on (c); **replan** on (b) |
+| 01 | Grid spine: positions, reposition, record/replay, unit gates | M01 M02 M06 M09 M17 | `src/shared/model.ts`, `src/main/storage.ts`, `src/renderer/src/engine/{combat,replay}.ts`, `src/renderer/src/store/combat.ts`, `tests/main/storage.test.ts`, `tests/engine/{combat,replay}.test.ts`, `tests/store/combat.test.ts` | pending | — | — | waits on Q4 = (a) → AUTHOR-DB-CX; replan on Q4 = (b) |
+| 02 | Grid UI: placement, board, reposition; e2e green | M14 M15 M08? M17 | `src/renderer/src/views/fight/{index.tsx,fight.css}`, `src/renderer/src/views/combat/{index,controls,board}.tsx`, `src/renderer/src/views/combat/combat.css`, `src/renderer/src/ui/{Combat.tsx,ui.css,index.ts}`, `e2e/{combat,replay}.spec.ts` | pending | — | — | waits on S01 + Spec/Design (Q4 parts) |
+| 03 | Turn order, initiative, economy, conditions | M06 M09 M15 M08? M17 | `src/renderer/src/engine/combat.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/combat/{index,controls,order}.tsx`, `src/renderer/src/views/combat/combat.css`, `src/renderer/src/ui/{Combat.tsx,ui.css,index.ts}`, `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts` | pending | — | — | waits on S02 + DF-CX-1 |
+| 04 | Ally-side spawns | M01 M02 M06 M09 M14 M17 | `src/shared/model.ts`, `src/main/storage.ts`, `src/renderer/src/engine/{combat,replay}.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{index.tsx,fight.css}`, `tests/main/storage.test.ts`, `tests/engine/{combat,replay}.test.ts`, `tests/store/combat.test.ts`, `e2e/{combat,replay}.spec.ts` | pending | — | — | waits on Q1 = (a) → AUTHOR-DB-CX; skipped on (c) |
+| 05 | Threat-budget encounters | M06 M09 M14 M17 | `src/renderer/src/engine/combat.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{index.tsx,fight.css}`, `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts` | pending | — | — | waits on Q2 = (a); skipped on (b) |
+| 06 | Resume a recorded fight | M06 M09 M14 M17 | `src/renderer/src/engine/replay.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{records.tsx,fight.css}`, `tests/engine/replay.test.ts`, `tests/store/combat.test.ts`, `e2e/replay.spec.ts` | pending | — | — | waits on Q3 = (a); skipped on (c); replan on (b) |
 
-Brace globs in this table are shorthand. Each SESSION-NN.md `Owns` line lists exact paths, and that line is
-the lease.
+Brace globs here are shorthand; each SESSION-NN.md `Owns` line is the lease.
 
 ## Wave Plan
-| Wave | Sessions | Why concurrent |
-|------|----------|----------------|
-| A0 | DF-CX-1 (Designer design-fill), and — after human answers — AUTHOR-DB-CX, AUTHOR-SPEC-CX, AUTHOR-DESIGN-CX | Author workers. DF-CX-1 writes `specs/design.md` + `mocks/combat.html`; AUTHOR-DESIGN-CX writes `specs/design.md` + `mocks/fight.html`. **Both write `design.md`, so serialize DF-CX-1 → AUTHOR-DESIGN-CX** (or merge them into one Designer worker once Q2/Q3 are answered). DB (`database.md`) and Spec (`requirements.md`) are disjoint and may run alongside |
-| 1 | SESSION-01 | Alone: every session owns `src/renderer/src/store/combat.ts` |
-| 2 | SESSION-02 | Alone: shares `store/combat.ts`, `engine/combat.ts`, `tests/*/combat.test.ts`, `e2e/combat.spec.ts` with 01 and 03 |
-| 3 | SESSION-03 | Alone: shares `views/fight/index.tsx`, `engine/combat.ts` and `store/combat.ts` with 02 |
-| 4 | SESSION-04 | Alone: shares `store/combat.ts`, `engine/replay.ts` and `e2e/replay.spec.ts` with 02 |
+| Wave | Sessions | Why |
+|------|----------|-----|
+| A0 | DF-CX-1 now; after answers AUTHOR-DB-CX ∥ AUTHOR-SPEC-CX, then AUTHOR-DESIGN-CX | DB writes `database.md`, Spec `requirements.md` (disjoint). DF-CX-1 and AUTHOR-DESIGN-CX both write `design.md` + `mocks/combat.html`: **serialize DF-CX-1 → AUTHOR-DESIGN-CX** |
+| 1 | SESSION-01 | Alone: every session holds `store/combat.ts` (the feature spine) |
+| 2 | SESSION-02 | Alone: holds `views/combat/*`, `e2e/*.spec.ts` shared with 03/04/05/06 |
+| 3–6 | SESSION-03 → 04 → 05 → 06, one per wave | Each shares `store/combat.ts` with every other |
 
-No session pair is concurrent. All four hold the combat store, which is the one coherent spine of this
-feature. Splitting that file to buy parallelism would add a merge surface with no benefit.
+No concurrency: all six sessions hold `store/combat.ts`. Splitting that file to buy parallelism would add a
+merge surface with no benefit (CX-D8).
 
 ## Dependency Graph
 ```
-DF-CX-1 ──► S01 ──► S02 ──► S03 ──► S04
-Q1=a ► AUTHOR-DB-CX ──┘      ▲        ▲
-Q2=a ► AUTHOR-SPEC-CX + AUTHOR-DESIGN-CX ─┴────────┘ (Q3=a part)
-Q4   ► no UI session (engine program, outside this repo)
+Q4=a ─► AUTHOR-DB-CX ─┐
+        AUTHOR-SPEC-CX ┼─► S01 ─► S02 ─► S03 ─► S04 ─► S05 ─► S06
+DF-CX-1 ─► AUTHOR-DESIGN-CX ┘      ▲      ▲(DF-CX-1)  ▲Q1  ▲Q2   ▲Q3
 ```
-If S03 is skipped, S04 depends on S02 directly.
+S01 needs the DB order; S02 needs Spec + Design (Q4 parts); S03 needs DF-CX-1. Skipped sessions are bridged
+to the next non-skipped one.
 
 ## Architecture Reference (feature-specific)
-- Views reach the engine only through `store/combat` (existing convention). `engine/` stays the only
-  `ruleswright` importer (Custom Rule 1).
-- New engine surface used: `resolveSlotGrants` (S01), `assembleEncounter`/`spawnEncounter`/`Encounter`
-  (S03). All exist in the installed dist (`ruleswright/runtime` barrel, probed 2026-09-27).
-- Engine surface deliberately **not** used: `gridGeometry`/`checkReach`/`inBurst` (no pack can enable
-  them; CX-D1). `deserializeCombat` (lossy for this host; CX-D6). `checkCost` as a pre-judgement (the
-  declare result is the authority; CX-D4).
+- `engine/` stays the only `ruleswright` importer (Custom Rule 1). Views reach the engine through
+  `store/combat` (existing convention).
+- New engine surface used: `startCombat` `positions`, `serializeCombat`/`deserializeCombat` (reposition seam),
+  `Position`, `SpatialDef`, `Runtime.spatial.distance` (S01/S02); `resolveSlotGrants` (S03);
+  `assembleEncounter`/`spawnEncounter`/`Encounter` (S05). All verified in the installed `.d.ts` at plan time.
+- Engine surface deliberately **not** used: `canReach`/`checkReach`/`inBurst` from the UI (reach is the
+  engine's decision; EG-4); `checkCost` as a pre-judgement (CX-D4); `deserializeCombat` as resume (CX-D6).
+- S01 changes the engine wrapper shapes: `begin` → `Outcome<LiveFight>`, `perform(live, entry)`.
 
 ## Scope Summary
 | ID | Module | Change |
 |----|--------|--------|
-| M01 | shared | S02: `FightStartDoc.allySpawns?` (DB-approved only) |
-| M02 | main | S02: validate `start.allySpawns` |
-| M06 | engine | S01 `slotGrants`, `actionInfo`. S02 `SpawnSpec`, `begin(…, allySpawns)`, replay spawns. S03 `assemble`. S04 `resume` |
-| M08 | ui | S01, only if DF-CX-1 adds a component |
-| M09 | store | S01 re-exports + `initiativeOf`. S02 ally roster + CA-05. S03 `assembleEnemies`. S04 `resume` |
-| M14 | views/fight | S02 Allies panel. S03 Assemble row. S04 Resume |
-| M15 | views/combat | S01 `order.tsx`, combatant + action detail, spatial caption |
-| M17 | tests | each session's proofs |
-| — | engine repo | none (never edited). Gaps reported in AUTHOR-REQUEST-CX |
+| M01 | shared | S01 `start.positions?`, `move` script entry; S04 `start.allySpawns?` (DB-approved only) |
+| M02 | main | S01, S04 validation |
+| M06 | engine | S01 positions/`LiveFight`/`reposition`/`spatialOf`/`distance`; S03 `slotGrants`/`actionInfo`; S04 ally spawns; S05 `assemble`; S06 `resume` |
+| M08 | ui | S02/S03 only if the design names a component |
+| M09 | store | S01 placement/`move`; S03 `initiativeOf`; S04 ally roster + CA-05; S05 `assembleEnemies`; S06 `resume` |
+| M14 | views/fight | S02 placement; S04 Allies panel; S05 Assemble row; S06 Resume |
+| M15 | views/combat | S02 `board.tsx`; S03 `order.tsx` + detail panels |
+| M17 | tests | S01 unit repair; S02 e2e repair; every session's proofs |
+| — | engine repo | none (never edited). Gaps EG-1..EG-7 in AUTHOR-REQUEST-CX |
 
-Out of scope, with a disposition for each:
-- **Grid/positions/reach (CAP-06):** blocked on an engine program (Q4). Evidence: `new Runtime(pack +
-  spatial)` → `E-SCHEMA-02 @ spatial` on all 3 themes. `CombatantState` has no position. `declare` never
-  calls `checkReach`.
-- **Downed/skipped labels:** withheld (CX-D3). Engine gap: `isDowned` is not exported.
-- **Condition ticking in combat, character conditions carried into combat:** engine gaps. The UI displays
-  only what the library holds.
-- **Multiple player characters:** FR-11 "Ally side is the active character". A party is a requirements
-  change nobody asked for. Not planned.
+Dispositions of inherited/rev-1 items:
+- **Rev-1 CAP-06 "spatial not implementable"**: **disproved** by engine `dadf461` (probe-grid). Replaced by
+  CAP-06 "grid fight", owned by S01 (producer) + S02 (integration).
+- **Rev-1 Q4 (a/b)**: superseded by rev-2 Q4 (build grid / leave grid worlds unplayable).
+- **Downed labels**: withheld (CX-D3, EG-2). **Condition ticking in combat**: engine gap (EG-3).
+- **Burst targeting UI**: not planned — nothing in a generated pack's `actions` uses a burst (EG-7). Reopen when
+  the engine makes spells combat-declarable.
+- **Per-combatant reach display / "in reach" hint**: not planned (EG-4; would copy a private engine lookup).
+- **Multiple player characters**: not requested; FR-11 "Ally side is the active character".
+- **Pre-`dadf461` worlds**: rerun now fails honestly (dark-fantasy·42 16,056 → 16,482 B); their fights stay
+  theater; their records replay pack-diverged. Same class as LI-D4. No UI change.
 
 ## Design Decisions
 | ID | Choice | Rationale |
 |----|--------|-----------|
-| CX-D1 | No spatial UI (positions/grid/reach) in this feature | No pack can declare `spatial` (E-SCHEMA-02). The combat loop ignores geometry. A UI grid would be UI-invented rules (Custom Rule 2) and contradicts FR-11. Routed to the human (Q4) and the engine program |
-| CX-D2 | The turn order + economy display is **design-fill** (DF-CX-1), not a design-change | FR-11/12/16 already require round/active/pending actions and readable cost rejections. It decides how required information looks, with no new behavior |
-| CX-D3 | No "down"/"skipped" labels | `hp ≤ 0 ⇒ down` is an engine rule (`isDowned`, not exported). Copying it is rules math. Show hp verbatim; report the missing export |
-| CX-D4 | Action detail shows the pack's cost/tags/trigger verbatim; no affordability preview | `Combat.declare` gates in the order action → restriction → target → cost. A preview via `checkCost` would disagree with declare whenever restriction/target fail first. The declare result stays the authority (FR-12) |
-| CX-D5 | Threat assembly with empty `groups` leaves the roster unchanged and shows the library's summary | The narrowest reversible behavior. Nothing is discarded silently |
-| CX-D6 | Resume = re-apply the recorded script on the stored pack, and adopt only on identical events | Lossless (pools, bound slots, offers, log). No DB change. `deserializeCombat` drops the live balances and restarts `offerIndex` for this host. Human confirms (Q3) |
-| CX-D7 | One id allocator over both rosters (`${statblockId}-${n}`), and `begin` refuses duplicates | The engine silently merges duplicate ids (probe). Refusing is host input validation, not a rule |
-| CX-D8 | All four sessions are serial | They share `store/combat.ts`, the feature's spine. Parallelism would need an artificial split |
+| CX-D2 | Turn order + economy display is **design-fill** (DF-CX-1) | FR-11/12/16 already require the information; no new behavior |
+| CX-D3 | No "down"/"skipped" labels | `isDowned` is an unexported engine rule (EG-2) |
+| CX-D4 | Action detail shows `cost`/`tags`/`trigger.on`/`valid` verbatim; no affordability preview | Declare is the authority; the engine's gate order (action → restriction → target → validity → reach → cost) would contradict any preview |
+| CX-D5 | Empty threat assembly leaves the roster unchanged | Narrowest reversible behavior |
+| CX-D6 | Resume = re-apply the script on the stored pack; adopt only on identical events | Lossless; `deserializeCombat` from the record loses live balances (Q3) |
+| CX-D7 | One id allocator over both rosters; `begin` refuses duplicates | EG-1; positions are keyed by id |
+| CX-D8 | All sessions serial | Shared `store/combat.ts` spine |
+| CX-D9 | **Default placement** (proposal, human/Designer may replace): allies `x=0`, enemies `x=1`, `y` = index in own roster | Everyone starts where melee is legal, so a fight begins as playable as theater fights did; editable before Begin; host input, not a rule |
+| CX-D10 | **Reposition only at `awaiting-declare` with no open offers** (Q4 a-i) | Probe-grid2: restore after a declare returns `awaiting-declare` and the next `step` re-begins the same turn (a second action); `serializeCombat` keeps one offer per combatant (EG-6). Host pacing, enforced in the engine wrapper so replay obeys it too |
+| CX-D11 | Reposition uses the engine's serialize → restore seam with **live** balances re-stated | The engine documents this as its v1 movement answer; re-stating begin-time balances would refund spent pools (probe: ember 16 kept) |
+| CX-D12 | Placement board is a viewport; shared squares allowed; no bounds enforced | The engine bounds nothing and forbids nothing; adding either would be a UI rule |
+| CX-D13 | Theater-path tests use a generated pack with `spatial` deleted | Exactly the shape of pre-`dadf461` worlds and imported packs; the engine's own journey uses the same technique |
+| CX-D14 | Unit repair (S01) and e2e repair (S02) are owned by the grid sessions, not a separate fix session | The repair needs positions in the wrappers/store; a fix-only session would build the same seam twice |
 
 ## Verification Baseline
-Inspected: `package.json` scripts via PROGRAM-CONFIG (unchanged since v1-shell), `playwright.config.ts`
-+ `e2e/fixtures.ts` (restartable isolated userData via `RULESWRIGHT_USER_DATA`, `rw.restart()`),
-`e2e/global-setup.ts` (rebuilds `out/`, writes `test-results/build-identity.json`), loot-inventory
-STATE Verification Baseline + Handoff Notes.
+Inspected: PROGRAM-CONFIG verification table; `e2e/fixtures.ts` (isolated `RULESWRIGHT_USER_DATA`,
+`rw.restart()`); `e2e/global-setup.ts`; `src/main/storage.ts` FightDoc validation (script ops limited to
+declare/respond/step, l.142–154); engine grid-combat FINAL-REPORT; loot-inventory STATE baseline.
 
 | Command | Effective | Evidence | Source |
 |---|---|---|---|
-| `pnpm check:engine` | `node scripts/check-engine.mjs` | **actual** 2026-09-27 @ `01d2457`: `engine ok: ruleswright@0.1.0` | Planner run |
-| `pnpm test` | `vitest run` | **actual** @ `01d2457`: 18 files, **199/199**, 1.17 s | Planner run |
-| `pnpm typecheck`, `pnpm lint` | per PROGRAM-CONFIG | **inherited** green @ `0452776` (loot-inventory wave close); not re-run by Planner | loot-inventory STATE |
-| `pnpm e2e` | `playwright test` (globalSetup rebuilds `out/`) | **inherited** 18/18 @ `0452776`, 52.8 s, build identity dirty false; not re-run (exclusive `e2e:out`, GUI) | loot-inventory STATE |
-| `pnpm verify` | all of the above | **inherited** rc 0 @ `0452776` | loot-inventory STATE |
+| `pnpm check:engine` | `node scripts/check-engine.mjs` | **actual** 2026-09-27 @ `7802c19`: `engine ok: ruleswright@0.1.0` (dist current with engine `dadf461`) | Planner run |
+| `pnpm test` | `vitest run` | **actual** @ `7802c19`: **RED** 18 files, 181 passed / **18 failed** — `tests/engine/combat.test.ts` (8), `tests/engine/replay.test.ts` (6), `tests/store/combat.test.ts` (4); cause: fresh packs are grid, `begin` has no positions | Planner run |
+| `pnpm typecheck` | per PROGRAM-CONFIG | **actual** @ `7802c19`: **RED**, one error `tests/engine/combat.test.ts(119,25)` TS2352 (`{defaultReach}` vs `SpatialDef`) | Planner run |
+| `pnpm lint` | per PROGRAM-CONFIG | inherited green @ `0452776`; not re-run | loot-inventory STATE |
+| `pnpm e2e` | `playwright test` | **not run** (exclusive `e2e:out`, GUI). **Expected red**: `e2e/combat.spec.ts` (3 tests) and `e2e/replay.spec.ts` (CAP-10) begin fights on freshly forged (grid) worlds. Other specs do not begin fights (`grep fight-begin`) | inference from the unit result, unverified |
+| `pnpm verify` | all of the above | red (follows from test + typecheck) | — |
 
-Commits since `0452776` (`e14f2e4`, `01d2457`) touch only `program/` files. Source is unchanged, so the
-inherited results stand for the source. They are still inherited, not re-observed.
+**Known red window:** now → SESSION-01 checkpoint 3 (unit + typecheck) → SESSION-02 checkpoint 3 (e2e).
+Sessions before those checkpoints use lease-scoped gates (`pnpm exec vitest run <files>`) and record the
+whole-repo result without claiming green. The red set was caused by the engine update, not by UI source
+(UI `src/` unchanged since `01d2457`).
 
-Hazards (carried from v1-shell/loot-inventory, still open):
-- **H-1** `e2e:out` is exclusive. Build/e2e steps hold it; serial sessions make this trivial.
-- **H-2** e2e needs a GUI session (Electron).
-- **H-3** `file:` engine copy. `check:engine` catches staleness. **Do not rebuild `../Ruleswright/dist`
-  while a session runs.**
-- **H-5** `program/ruleswright-ui/prompts/` is gitignored; commit with `git add -f`.
-- Build identity is `dirty: true` whenever uncommitted files exist at build time. Workers record it;
-  Orchestrator's wave-close `pnpm verify` on a clean tree is the clean record.
+Hazards: H-1 `e2e:out` exclusive · H-2 e2e needs a GUI · H-3 `file:` engine copy; **do not rebuild
+`../Ruleswright/dist` while a session runs** (this revision exists because the engine moved under the plan) ·
+H-5 `prompts/` gitignored → `git add -f` · build identity `dirty: true` whenever uncommitted files exist.
+New: probe scripts that drive combat must bound their loops — `step()` at `awaiting-declare` re-begins the turn
+and never ends it (a turn ends only after a declare); an unbounded loop exhausted the heap during planning.
 
 ## Capability Readiness
 | ID | Approved behavior / entry point | Required facts + producer owners | CA IDs / prerequisites | Integration owner / checkpoint | Status | Proof / checked sources | Open gaps + correction owners |
 |----|----|----|----|----|----|----|----|
-| CAP-01 | FR-11/12: turn order + initiative on Combat | `combat:start` event (engine, ready); `state.order/turn/active/round` (engine, ready) | CA-01; DF-CX-1 | S01 c3 `e2e/combat.spec.ts` | planned | probe: `combat:start` at `{round:0}`, payload `{order, initiative}`, `why.rolls` `d20[n]+b=t (id)` | DF-CX-1 (Designer) |
-| CAP-02 | FR-12/16: slot ledger, pools, bound slots, conditions, action cost | `slots.remaining`, `pools`, `boundSlots`, `conditions` (engine, ready); `resolveSlotGrants` (engine, ready); `pack.actions` (pack) | CA-02, CA-03, CA-04; DF-CX-1 | S01 c3 | planned | probe: dark-fantasy grants `{main,move,reaction:1}`; hexer balances `{ember:18}`, `{"1":0}` | DF-CX-1 |
-| CAP-03 | FR-11: ally-side bestiary spawns; recorded, restart, replay | `startCombat` multi-ally (engine, ready); FightDoc `start.allySpawns` (DB, **unapproved**) | CA-04b, CA-05, CA-06; Q1 | S02 c4 `e2e/combat.spec.ts` + `e2e/replay.spec.ts` | blocked | probe: allies `[vey, hill-spider-a1]` accepted; duplicate ids merge silently | Q1 (human) → AUTHOR-DB-CX |
-| CAP-04 | FR-11 (amendment, **unapproved**): threat-budget encounter | `assembleEncounter`/`spawnEncounter` (engine, ready) | CA-07, CA-08, CA-05; Q2 | S03 c3 | blocked | probe: df·42 b3 s7 → barrow-wight×1; zu·42 → grave-shambler×2 | Q2 (human) → Spec + Designer |
-| CAP-05 | FR-14 (amendment, **unapproved**): resume a recorded fight | FightDoc `start/script/events` (DB, ready); `replay.ts` rebuild path (UI, ready) | CA-09, CA-10, CA-11; Q3 | S04 c3 `e2e/replay.spec.ts` | blocked | `engine/replay.ts` read; `database.md` FightDoc read | Q3 (human) → Spec + Designer |
-| CAP-06 | Spatial positions/reach | **no producer**: pack schema rejects `spatial`; `Combat` has no positions | Q4 | engine program (outside this repo), then a UI follow-up feature | blocked | probe E-SCHEMA-02 × 3 themes; `combat.ts` source read | Q4 (human); engine program owner |
+| CAP-06 | FR-11 (rev, **unapproved**): grid fight — placement, board, reach/validity rejections, reposition, record/replay | `startCombat` positions, restore seam, `rt.spatial` (engine, ready); FightDoc `start.positions` + `move` (DB, **unapproved**) | CA-12, CA-13, CA-14, CA-15; Q4 | S01 c3 (unit restart leg), **S02 c3** (packaged) | blocked | probe-grid (3 themes), probe-grid2 (restore semantics); `runtime.d.ts` | Q4 (human) → DB, Spec, Designer |
+| CAP-01 | FR-11/12: turn order + initiative | `combat:start`, `state.order/turn/active/round` (engine, ready) | CA-01; DF-CX-1; S02 | S03 c3 | planned | probe (rev 1) | DF-CX-1 |
+| CAP-02 | FR-12/16: ledger, pools, bound slots, conditions, action detail | engine state + `resolveSlotGrants` + `pack.actions` (ready) | CA-02..04; DF-CX-1 | S03 c3 | planned | probe (rev 1) | DF-CX-1 |
+| CAP-03 | FR-11: ally-side spawns, recorded + replayed | multi-ally `startCombat` (ready); FightDoc `allySpawns` (DB, **unapproved**) | CA-04b, CA-05, CA-06; Q1 | S04 c4 | blocked | probe (rev 1) | Q1 → DB |
+| CAP-04 | FR-11 (amendment, **unapproved**): threat-budget encounter | `assembleEncounter`/`spawnEncounter` (ready) | CA-07, CA-08, CA-05; Q2 | S05 c3 | blocked | probe (rev 1) | Q2 → Spec + Designer |
+| CAP-05 | FR-14 (amendment, **unapproved**): resume | FightDoc (ready after S01/S04); shared rebuild path (S01) | CA-09..11; Q3 | S06 c3 | blocked | `replay.ts`, `database.md` | Q3 → Spec + Designer |
+| CAP-10 | FR-14 (existing, verified in v1-shell): record + replay | existing | CA-14 | S01 c2–c3 (unit), S02 c3 (e2e) | **stale** | red since engine `dadf461` (6 replay unit tests + CAP-10 e2e expected) | S01, S02 |
+| CAP-09 | FR-11/12/13 (existing, verified in v1-shell): combat loop | existing | CA-12 | S01 c3 (unit), S02 c3 (e2e) | **stale** | red since `dadf461` (engine + store unit tests) | S01, S02 |
+
+First narrow journey (rev 2): **S02 checkpoint 3** — built app → Roll → Character → placement → Begin → reach
+rejection → reposition → hit → record → restart → replay `complete`. S03–S06 build on it.
 
 ## Contract Agreements
 | ID | Required meaning / authority | Producer → boundary → consumer | Mapping / constraints | Correction + proof owners / checkpoints | Agreement | Producer | Proof / evidence / checked sources |
 |----|----|----|----|----|----|----|----|
-| CA-01 | Initiative is the library's, verbatim | `startCombat` → `combat:start` → store log → `initiativeOf` → TurnOrderPanel | payload/why strings unparsed; order from `state.order`; absent → "not in this log" | S01 c1 unit, c3 e2e | agreed | ready | planned. Sources: `../Ruleswright/src/runtime/combat/combat.ts` `startCombat`; probe |
-| CA-02 | Ledger = remaining vs grant, both library numbers | `CombatantState.slots.remaining` + `resolveSlotGrants(pack).slots` → CombatantsPanel | `name r/g`, no arithmetic | S01 c1, c3 | agreed | ready | planned. Sources: `action-economy.ts`; probe |
-| CA-03 | Action detail = pack verbatim; no pre-judgement | `pack.actions[id]` → `actionInfo` → PhasePanel | `cost.slots/points/vancian`, `tags`, `trigger.on` | S01 c1, c3 | agreed | ready | planned. Source: `artifacts.ts:31` |
-| CA-04 | Conditions as held | `CombatantState.conditions` + `pack.content.conditions[id].restricts` → CombatantsPanel | `{conditionId, duration}` verbatim | S01 c3 | agreed | ready | planned |
-| CA-04b | FightDoc records ally spawns losslessly | store `start.allySpawns` → IPC → main validation → disk → replay `begin` | additive optional; written only when non-empty; order = startCombat ally order after the character | DB (Q1); S02 c1–c4 | **unresolved** (awaiting DB) | planned | provisional against AUTHOR-DB-CX. Orchestrator re-checks the committed field name before S02 dispatch |
-| CA-05 | Combatant ids unique across sides | store/replay → `startCombat` | refuse on collision; one allocator | S02 c2 (store), c1 (replay); S03 c1 | agreed | planned | engine gap evidence: probe (duplicate `x` → 1 combatant) |
-| CA-06 | Legacy FightDocs unaffected | disk → load → replay | absent `allySpawns` = none | S02 c4 (existing CAP-10 e2e unchanged) | agreed | ready | planned |
-| CA-07 | Encounter spawn pairing never rebuilds ids | `spawnEncounter` profiles + `encounter.groups` → `SpawnSpec[]` | instanceId from `profile.id`; statblockId by group expansion; proof `spawnMonster` deep-equal | S03 c1 | agreed (pending Q2) | ready | planned. Source: `encounter.ts` |
-| CA-08 | Encounter summary verbatim | `Encounter` → Fight view | groups/threat/budget/seedUsed/heuristic | S03 c3 | agreed (pending Q2) | ready | planned |
-| CA-09 | Resumed fight ≡ recorded fight | FightDoc → `resume` → store | `serializeCombat` deep-equal incl. rng + offers; adopt only if events are identical | S04 c1, c3 | agreed (pending Q3) | planned | planned |
-| CA-10 | hpAtStart from begin, never from the record | `resume` → store | read after `begin`, before `perform` | S04 c1 | agreed (pending Q3) | planned | planned |
-| CA-11 | Log continuity at adoption | `fight.runtime` events → store log | unsubscribe old → subscribe new → publish | S04 c1 | agreed (pending Q3) | planned | planned |
+| CA-12 | Positions are host input passed verbatim; the library judges | store `positions` → `engine.begin` → `startCombat` → `state.combatants[id].position` → board | `{x,y}` integers; default layout CX-D9; theater → none; no reach math | S01 c1–c3, S02 c3 | agreed (pending Q4) | ready (engine) | planned. Sources: `combat.ts` `startCombat` gate; probe-grid |
+| CA-13 | Reposition preserves everything but positions; no extra action | store `move` → `engine.reposition` → `serializeCombat`/`deserializeCombat` | preconditions CX-D10; live balances CX-D11; zero events | S01 c1, S02 c3 | agreed (pending Q4 a-i) | ready (engine) | probe-grid2: pools 16 kept, rng equal, 0 events, phase resets |
+| CA-14 | Recorded placement + moves replay exactly | store → IPC → main → disk → replay | `start.positions`, `{op:'move', positions}` (DB names) | DB; S01 c2–c3; S02 c3 | **unresolved** (awaiting DB) | planned | provisional against AUTHOR-DB-CX; Orchestrator re-checks names before S01 |
+| CA-15 | Distance is the library's | `rt.spatial.distance` → `engine.distance` → board | number only; no reach judgement | S02 c3 | agreed (pending Q4) | ready | probe-grid2: `distance({3,0},{1,0}) = 2` |
+| CA-01..04 | (rev 1, unchanged; CA-03 adds `valid`) | see SESSION-03 | — | S03 | agreed | ready | planned |
+| CA-04b, CA-05, CA-06 | (rev 1; CA-05 now also protects position keys) | see SESSION-04 | — | S04 | CA-04b unresolved (DB) | planned | provisional against AUTHOR-DB-CX |
+| CA-07, CA-08 | (rev 1) | see SESSION-05 | — | S05 | agreed (pending Q2) | ready | planned |
+| CA-09..11 | (rev 1; CA-09 adds positions) | see SESSION-06 | — | S06 | agreed (pending Q3) | planned | planned |
 
 ## Current Blockers
 | ID | Affects | Next action | Owner | Evidence to clear |
 |----|---------|-------------|-------|-------------------|
-| B-CX-0 | S01, CAP-01/02 | Dispatch the DF-CX-1 design-fill worker (standing authority, no human) | Orchestrator → Designer | DF-CX-1 commit touching only `specs/design.md` + `mocks/combat.html` |
-| B-CX-1 | S02, CAP-03, CA-04b | Human answers Q1 | human → DB | AUTHOR-DB-CX commit to `specs/database.md` |
-| B-CX-2 | S03, CAP-04 | Human answers Q2 | human → Spec + Designer | Spec + Design commits |
-| B-CX-3 | S04, CAP-05 | Human answers Q3 | human → Spec + Designer | Spec + Design commits (or replan on Q3 = b) |
-| B-CX-4 | CAP-06 | Human answers Q4; if an engine program is wanted, it is opened in `../Ruleswright` | human; engine program | Engine accepts a pack `spatial` section and `Combat` tracks positions |
+| B-CX-0 | S03, CAP-01/02 | Dispatch DF-CX-1 (standing authority) | Orchestrator → Designer | DF-CX-1 commit (`design.md`, `mocks/combat.html` only) |
+| B-CX-4 | **S01, S02, CAP-06, CAP-09, CAP-10 (red gates)** | Human answers Q4 (and a-i/a-ii) | human → DB, Spec, Designer | AUTHOR-DB-CX + AUTHOR-SPEC-CX + AUTHOR-DESIGN-CX commits |
+| B-CX-1 | S04, CAP-03 | Human answers Q1 | human → DB | `allySpawns` in `database.md` |
+| B-CX-2 | S05, CAP-04 | Human answers Q2 | human → Spec + Designer | commits |
+| B-CX-3 | S06, CAP-05 | Human answers Q3 | human → Spec + Designer | commits |
 
 ## Handoff Notes
 (Orchestrator writes here after each session, from Coder's Handoff section, verbatim.)

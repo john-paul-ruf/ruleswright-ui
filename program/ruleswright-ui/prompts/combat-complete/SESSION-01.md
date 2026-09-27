@@ -1,217 +1,197 @@
-# SESSION-01 — Combat surface: turn order, initiative, action economy, conditions
+# SESSION-01 — Grid spine: positions, reposition, record/replay, unit gates green again
 
 > **Program:** Ruleswright (UI)
-> **Feature:** combat-complete
-> **Modules:** M06, M09, M15, M08 (only if DF-CX-1 adds a component), M17
-> **Depends on:** DF-CX-1 (Designer design-fill commit to `specs/design.md` + `mocks/combat.html`)
+> **Feature:** combat-complete (plan rev 2)
+> **Modules:** M01, M02, M06, M09, M17
+> **Depends on:** human Q4 = (a); AUTHOR-DB-CX committed to `specs/database.md` (the `positions` / `move` parts)
 > **Concurrent with:** —
-> **Owns:** `src/renderer/src/engine/combat.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/combat/index.tsx`, `src/renderer/src/views/combat/controls.tsx`, `src/renderer/src/views/combat/order.tsx`, `src/renderer/src/views/combat/combat.css`, `src/renderer/src/ui/Combat.tsx`, `src/renderer/src/ui/ui.css`, `src/renderer/src/ui/index.ts`, `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts`
-> **Reads:** `program/ruleswright-ui/PROGRAM-CONFIG.MD`, `program/ruleswright-ui/specs/design.md`, `program/ruleswright-ui/mocks/combat.html`, `program/ruleswright-ui/specs/requirements.md`, `program/ruleswright-ui/arch/M06-engine.md`, `program/ruleswright-ui/arch/M11-M15-views.md`, `node_modules/ruleswright/dist/runtime.d.ts`, `../Ruleswright/src/runtime/combat/*.ts`, `src/renderer/src/views/combat/log.tsx`, `src/renderer/src/ui/Rows.tsx`, `e2e/fixtures.ts`
-> **Resources:** `e2e:out` (checkpoint 3 only)
+> **Owns:** `src/shared/model.ts`, `src/main/storage.ts`, `src/renderer/src/engine/combat.ts`, `src/renderer/src/engine/replay.ts`, `src/renderer/src/store/combat.ts`, `tests/main/storage.test.ts`, `tests/engine/combat.test.ts`, `tests/engine/replay.test.ts`, `tests/store/combat.test.ts`
+> **Reads:** `program/ruleswright-ui/PROGRAM-CONFIG.MD`, `program/ruleswright-ui/specs/database.md`, `program/ruleswright-ui/specs/requirements.md` (FR-11, FR-14), `program/ruleswright-ui/prompts/combat-complete/AUTHOR-REQUEST-CX.md`, `program/ruleswright-ui/arch/M06-engine.md`, `node_modules/ruleswright/dist/runtime.d.ts`, `node_modules/ruleswright/dist/schema.d.ts`, `../Ruleswright/src/runtime/combat/combat.ts`, `../Ruleswright/src/runtime/snapshots.ts`, `src/main/ipc.ts`, `src/renderer/src/views/fight/index.tsx`, `src/renderer/src/views/combat/*.tsx`, `tests/support/in-process-bridge.ts`, `.program/probe-grid.mjs`, `.program/probe-grid2.mjs`
+> **Resources:** —
 > **Checkpoints:** 3
+
+**On Q4 = (b)** this prompt does not apply: Planner replans SESSION-01 as a test repair that proves the
+refusal (grid pack → `E-SPAT-01` cards at `begin`, theater path on a spatial-stripped pack).
 
 ## Module Context
 | ID | Module | Read | Why |
 |----|--------|------|-----|
-| M06 | engine | `engine/combat.ts` | Add two library pass-throughs (`slotGrants`, `actionInfo`). Still the only `ruleswright` importer |
-| M09 | store | `store/combat.ts` | Re-export them. Add the `initiativeOf` log selector |
-| M15 | views/combat | `index.tsx`, `controls.tsx`, new `order.tsx`, `combat.css` | The new panels |
-| M08 | ui | `Combat.tsx`, `ui.css`, `index.ts` | Only if DF-CX-1 names a new design-system component. Otherwise untouched |
-| M17 | tests | `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts` | Proofs |
+| M01 | shared | `model.ts` | `FightStartDoc.positions?`, `FightScriptEntry` `move` — **only as AUTHOR-DB-CX wrote them** (Custom Rule 8) |
+| M02 | main | `storage.ts` FightDoc validation (`'script' in doc` ~l.142, `'start' in doc` ~l.157) | Accept the DB-approved shapes; refuse malformed ones by name |
+| M06 | engine | `combat.ts`, `replay.ts` | Positions into `startCombat`; the reposition seam; `move` in scripts; replay |
+| M09 | store | `combat.ts` | Placement state, default layout, `move`, record body |
+| M17 | tests | four unit files | Repair the 18 red tests + the typecheck error; new proofs |
 
 ## Context
-The Combat surface already runs the real loop: declare/step/respond, trigger offers, combat-over, and a
-provenanced log (v1-shell SESSION-06). It hides most of what the engine keeps per fight:
+Engine `dadf461` (feature `grid-combat`) makes every bundled theme emit a grid, and `startCombat` refuses a
+spatial pack unless every combatant has a position (AUTHOR-REQUEST-CX, "What changed"). The UI's `begin`
+passes none, so combat is dead on every new world, and the unit gates are red: `pnpm test` 181/199 (18
+failing in `tests/{engine/combat,engine/replay,store/combat}.test.ts`), `pnpm typecheck` fails at
+`tests/engine/combat.test.ts:119` (old `{defaultReach: 1}` spatial shape vs `SpatialDef`). This session
+restores a working, recorded, replayable grid fight **below the views**, and repairs those gates. Views
+(placement board, combat board) are SESSION-02; until then the store fills the default layout so the
+existing Fight → Begin button works again with no view change.
 
-- the initiative rolls (only in the log's `combat:start` row)
-- the turn order as an order (the Combatants panel lists `state.order`, but with no turn position)
-- each combatant's per-turn slot ledger, pools, bound spell slots and conditions
-- what the selected action costs
-
-A player sees `slot-exhausted` or `E-POINTS-01` rejections with no context. This session shows all of that
-**as the library reports it**. It adds no rules (Custom Rule 2). It also states the spatial model honestly.
-Spatial play itself is not implementable (AUTHOR-REQUEST-CX Q4: the engine rejects a pack `spatial` section
-with E-SCHEMA-02, and `Combat` has no positions).
+Engine surface used (all verified in the installed `runtime.d.ts` / `schema.d.ts` at plan time):
+`startCombat` (`StartCombatRequest.positions?`), `serializeCombat`, `deserializeCombat`,
+`CombatRestoreRequest` (`positions?`), `type Position`, `Runtime.spatial` (`distance`), `type SpatialDef`
+(from `ruleswright/schema`).
 
 ## Capabilities
-- **CAP-01 Turn order & initiative (owned here, complete).** Entry: Fight → Begin combat → Combat.
-  Path: `startCombat` → `combat:start` event (caught by the store's existing subscription, which starts
-  **before** `begin`; stamped `at {round:0, turn:0}`) + `fight.state.{order,turn,active,round}` →
-  `store.state` (structuredClone) → Turn order panel. Nothing persists. The log already reaches FightDoc
-  through records, unchanged.
-- **CAP-02 Combatant economy & action detail (owned here, complete).** Path: `fight.state.combatants[id]`
-  `.slots.remaining` / `.pools` / `.boundSlots` / `.conditions` (republished after every call) +
-  `resolveSlotGrants(rt.pack).slots` + `pack.actions[id]` → Combatant detail and Action detail.
-- **CAP-06 Spatial (contribution only).** A caption beside the existing `spatialLabel` chip. The capability
-  stays **blocked** on the engine program (Q4).
-- First narrow journey: checkpoint 3's e2e runs the built Electron app → Fight → Begin → Combat. It checks
-  the turn order, initiative, ledger and conditions in lockstep with a Node reference fight on the same
-  pack. Every later session builds on this surface.
+- **CAP-06 Grid fight (producer + unit integration here; views + packaged proof in SESSION-02).**
+  Path: store roster → `positions` (default layout, editable through `setPosition`) → `engine.begin(rt, ally,
+  enemies, positions)` → `startCombat({…, positions})` → `fight.state.combatants[id].position`. Reposition:
+  `store.move(positions)` → `engine.reposition(live, positions)` → `serializeCombat` → `deserializeCombat`
+  with the begin-time sides, **live** balances and the new positions → the store swaps `fight`. Durable:
+  `record()` → FightDoc `start.positions` + `script` `move` entries (+ `combat` with positions, verbatim) →
+  main validation → disk → `fight:load` → `replay` → `complete`.
+- **Theater path stays.** Packs without `spatial` (worlds forged before `dadf461`, imported packs) begin with
+  no positions and never offer reposition. Proof uses a generated pack with the `spatial` key deleted — the
+  exact shape of such a world — the same technique the engine's own journey uses for theater parity.
 
 ## Contract Agreements
-Recheck each at checkpoint 0 against the installed dist (`node_modules/ruleswright/dist/runtime.d.ts`)
-and `../Ruleswright/src/runtime/combat/combat.ts`.
+Recheck each at checkpoint 0 against `database.md` (AUTHOR-DB-CX) and the installed dist.
 
-- **CA-01 initiative provenance.** Show `combat:start` `payload.order`, `payload.initiative` (strings
-  like `"b +2"`) and `why.rolls` (strings like `"d20[8]+4=12 (a)"`) **verbatim**, plus `why.rule`
-  (`combat.startCombat`). Do not parse the roll strings and do not re-sort them. The live order rows come
-  from `state.order` (the library's sort); the round/turn line comes from `state.round`, `state.turn`,
-  `state.order.length`. Unavailable (the event is not in the log) → the block says "initiative event not
-  in this log". Never fabricate it.
-- **CA-02 slot ledger.** Remaining = `state.combatants[id].slots.remaining[name]`. Grant =
-  `resolveSlotGrants(rt.pack).slots[name]` (library call). Render `name remaining/grant`. No subtraction,
-  no "can afford" judgement. Iterate the grant's keys in the library's key order. A remaining key missing
-  from the grant (should not happen) renders as `name remaining/—`.
-- **CA-03 action detail.** `pack.actions[actionId]` → `cost` (`slots`, `points {pool, amount}`,
-  `vancian` level), `tags`, `trigger.on`: verbatim, absent parts omitted. `restricts` blocking and
-  affordability are **not** pre-judged. The Declare result stays the authority (FR-12). Verified fields:
-  `ActionDef = {cost, valid?, trigger?, effect, tags?}` (`../Ruleswright/src/schema/artifacts.ts:31`).
-  Do not render `effect`/`valid` DSL (not requested; leave it to design).
-- **CA-04 conditions.** `state.combatants[id].conditions[] = {conditionId, duration}` verbatim. The
-  condition's `restricts` patterns come from `pack.content.conditions[conditionId].restricts` verbatim when
-  present. Durations do not tick in combat (engine fact). Show what the library holds; add no claim either way.
-- **CX-D3 (no downed label).** `isDowned` is not exported from `ruleswright/runtime` (probe:
-  `'isDowned' in r === false`). Do not derive "down"/"skipped" from `hp ≤ 0`. Show hp verbatim.
-
-Probe facts to reproduce at checkpoint 0 (dark-fantasy · 42): `economy.turnSlots =
-{main:1, move:1, reaction:1}`. The hexer ally via `profileFromCharacter` has balances
-`{pools:{ember:18}, boundSlots:{"1":0}}`. `turn:began.payload.slots` equals the replenished ledger.
+- **CA-12 positions are host input, passed verbatim.** `Position = {x, y}` integers. `begin` passes the map
+  unchanged to `startCombat`; the library decides everything (refusal cards, reach, validity). The UI never
+  computes reach (`reachOf` is private; EG-4) and never forbids shared squares or bounds the grid (the engine
+  does neither). Default layout (store, CX-D9): allies `x=0`, enemies `x=1`, `y` = index within that side's
+  roster, in roster order (character first). **If AUTHOR-DESIGN-CX has landed, use its default instead.**
+  Theater packs: `positions` is `null` and nothing is passed.
+- **CA-13 reposition seam.** `reposition(live, positions)`:
+  1. precondition (host pacing, CX-D10): `live.fight.state.phase === 'awaiting-declare'` and
+     `live.fight.pendingTriggers.length === 0` and the pack declares spatial; otherwise
+     `{kind:'unexpected', operation:'combat:move', message:'…'}` naming which condition failed. Reason: the
+     engine's restore returns `awaiting-declare` even after a declare, which would grant a second action
+     (probe-grid2), and `serializeCombat` keeps one offer per combatant (EG-6).
+  2. `snap = serializeCombat(live.fight, {pairsWith: live.sides.allies[0].id})`
+  3. `deserializeCombat(rt, snap, {allies, enemies, positions})` where each side entry is the begin-time
+     `{id, profile}` plus `balances: {pools, boundSlots}` read from `live.fight.state.combatants[id]`
+     (library values, copied, no arithmetic).
+  4. library throw → `toAppError('combat:move', e)`; success replaces `live.fight`.
+  Proof: rng words, hp, `slots.remaining`, conditions, pools, boundSlots, `order`, `turn`, `active`,
+  `round` of the new fight equal the old; only `position`s differ; **zero events** emitted by the move.
+- **CA-14 recorded placement + moves (provisional against AUTHOR-DB-CX — use its committed names).**
+  | Boundary | Mapping |
+  |---|---|
+  | store → engine | `FightStart.positions?: Record<string, Position>`; `ScriptEntry` gains `{op:'move'; positions: Record<string, Position>}` (the complete map after the move) |
+  | store → IPC | `record.start.positions` written **only** on spatial packs; `move` entries in `script` in call order |
+  | main | `start.positions`: object of `{x: integer, y: integer}`; `script[i].op === 'move'` with the same `positions` shape; anything else → a named refusal in the existing style (`script[i] is not a valid declare/respond/step/move entry`) |
+  | replay | `begin(…, rec.start.positions)`; `perform` re-applies `move` through `reposition`. A spatial pack with no `start.positions` → the library's `E-SPAT-01` refusal as `{status:'error'}`, never guessed |
+  `declarations` stay derived from declare calls only (`move` is not a declaration).
+- **CA-07b (existing CA-09 replay rule) unchanged in meaning:** re-roll → pack divergence first; events
+  compared index by index. A move emits no events, so a tampered `move` shows up as the first later event that
+  differs (e.g. a reach rejection instead of an `attack:rolled`).
 
 ## Files to Create/Modify
 | File | Action | What Changes |
 |------|--------|--------------|
-| `src/renderer/src/engine/combat.ts` | modify | Add value import `resolveSlotGrants` from `ruleswright/runtime`. Add `slotGrants(rt)` and `actionInfo(pack, actionId)` |
-| `src/renderer/src/store/combat.ts` | modify | Re-export `slotGrants`, `actionInfo`, type `ActionInfo`. Add `initiativeOf(log)` selector |
-| `src/renderer/src/views/combat/order.tsx` | create | `TurnOrderPanel` + initiative provenance block |
-| `src/renderer/src/views/combat/controls.tsx` | modify | Action detail under the Declare select; Combatant detail (ledger, pools, bound, conditions) |
-| `src/renderer/src/views/combat/index.tsx` | modify | Mount `TurnOrderPanel` above Combatants per DF-CX-1; spatial caption |
-| `src/renderer/src/views/combat/combat.css` | modify | Tokens-only styles for the new rows/chips |
-| `src/renderer/src/ui/Combat.tsx`, `ui.css`, `index.ts` | modify only if DF-CX-1 adds a component | e.g. a ledger chip group. Presentational, no store/engine imports |
-| `tests/engine/combat.test.ts` | modify | Wrapper cases |
-| `tests/store/combat.test.ts` | modify | Selector + republish cases |
-| `e2e/combat.spec.ts` | modify | New test: CAP-01/02 lockstep journey |
+| `src/shared/model.ts` | modify | `FightStartDoc.positions?`, `FightScriptEntry` `move` variant — DB's names |
+| `src/main/storage.ts` | modify | Validate both; extend the script-entry refusal text |
+| `src/renderer/src/engine/combat.ts` | modify | `Position`/`SpatialDef` re-exports; `LiveFight`; `begin(rt, ally, enemies, positions?)` → `Outcome<LiveFight>`; `reposition`; `perform(live, entry)`; `spatialOf(pack)`; `distance(rt, a, b)`; `spatialLabel` typed (drop the `as unknown as` cast now that `Pack.spatial` is typed) |
+| `src/renderer/src/engine/replay.ts` | modify | Positions + `move` through the shared `perform`; `recordingOf` unchanged in shape except `start.positions` |
+| `src/renderer/src/store/combat.ts` | modify | `positions: Record<string, Position> \| null`, `setPosition`, default layout on roster change, `begin` with positions, `move(positions)`, `live` handle, record body |
+| `tests/engine/combat.test.ts` | modify | Fix l.119 to the `SpatialDef` shape; repair begin-based tests on grid packs with explicit positions; new cases below |
+| `tests/engine/replay.test.ts` | modify | Repair on grid packs; move cases |
+| `tests/store/combat.test.ts` | modify | Repair; placement/move/record cases; restart leg |
+| `tests/main/storage.test.ts` | modify | Accept/refuse the new shapes |
 
 ## Implementation
 
 ### Checkpoint 0 — recheck (no commit)
-Read DF-CX-1's committed `design.md` rows + `mocks/combat.html` (Rule 1: design source). Reproduce the
-probe facts above with a scratch script under `.program/`. Confirm `resolveSlotGrants` is in
-`node_modules/ruleswright/dist/runtime.d.ts`. If DF-CX-1 has not landed, return `blocked`. Do not invent
-the layout.
+1. Read the AUTHOR-DB-CX commit (field names, integrity rule, replay step). Absent → return `blocked`.
+2. `node .program/probe-grid.mjs` and `node --max-old-space-size=512 .program/probe-grid2.mjs`: reproduce
+   the refusal cards, the `valid`/`spatial` rejection events, and the restore facts (phase, zero events, rng
+   equal). If any differs, stop and report — the engine moved again.
+3. `pnpm exec vitest run` → record the exact red set (expected: the 18 tests named in STATE Verification
+   Baseline). `pnpm typecheck` → expected the single error at `tests/engine/combat.test.ts:119`.
+4. Grep consumers of `begin(`, `perform(`, `FightStart`, `ScriptEntry` under `src/` and `tests/`. The views
+   (`views/fight/index.tsx`, `views/combat/*.tsx`) call only store actions (`begin()`, `declare`, `step`,
+   `respond`) — verify that no view touches `fight`/`perform` directly. If one does, request a Controlled Lease
+   Revision rather than editing outside the lease.
 
-### Checkpoint 1 — engine pass-throughs + store selector
+### Checkpoint 1 — engine: positions, reposition, typed spatial
 ```ts
-// engine/combat.ts
-import { resolveSlotGrants, /* existing */ } from 'ruleswright/runtime';
-/** FR-12/16: the pack's per-turn slot grants (declared economy or the engine default), verbatim. */
-export function slotGrants(rt: Runtime): Readonly<Record<string, number>> {
-  return resolveSlotGrants(rt.pack).slots;
-}
-export interface ActionInfo {
-  actionId: string;
-  cost: { slots?: Readonly<Record<string, number>>; points?: { pool: string; amount: number }; vancian?: number };
-  tags: readonly string[];
-  triggerOn: string | null;
-}
-/** FR-12: the pack's action definition fields a declarer needs, verbatim; null when the pack lacks the id. */
-export function actionInfo(pack: Pack, actionId: string): ActionInfo | null;
+// engine/combat.ts (additions; keep every existing export)
+import { deserializeCombat, serializeCombat, /* existing */ } from 'ruleswright/runtime';
+import type { Pack, SpatialDef } from 'ruleswright/schema';
+export type { Position, CombatRestoreRequest } from 'ruleswright/runtime';
+export type { SpatialDef } from 'ruleswright/schema';
+
+/** The sides exactly as `startCombat` took them (the restore seam re-states them). */
+export interface Sides { allies: { id: string; profile: CombatantProfile }[]; enemies: { id: string; profile: CombatantProfile }[] }
+/** A running fight plus what re-positioning needs; `fight` is replaced by a move. */
+export interface LiveFight { fight: Combat; sides: Sides }
+
+export function begin(rt: Runtime, ally: AllyCombatant, enemies: readonly EnemySpec[],
+  positions?: Readonly<Record<string, Position>>): Outcome<LiveFight>;
+/** FR-11 (rev 2), CA-13: host repositioning through the engine's serialize → restore seam. */
+export function reposition(live: LiveFight, positions: Readonly<Record<string, Position>>): Outcome<Combat>;
+/** Re-issue one recorded host call; `move` replaces `live.fight`. */
+export function perform(live: LiveFight, entry: ScriptEntry): Outcome<unknown>;
+/** FR-11: the pack's spatial section verbatim, or null (theater-of-mind). */
+export function spatialOf(pack: Pack): SpatialDef | null;
+/** FR-11: the library's grid distance (`rt.spatial.distance`), never computed UI-side. */
+export function distance(rt: Runtime, a: Position, b: Position): number;
 ```
-Take the `ActionCost` field types from the installed `.d.ts` (`ruleswright/schema` type exports). If the
-pack type is not exported under a usable name, type `cost` as the library's `ActionCost`. Do not
-restate its fields by hand if the type is exported.
+`begin` keeps the ally's initial `balances` in the call to `startCombat` exactly as today; `sides` stores
+`{id, profile}` only (balances are read live at move time, CA-13).
 
-```ts
-// store/combat.ts
-export { listSpawnable, spatialLabel, spawnProfile, slotGrants, actionInfo } from '../engine/combat';
-export type { ActionInfo } from '../engine/combat';
-/** FR-12 / CA-01: the latest `combat:start` event in the log, or undefined. */
-export function initiativeOf(log: readonly RuntimeEvent[]): RuntimeEvent | undefined;
-```
-Tests:
-- `tests/engine/combat.test.ts`: `slotGrants` on dark-fantasy·42 equals `{main:1, move:1, reaction:1}`,
-  and zombie-urban·42 (no `economy`) equals the engine default. **Compare against
-  `resolveSlotGrants(pack).slots` called directly** as well as the literal. `actionInfo(pack,'parry')
-  .triggerOn === 'attack:rolled[target=self]'`. `actionInfo(pack,'ember-surge').cost.points` equals
-  `{pool:'ember', amount:2}`. Unknown id → `null`.
-- `tests/store/combat.test.ts`: after `begin()`, `initiativeOf(log)` is the `combat:start` event.
-  `payload.order` deep-equals `state.order`.
-- After a declare of a slotted action, `state.combatants[active].slots.remaining` in the store equals
-  `fight.state` (republish proof). Use a hexer ally for a pools case: `state.combatants[<ally>].pools`
-  equals `{ember:18}` at begin.
+Tests (`tests/engine/combat.test.ts`), all on the installed engine, no hand-written events:
+- l.119 fix: `spatialLabel({...pack, spatial: {model:'grid', reach:{default:1}}})` → `'grid'`; the generated
+  dark-fantasy·42 pack → `'grid'`; the same pack with `spatial` deleted → `'theater-of-mind'`.
+- grid pack, `begin` with no positions → `ok:false`, `error.kind 'library'`, one `E-SPAT-01` card per
+  combatant with `jsonPath positions.<id>` (fail-closed proof).
+- grid pack, positions far apart → declaring `cut-down` yields `declare:rejected` `kind 'valid'`; a
+  non-`valid` melee action (e.g. zombie-urban `shambler-claw`) yields `kind 'spatial'`, `why.rule
+  'E-SPAT-01'`; state unchanged in both (deep-equal before/after).
+- reposition (CA-13): the full equality list, zero events, and the three precondition refusals
+  (after a declare; with an offer open; on a theater pack).
+- Every previously green behavior test (determinism, slot-exhausted, declare returns own events, full fight to
+  `combat-over`, zombie-urban ends) re-run on grid packs with positions **one step apart** (the default
+  layout), plus one theater-path run on a spatial-stripped pack. Preserve each test's assertion; only its setup
+  changes.
 
-**Commit when:** `pnpm typecheck && pnpm lint && pnpm test` pass. Message:
-`combat-complete SESSION-01: checkpoint 1 — slotGrants/actionInfo pass-throughs + initiativeOf`.
+**Commit when:** `pnpm typecheck && pnpm lint && pnpm exec vitest run tests/engine/combat.test.ts` pass.
+(Whole-repo `pnpm test` is still red in replay/store until checkpoints 2–3; say so in the commit body.)
+Message: `combat-complete SESSION-01: checkpoint 1 — positions into startCombat, reposition seam, typed spatial`.
 
-### Checkpoint 2 — panels
-- `order.tsx` `TurnOrderPanel({state})`, test id `combat-order`:
-  - one row per `state.order` entry (`combat-order-<id>`, `data-active="true|false"`), with the active row
-    marked (library `state.active`)
-  - a `round {round} · turn {turn + 1} of {order.length}` line (`combat-order-position`). Adding 1 turns the
-    library's 0-based index into the display count. Say so in a code comment. It is not a rule
-  - initiative block `combat-initiative` from `initiativeOf(log)`: `payload.initiative.join(' · ')`,
-    each `why.rolls` entry on its own mono line, `why.rule`
-- `controls.tsx`:
-  - `PhasePanel`: under the Declare select, `combat-action-detail` renders `actionInfo(pack, actionId)`:
-    slots `main 1`, points `ember 2`, vancian `L1`, tags, trigger. The pack comes from
-    `useWorldsStore(s => s.active?.pack)`, the pattern `index.tsx` already uses.
-  - `CombatantsPanel`: each existing `combat-combatant-<id>` row gains:
-    - `combat-ledger-<id>`: chips `name remaining/grant` over `slotGrants(runtime)`, computed once per
-      runtime with `useMemo`
-    - `combat-pools-<id>`: `pool value` pairs, or "no pools"
-    - `combat-bound-<id>`: `L<level> ×<n>` pairs, or nothing when empty
-    - `combat-conditions-<id>`: `conditionId · duration` + restricts, or "no conditions"
-  - Keep every existing test id and text the current e2e asserts (`combat-combatant-<id>` meta keeps
-    `hp X / Y at start · ac Z`).
-- `index.tsx`: mount `TurnOrderPanel` where DF-CX-1 puts it. The spatial chip gets
-  `combat-spatial` + the caption from DF-CX-1 ("this pack declares no spatial model" for
-  `theater-of-mind`).
-- Keyboard: no new focus traps. The Declare → Step Tab order the keyboard e2e walks must stay the same
-  (`e2e/combat.spec.ts:276`). Put new panels **after** the Phase panel in DOM order, or check that the
-  keyboard test still passes unchanged.
+### Checkpoint 2 — replay carries placement and moves
+`replay.ts`: `begin(rt, profile, rec.start.enemies, rec.start.positions)`; the script loop calls
+`perform(live, entry)`. Extract nothing else; `replay`'s result shape is unchanged.
+Tests (`tests/engine/replay.test.ts`, repaired on grid packs): record a fight with one `move` → replay
+`complete`; tamper the `move`'s positions (far apart) → `diverged` at the first differing event; a spatial-pack
+record without `start.positions` → `{status:'error'}` whose cards are `E-SPAT-01`; the existing pack-byte,
+swapped-entries, null-params and legacy-no-script cases preserved.
+**Commit when:** typecheck, lint and `pnpm exec vitest run tests/engine` pass.
 
-**Commit when:** typecheck, lint and test pass, and `pnpm build` exits 0 (under `e2e:out`).
+### Checkpoint 3 — model + main + store; whole-repo unit gates green
+- `model.ts`, `storage.ts` per CA-14 (DB's names). Storage tests: valid positions/move accepted and preserved
+  on load; non-integer coordinate, missing `y`, `move` without `positions` each refused by name.
+- Store: `positions` recomputed to the default layout whenever the roster changes (enemy add/remove, world
+  change) on a spatial pack, `null` on a theater pack; `setPosition(id, pos)` for SESSION-02's board;
+  `begin()` passes `positions` and captures `start.positions`; `move(positions)` runs `reposition`, appends
+  `{op:'move', positions}` to `script`, republishes; `record()` writes `start.positions` only on spatial packs.
+  Views are untouched: Fight → Begin now works again with the default layout.
+- Store tests (repaired + new): the log/filters/rejection cases on a grid world with default layout; a
+  move → `script` entry + no log rows; move refusals surface as `error`; **restart leg** through the real
+  main handlers (`tests/support/in-process-bridge.ts`, temp dir): record a fight with a move → new store
+  instance → `replay(name)` → `complete`; the stored JSON's `start.positions` equals what `begin` passed.
+- Negative control (not committed): drop one entry from the default layout → the store test asserting
+  begin succeeds fails with the library's `E-SPAT-01` card; restore.
 
-### Checkpoint 3 — CAP-01/02 e2e journey
-Add one test to `e2e/combat.spec.ts` (reuse its helpers and its Node reference fight `ref`, built with
-`ruleswright/runtime` on the same pack). Brynn (warden 1) vs 2 barrow-wights, dark-fantasy · 42:
-1. After Begin: `combat-order-<id>` rows in exactly `ref.fight.state.order` order. `combat-initiative`
-   contains every `why.rolls` string of the reference `combat:start` verbatim. The active row matches
-   `ref.fight.state.active`.
-2. After each host call (step, declare, respond), in lockstep with `ref`, for every combatant:
-   `combat-ledger-<id>` contains `${name} ${remaining}/${grant}` for every grant key. `combat-conditions-<id>`
-   contains every `conditionId · duration` of `ref.fight.state.combatants[id].conditions`, or "no
-   conditions". `combat-order-position` equals `round R · turn T+1 of K`.
-3. On the first turn where the ally (`brynn`) is active: select `cut-down` and see `combat-action-detail`
-   show `main 1`. Declare it **with an explicit target** (`barrow-wight-1`). The ledger for that id then
-   shows `main 0/1`. Declare it again with the same target. The library's gate order in `Combat.declare`
-   is: action → restriction → **target** → cost. So the second call must name a target, or it is rejected
-   `no-target` before cost. It yields the `slot-exhausted` rejection card (existing `combat-rejection`),
-   and the ledger is unchanged. Assert the card text against the reference fight's own `declare:rejected`
-   event, never a literal.
-4. `combat-spatial` text `theater-of-mind` + the caption.
-5. Negative control (run once, not committed): change one expected ledger number → the test fails; restore.
-
-Run `pnpm e2e` (full suite, holds `e2e:out`). Record `test-results/build-identity.json` head/dirty.
-
-**Commit when:** `pnpm verify` exits 0.
+**Commit when:** `pnpm typecheck && pnpm lint && pnpm test` all pass (whole repo, 0 failures).
 
 ## Verification
-- Per checkpoint: `pnpm typecheck && pnpm lint && pnpm test`. Checkpoints 2–3: `pnpm build`.
-  Checkpoint 3: `pnpm verify` (STATE Verification Baseline; `e2e:out` held for build/e2e only).
-- Integration proof CAP-01/CAP-02 (CA-01..04):
-  - Test path `e2e/combat.spec.ts`, new `test('CAP-01/02: …')`. Invocation `pnpm e2e`. Discovery is
-    `playwright.config.ts` `testDir`. Check the new test is listed with `pnpm exec playwright test --list`.
-  - Real mechanism: `e2e/fixtures.ts` launches the built app from `out/` through Playwright `_electron`, with
-    an isolated temp userData (`mkdtempSync`) that is removed on teardown. Seed facts: the world is forged in
-    the app (Roll, dark-fantasy, 42), then Brynn is created in the app. No stored fixtures.
-  - The engine runs in the renderer. The reference fight runs the same installed engine in Node.
-  - Freshness: `global-setup.ts` rebuilds `out/` and writes the build identity. Record it.
-- Architecture: `grep -rn "from 'ruleswright" src/renderer/src --include=*.ts* | grep -v /engine/` is
-  empty. `tests/lint/boundary.test.ts` passes.
-- Custom Rule 2: no arithmetic on library numbers except the display `turn + 1`, which has a comment.
+- Checkpoint gates as above. No `pnpm e2e` in this session: `e2e/combat.spec.ts` and `e2e/replay.spec.ts`
+  stay in the known red window (STATE Verification Baseline) until SESSION-02 checkpoint 3. Do not edit them.
+- Integration proof CAP-06 unit leg: `tests/store/combat.test.ts` restart leg — real engine, real main
+  storage handlers over the in-process bridge on a temp dir; no fixtures stand in for the library.
+- Custom Rule 2: no arithmetic on positions or reach. Custom Rule 8: `model.ts` only as DB wrote it.
+  Custom Rule 1: `grep -rn "from 'ruleswright" src/renderer/src --include=*.ts* | grep -v /engine/` empty.
 
 ## State Update
-Report: CA-01..04 evidence (test names, commits), the DF-CX-1 revision used, any design rows you could
-not honor (Rule 1 → a request back to Designer, not an improvisation), the build identity, and the
-negative-control result. List the new test ids for PROGRAM-CONFIG Conventions. Arch delta for M06 (two
-exports), M09 (re-exports + selector), M15 (`order.tsx`).
+Report: the DB revision and names used; the c0 red set vs the baseline; CA-12/13/14 evidence (test names,
+commits); the negative control; any view that needed a lease revision. Arch deltas: M01 fields, M02
+validation, M06 (`LiveFight`, `Sides`, `begin` result type, `reposition`, `perform` signature, `spatialOf`,
+`distance`, `spatialLabel` typed), M09 (`positions`, `setPosition`, `move`). Known window: e2e red until S02.

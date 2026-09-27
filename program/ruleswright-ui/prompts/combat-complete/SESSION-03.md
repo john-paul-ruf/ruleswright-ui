@@ -1,110 +1,127 @@
-# SESSION-03 — Encounter assembly by threat budget
+# SESSION-03 — Combat surface: turn order, initiative, action economy, conditions
 
 > **Program:** Ruleswright (UI)
-> **Feature:** combat-complete
-> **Modules:** M06, M09, M14, M17
-> **Depends on:** SESSION-02; AUTHOR-SPEC-CX (Q2 = a) + AUTHOR-DESIGN-CX (Q2 part) committed
+> **Feature:** combat-complete (plan rev 2; this was SESSION-01 in rev 1)
+> **Modules:** M06, M09, M15, M08 (only if DF-CX-1 adds a component), M17
+> **Depends on:** SESSION-02; DF-CX-1 (Designer design-fill commit to `specs/design.md` + `mocks/combat.html`)
 > **Concurrent with:** —
-> **Owns:** `src/renderer/src/engine/combat.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/index.tsx`, `src/renderer/src/views/fight/fight.css`, `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts`
-> **Reads:** `program/ruleswright-ui/specs/requirements.md` (FR-11 amended), `program/ruleswright-ui/specs/design.md`, `program/ruleswright-ui/mocks/fight.html`, `../Ruleswright/src/runtime/encounter.ts`, `node_modules/ruleswright/dist/runtime.d.ts`, `src/renderer/src/views/character/inventory.tsx` (the seed ⟳ pattern), `e2e/fixtures.ts`
-> **Resources:** `e2e:out` (checkpoint 3 only)
+> **Owns:** `src/renderer/src/engine/combat.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/combat/index.tsx`, `src/renderer/src/views/combat/controls.tsx`, `src/renderer/src/views/combat/order.tsx`, `src/renderer/src/views/combat/combat.css`, `src/renderer/src/ui/Combat.tsx`, `src/renderer/src/ui/ui.css`, `src/renderer/src/ui/index.ts`, `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts`
+> **Reads:** `program/ruleswright-ui/PROGRAM-CONFIG.MD`, `program/ruleswright-ui/specs/design.md`, `program/ruleswright-ui/mocks/combat.html`, `program/ruleswright-ui/specs/requirements.md`, `program/ruleswright-ui/arch/M06-engine.md`, `program/ruleswright-ui/arch/M11-M15-views.md`, `node_modules/ruleswright/dist/runtime.d.ts`, `../Ruleswright/src/runtime/combat/*.ts`, `src/renderer/src/views/combat/log.tsx`, `src/renderer/src/views/combat/board.tsx`, `src/renderer/src/ui/Rows.tsx`, `e2e/fixtures.ts`
+> **Resources:** `e2e:out` (checkpoints 2–3)
 > **Checkpoints:** 3
-
-**Skip this session entirely if the human answers Q2 = (b).** Orchestrator marks it `skipped` and CAP-04 is
-removed by an approved scope change.
 
 ## Module Context
 | ID | Module | Read | Why |
 |----|--------|------|-----|
-| M06 | engine | `combat.ts` | `assemble()` over `assembleEncounter` + `spawnEncounter` |
-| M09 | store | `combat.ts` | `assembleEnemies(budget, seed)`, encounter summary, CA-05 ids |
-| M14 | views/fight | `index.tsx`, `fight.css` | "Assemble by threat" row + summary |
-| M17 | tests | three files | Proofs |
+| M06 | engine | `engine/combat.ts` | Two library pass-throughs (`slotGrants`, `actionInfo`). Still the only `ruleswright` importer |
+| M09 | store | `store/combat.ts` | Re-export them; `initiativeOf` log selector |
+| M15 | views/combat | `index.tsx`, `controls.tsx`, new `order.tsx`, `combat.css` | The new panels (beside SESSION-02's board) |
+| M08 | ui | `Combat.tsx`, `ui.css`, `index.ts` | Only if DF-CX-1 names a new design-system component |
+| M17 | tests | the three combat test files | Proofs |
 
 ## Context
-The engine assembles an enemy side from a threat budget, deterministically per seed
-(`assembleEncounter(rt, {budget, seed})`, heuristic `threat-weighted-uniform`, max 12 bodies), and spawns
-it with `spawnEncounter`. It throws `Error('encounter assembly needs at least one bestiary statblock
-(FR-16).')` on an empty bestiary. Probe (dark-fantasy · 42, budget 3, seed 7): `groups [{barrow-wight ×1}]`,
-threat 3. zombie-urban · 42, same inputs: `grave-shambler ×2`.
+After SESSION-02 the Combat surface runs the real loop on grid and theater worlds, with a board. It still
+hides: the initiative rolls (only in the log's `combat:start` row), the turn position, each combatant's slot
+ledger, pools, bound spell slots and conditions, and what the selected action costs or requires. A player sees
+`slot-exhausted`, `E-POINTS-01` or `kind: valid` rejections with no context. This session shows all of that
+**as the library reports it**, adding no rules (Custom Rule 2).
 
 ## Capabilities
-- **CAP-04 Encounter assembly (owned here, complete).** Entry: Fight → Enemies panel → budget + seed (typed
-  or ⟳) → Assemble. Path: `store.assembleEnemies(budget, seed)` → `engine.assemble(rt, budget, seed)` →
-  library → `{encounter, spawns}` → enemy roster replaced (when `groups` is non-empty) → Begin combat (the
-  existing path). Durable: the roster is a plain `SpawnSpec[]`, so `FightDoc.start.enemies` records and
-  replays it with **no DB change**. The encounter seed is user-initiated randomness (the Constraints line as
-  amended by AUTHOR-SPEC-CX).
+- **CAP-01 Turn order & initiative (owned here, complete).** `startCombat` → `combat:start` (caught by the
+  store subscription, which starts before `begin`; stamped `at {round:0, turn:0}`) + `fight.state.{order,
+  turn,active,round}` → Turn order panel. Survives a reposition: the new fight keeps `order/turn/active/round`
+  (S01 CA-13) and the log keeps the `combat:start` row.
+- **CAP-02 Combatant economy & action detail (owned here, complete).** `state.combatants[id].slots.remaining /
+  pools / boundSlots / conditions` + `resolveSlotGrants(rt.pack).slots` + `pack.actions[id]` → Combatant detail
+  and Action detail.
 
 ## Contract Agreements
-- **CA-07 encounter pairing.** `spawnEncounter` returns profiles whose `id` is the instance id. The
-  `statblockId` for each is paired by expanding `encounter.groups` in order (`group.id` repeated
-  `group.count` times). This follows the library's own loop (`encounter.ts`). The **instance id always comes
-  from the returned `profile.id`** and is never rebuilt by the UI. Proof: for every pair,
-  `spawnMonster(rt, statblockId, instanceId)` deep-equals the returned profile. If lengths differ, return an
-  `unexpected` error and never guess.
-- **CA-08 verbatim summary.** Render `groups` (`id ×count`), `threat`, `budget`, `seedUsed`, `heuristic`
-  exactly as the library returned them. Library throw → `toAppError('fight:assemble', e)` → ErrorCard.
-  Empty `groups` (budget below the cheapest threat) → show the summary and leave the roster unchanged
-  (CX-D5).
-- **CA-05 (from SESSION-02) holds.** Assembled instance ids that collide with an ally-spawn id → refuse the
-  assembly with the CA-05 message and leave the roster unchanged.
-- Budget/seed input: numbers only. Budget accepts decimals (threats like 1.5 exist). An unparseable field
-  disables Assemble. The UI does no range judgement beyond "is a finite number".
+Recheck at checkpoint 0 against the installed `runtime.d.ts` and `../Ruleswright/src/runtime/combat/combat.ts`.
+- **CA-01 initiative provenance.** `combat:start` `payload.order`, `payload.initiative` (e.g. `"b +2"`),
+  `why.rolls` (e.g. `"d20[8]+4=12 (a)"`), `why.rule` (`combat.startCombat`) — verbatim, never parsed or
+  re-sorted. Rows from `state.order`. Event absent → "initiative event not in this log".
+- **CA-02 slot ledger.** `name remaining/grant`: remaining = `state.combatants[id].slots.remaining[name]`,
+  grant = `resolveSlotGrants(rt.pack).slots[name]`. No subtraction, no affordability judgement. Grant key
+  order as the library returns it; a remaining key missing from the grant → `name remaining/—`.
+- **CA-03 action detail.** `pack.actions[actionId]` → `cost` (`slots`, `points {pool, amount}`, `vancian`),
+  `tags`, `trigger.on`, and **`valid`** (e.g. `hasTarget(adjacent)`) verbatim; absent parts omitted. No
+  pre-judgement: the declare result stays the authority (the engine's gate order is action → restriction →
+  target → validity → reach → cost). `ActionDef = {cost, valid?, trigger?, effect, tags?}`
+  (`../Ruleswright/src/schema/artifacts.ts:31`). Do not render `effect`.
+- **CA-04 conditions.** `{conditionId, duration}` verbatim + the pack condition's `restricts`. Durations do
+  not tick in combat (EG-3); show what the library holds.
+- **CX-D3.** No "down"/"skipped" label (`isDowned` not exported, EG-2).
+
+Probe facts to reproduce at checkpoint 0 (dark-fantasy · 42): `economy.turnSlots = {main:1, move:1,
+reaction:1}`; hexer ally balances `{pools:{ember:18}, boundSlots:{"1":0}}`; `turn:began.payload.slots` equals
+the replenished ledger.
 
 ## Files to Create/Modify
 | File | Action | What Changes |
 |------|--------|--------------|
-| `src/renderer/src/engine/combat.ts` | modify | Import `assembleEncounter`, `spawnEncounter`, type `Encounter`. `assemble(rt, budget, seed): Outcome<{encounter: Encounter; spawns: SpawnSpec[]}>` |
-| `src/renderer/src/store/combat.ts` | modify | `encounter: Encounter \| null`, `assembleEnemies(budget, seed)`; world reset clears it |
-| `src/renderer/src/views/fight/index.tsx` | modify | Assemble row per AUTHOR-DESIGN-CX (`fight-assemble-budget`, `fight-assemble-seed`, `fight-assemble-seed-randomize`, `fight-assemble`, `fight-encounter-summary`) |
-| `src/renderer/src/views/fight/fight.css` | modify | Tokens-only |
-| `tests/engine/combat.test.ts` | modify | Probe cases, CA-07 pairing, determinism (same seed → same spawns), empty-bestiary error shape |
-| `tests/store/combat.test.ts` | modify | Roster replaced; empty groups leave the roster alone; collision refusal; record → replay `complete` with an assembled roster |
-| `e2e/combat.spec.ts` | modify | CAP-04 journey |
+| `engine/combat.ts` | modify | Value import `resolveSlotGrants`; `slotGrants(rt)`, `actionInfo(pack, actionId)` |
+| `store/combat.ts` | modify | Re-export both + `type ActionInfo`; `initiativeOf(log)` |
+| `views/combat/order.tsx` | create | `TurnOrderPanel` + initiative block |
+| `views/combat/controls.tsx` | modify | Action detail under Declare; Combatant detail |
+| `views/combat/index.tsx` | modify | Mount `TurnOrderPanel` per DF-CX-1; spatial caption per DF-CX-1 item 4 |
+| `views/combat/combat.css` | modify | Tokens-only |
+| `ui/*` | modify only if DF-CX-1 adds a component | — |
+| `tests/engine/combat.test.ts`, `tests/store/combat.test.ts` | modify | Wrapper + selector cases |
+| `e2e/combat.spec.ts` | modify | CAP-01/02 lockstep journey |
 
 ## Implementation
 
 ### Checkpoint 0 — recheck (no commit)
-Read the amended FR-11 criterion and the design rows. If either is absent, return `blocked`. Reproduce both
-probe results with `.program/` scratch. Confirm `assembleEncounter`, `spawnEncounter` and `Encounter` in
-the installed `runtime.d.ts`.
+Read DF-CX-1's committed rows + mock. Absent → `blocked`. Reproduce the probe facts in `.program/` scratch.
+Confirm `resolveSlotGrants` in `runtime.d.ts` and SESSION-02's board ids at HEAD.
 
-### Checkpoint 1 — engine + store
+### Checkpoint 1 — pass-throughs + selector
 ```ts
-/** FR-11 (amended): threat-budget assembly, verbatim; spawns paired by the library's group order (CA-07). */
-export function assemble(rt: Runtime, budget: number, seed: number): Outcome<{ encounter: Encounter; spawns: SpawnSpec[] }>;
+export function slotGrants(rt: Runtime): Readonly<Record<string, number>>; // resolveSlotGrants(rt.pack).slots
+export interface ActionInfo { actionId: string; cost: ActionCost; tags: readonly string[];
+  triggerOn: string | null; valid: string | null }
+export function actionInfo(pack: Pack, actionId: string): ActionInfo | null;
+export function initiativeOf(log: readonly RuntimeEvent[]): RuntimeEvent | undefined; // store
 ```
-Store `assembleEnemies(budget, seed)` sets `encounter` and, when `spawns.length > 0` and CA-05 holds,
-`enemies = spawns`. Errors go to `error`.
+`ActionCost` is exported by `ruleswright/schema` (verified in `schema.d.ts`); re-export it, do not restate it.
+Tests: `slotGrants` dark-fantasy·42 = `{main:1,move:1,reaction:1}` and equals `resolveSlotGrants(pack).slots`;
+zombie-urban (no `economy`) equals the engine default; `actionInfo(pack,'parry').triggerOn ===
+'attack:rolled[target=self]'`; `actionInfo(pack,'cut-down').valid === 'hasTarget(adjacent)'`;
+`actionInfo(pack,'ember-surge').cost.points` = `{pool:'ember', amount:2}`; unknown id → `null`. Store: after
+`begin()`, `initiativeOf(log).payload.order` deep-equals `state.order`, and still does after a `move`.
 **Commit when:** `pnpm typecheck && pnpm lint && pnpm test` pass.
 
-### Checkpoint 2 — UI
-The Enemies panel row per AUTHOR-DESIGN-CX. The ⟳ copies the `inventory.tsx` pattern
-(`crypto.getRandomValues(new Uint32Array(1))[0]`, user-initiated only). The summary line goes in
-`fight-encounter-summary`. Keep every existing `fight-*` id.
-**Commit when:** typecheck, lint and test pass, and `pnpm build` exits 0 (under `e2e:out`).
+### Checkpoint 2 — panels
+- `TurnOrderPanel` (`combat-order`): rows `combat-order-<id>` (`data-active`), `combat-order-position`
+  = `round R · turn T+1 of K` (the `+1` is display indexing; comment it), `combat-initiative`.
+- `controls.tsx`: `combat-action-detail`; per combatant `combat-ledger-<id>`, `combat-pools-<id>`,
+  `combat-bound-<id>`, `combat-conditions-<id>`. Keep every existing id and the `combat-combatant-<id>` meta
+  text the specs assert.
+- Keyboard: no new focus traps; keep the Declare → Step Tab order the keyboard e2e walks.
+**Commit when:** unit gates pass and `pnpm build` exits 0 (under `e2e:out`).
 
-### Checkpoint 3 — CAP-04 e2e
-dark-fantasy · 42, Brynn:
-1. type budget `3`, seed `7` → Assemble
-2. `fight-encounter-summary` contains the reference `assembleEncounter` result's `groups`/`threat`/`seedUsed`
-   verbatim, computed in Node by the spec
-3. the enemy rows equal the reference `spawnEncounter` ids
-4. Begin → `combat-order` rows equal the reference `startCombat` order
-5. record → restart → replay `complete`
-
-Negative control (not committed): seed `8` in the reference only → the assertion fails.
-**Commit when:** `pnpm verify` exits 0.
+### Checkpoint 3 — CAP-01/02 e2e
+One new test in `e2e/combat.spec.ts`, on a grid world with the placement the UI shows (read from
+`fight-place-<id>` as SESSION-02's tests do; the reference fight uses the same positions). Brynn vs 2
+barrow-wights, dark-fantasy · 42:
+1. After Begin: `combat-order-<id>` in `ref.fight.state.order` order; `combat-initiative` contains every
+   reference `why.rolls` string; active row = `ref.fight.state.active`.
+2. After every host call in lockstep: every `combat-ledger-<id>` contains `name remaining/grant` for each grant
+   key; `combat-conditions-<id>`; `combat-order-position`.
+3. On Brynn's turn, with Brynn adjacent to `barrow-wight-1` (place them so): `cut-down` →
+   `combat-action-detail` shows `main 1` and `hasTarget(adjacent)`; declare with target `barrow-wight-1` →
+   `main 0/1`; declare again with the same target → the `slot-exhausted` card equals the reference fight's own
+   `declare:rejected` event; ledger unchanged.
+4. After one reposition (SESSION-02 control) the order panel and ledgers are unchanged.
+Negative control (not committed): alter one expected ledger number → fails; restore.
+**Commit when:** `pnpm verify` exits 0 (record the build identity).
 
 ## Verification
-- Per checkpoint: `pnpm typecheck && pnpm lint && pnpm test`. Checkpoint 2: build. Checkpoint 3:
-  `pnpm verify` under `e2e:out`.
-- Integration proof CAP-04 (CA-07/08/05): the built app via `e2e/fixtures.ts` (isolated userData, `restart()`
-  on the same dir). The Node reference uses the installed engine on the pack the spec reads from userData
-  (`worlds/<id>/pack.json`, as `e2e/replay.spec.ts` does). The build identity is recorded.
+- Unit gates each checkpoint; build at 2; `pnpm verify` at 3 (`e2e:out`).
+- Integration proof CAP-01/02: built app via `e2e/fixtures.ts` (`_electron`, isolated temp userData); world
+  and character created in the app; Node reference on the same installed engine and pack; build identity
+  recorded. Boundary grep for `ruleswright` imports outside `engine/` is empty.
 
 ## State Update
-Report: the Spec/Design revisions, CA-07 pairing proof, the probe values reproduced, the negative control,
-and the build identity. Arch delta: M06 `assemble`, M09 `encounter`/`assembleEnemies`, M14 row. Report new
-test ids.
+Report: CA-01..04 evidence, DF-CX-1 revision used, design rows not honored, build identity, negative control,
+new test ids. Arch deltas: M06 (`slotGrants`, `actionInfo`), M09 (re-exports, `initiativeOf`), M15 (`order.tsx`).
