@@ -9,16 +9,16 @@ import { describe, expect, it } from 'vitest';
 const ROOT = resolve(__dirname, '..', '..');
 const TOKENS = readFileSync(join(ROOT, 'src/renderer/src/styles/tokens.css'), 'utf8');
 const DESIGN = readFileSync(join(ROOT, 'program/ruleswright-ui/specs/design.md'), 'utf8');
-const MOODS = ['fantasy', 'urban', 'archive'] as const;
+const MOODS = ['fantasy', 'urban', 'archive', 'wild'] as const;
 type Mood = (typeof MOODS)[number];
 
 /** design.md "Mood values" table: token → value per mood, backticks stripped. */
 function designTable(): Record<Mood, Record<string, string>> {
-  const out: Record<Mood, Record<string, string>> = { fantasy: {}, urban: {}, archive: {} };
+  const out: Record<Mood, Record<string, string>> = { fantasy: {}, urban: {}, archive: {}, wild: {} };
   const section = DESIGN.slice(DESIGN.indexOf('**Mood values:**'));
   for (const line of section.split('\n').slice(1)) {
     const cells = line.split('|').map((c) => c.trim().replace(/`/g, ''));
-    const [, token, fantasy, urban, archive] = cells;
+    const [, token, fantasy, urban, archive, wild] = cells;
     if (token === undefined || !/^--[a-z]/.test(token)) {
       if (Object.keys(out.fantasy).length > 0) break;
       continue;
@@ -26,6 +26,7 @@ function designTable(): Record<Mood, Record<string, string>> {
     out.fantasy[token] = fantasy ?? '';
     out.urban[token] = urban ?? '';
     out.archive[token] = archive ?? '';
+    out.wild[token] = wild ?? '';
   }
   return out;
 }
@@ -85,8 +86,9 @@ function sourceFiles(dir: string): string[] {
 describe('design tokens', () => {
   const table = designTable();
 
-  it('reads all 12 color tokens from design.md', () => {
-    expect(Object.keys(table.fantasy)).toHaveLength(12);
+  it('reads all 12 color tokens per mood from design.md', () => {
+    for (const mood of MOODS) expect(Object.keys(table[mood]), mood).toHaveLength(12);
+    for (const mood of MOODS) expect(Object.values(table[mood]).every((v) => v !== ''), mood).toBe(true);
   });
 
   for (const mood of MOODS) {

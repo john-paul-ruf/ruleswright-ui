@@ -103,7 +103,7 @@ body {
   white-space: nowrap;
 }
 
-/* Atmosphere (design.md): fantasy candle glow from the top edge; urban hazard-stripe headers. */
+/* Atmosphere (design.md): fantasy candle glow from the top edge; urban hazard-stripe headers; wild canopy light. */
 :root[data-mood='fantasy'] body::before {
   content: '';
   position: fixed;
@@ -114,6 +114,16 @@ body {
     color-mix(in srgb, var(--accent) 8%, transparent),
     transparent 60%
   );
+}
+
+:root[data-mood='wild'] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(700px 420px at 0% -5%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 55%),
+    radial-gradient(700px 420px at 100% -5%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 55%);
 }
 
 .section-head {

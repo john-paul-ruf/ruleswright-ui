@@ -1,13 +1,14 @@
 /** FR-15 mood mechanism (M05, CA-10): theme id → mood id → `data-mood` on the document root. */
 
-export type MoodId = 'fantasy' | 'urban' | 'archive';
+export type MoodId = 'fantasy' | 'urban' | 'wild' | 'archive';
 
 const MOOD_BY_THEME: Readonly<Record<string, MoodId>> = {
   'dark-fantasy': 'fantasy',
   'zombie-urban': 'urban',
+  wyldwood: 'wild',
 };
 
-/** FR-15 / CA-10: bundled themes map to their mood; unknown or null (imported, unknown params) → archive. */
+/** FR-15 / CA-10: dark-fantasy → fantasy, zombie-urban → urban, wyldwood → wild; unknown or null (imported, unknown params) → archive. */
 export function moodForTheme(themeId: string | null | undefined): MoodId {
   if (themeId == null || !Object.hasOwn(MOOD_BY_THEME, themeId)) return 'archive';
   return MOOD_BY_THEME[themeId] ?? 'archive';

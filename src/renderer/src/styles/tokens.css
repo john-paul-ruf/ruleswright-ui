@@ -88,3 +88,20 @@
   --danger: #e05555;
   --ok: #8fbf7f;
 }
+
+[data-mood='wild'] {
+  --font-display: 'Spectral', serif;
+  --font-reading: 'Spectral', serif;
+  --base: #08100f;
+  --surface: #0f1a18;
+  --surface2: #152421;
+  --hairline: rgba(186,230,200,.13);
+  --ink: #e3eadf;
+  --dim: #94ab9f;
+  --accent: #9cc76a;
+  --accent-strong: #b4dc82;
+  --accent-ink: #0c1605;
+  --accent2: #d48ac4;
+  --danger: #e8707a;
+  --ok: #8fc7a8;
+}

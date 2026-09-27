@@ -22,4 +22,4 @@ export type AppErrorLike =
   | { readonly kind: 'unexpected'; readonly operation: string; readonly message: string };
 
 /** A mood id, for previewing another mood's tokens inside a subtree (FR-15). */
-export type MoodLike = 'fantasy' | 'urban' | 'archive';
+export type MoodLike = 'fantasy' | 'urban' | 'wild' | 'archive';
