@@ -55,6 +55,22 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
 .event-mut{border-left-color:var(--accent2)}
 .event-sys{border-left-color:var(--hairline)}
 .hpnum{font-family:var(--font-display);font-size:26px;line-height:1;color:var(--accent-strong)}
+.input.err{border-color:var(--danger)}
+/* ── AUTHOR-DESIGN-CX: board tokens (shared with mocks/combat.html) ── */
+.board{display:grid;gap:2px}
+.board .ax{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);display:flex;align-items:center;justify-content:center}
+.sq{border:1px solid var(--hairline);border-radius:var(--radius-s);background:var(--surface2);display:flex;align-items:center;justify-content:center;position:relative;transition:border-color .15s}
+.board.editing .sq:hover{border-color:var(--accent)}
+.tok{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;border:1px solid var(--hairline);border-radius:var(--radius-s);display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:default;transition:box-shadow .15s}
+.tok-ally{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,var(--surface2));color:var(--accent-strong)}
+.tok-enemy{border-color:var(--accent2);background:color-mix(in srgb,var(--accent2) 18%,var(--surface2));color:var(--ink)}
+.tok.selected{box-shadow:0 0 0 2px var(--accent-strong)}
+.tok:focus-visible{outline:none;box-shadow:0 0 0 1px var(--accent)}
+.board.editing .tok{cursor:grab}
+.sq .tok+.tok{margin-left:-12px}
+.sq .stack{position:absolute;top:-6px;right:-6px;font-family:'JetBrains Mono',monospace;font-size:9px;line-height:1;padding:2px 4px;border-radius:999px;border:1px solid var(--hairline);background:var(--surface);color:var(--dim)}
+.placerow{display:grid;grid-template-columns:32px 1fr auto;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--hairline);border-radius:var(--radius-s);background:var(--surface2)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 </head>
 <body class="vignette">
@@ -71,7 +87,7 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
     <div>
       <p class="kicker">Ashen Vale · Fight</p>
       <h1 class="display text-3xl mt-1">Assemble a Fight</h1>
-      <p class="mono text-xs mt-1" style="color:var(--dim)">theater-of-mind · seed 42 · theaterOfMind spatial model</p>
+      <p class="mono text-xs mt-1" style="color:var(--dim)">grid · seed 42 · spatial model from the pack</p>
     </div>
     <a href="combat.html" class="btn btn-primary">Begin combat →</a>
   </div>
@@ -90,6 +106,15 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
           <p class="mono text-[10px] mt-1" style="color:var(--dim)">hillfolk · warden 1 · hp 27 · ac 12</p>
         </div>
         <span class="chip">fixed</span>
+      </div>
+      <!-- AUTHOR-DESIGN-CX · ally spawn row (Q1 a): same row as an enemy spawn, on the ally side, after the
+           character in startCombat ally order. Recorded as start.allySpawns; placed like any combatant. -->
+      <div class="combatant mt-2">
+        <div>
+          <p class="font-semibold">grave-shambles</p>
+          <p class="mono text-[10px] mt-1" style="color:var(--dim)">spawnMonster · grave-shambles-1 · ally side</p>
+        </div>
+        <div class="flex gap-1"><button class="btn btn-ghost" style="padding:4px 8px" aria-label="remove grave-shambles-1">−</button></div>
       </div>
       <p class="text-xs mt-3" style="color:var(--dim)">The active character anchors the ally side. Extra bestiary spawns may be added beside her (FR-11).</p>
       <button class="btn btn-ghost mt-3">+ Add bestiary spawn…</button>
@@ -116,9 +141,66 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
         <div class="flex gap-1"><button class="btn btn-ghost" style="padding:4px 8px">−</button></div>
       </div>
       <button class="btn btn-ghost mt-3">+ Add spawn…</button>
+
+      <!-- AUTHOR-DESIGN-CX · Assemble by threat (Q2 a): below "+ Add spawn…", mirrors the Character → Inventory
+           Loot row (mono seed + ⟳ Randomize ghost + primary action). assembleEncounter(budget, seed) →
+           spawnEncounter. Non-empty groups replace the enemy roster (and refresh the default layout on grid packs);
+           empty groups leave the roster unchanged (CX-D5). Rejections → error card under the row. -->
+      <div class="mt-4">
+        <p class="kicker mb-1">Assemble by threat</p>
+        <div class="flex gap-2 flex-wrap">
+          <input class="input mono" style="width:80px" value="5" aria-label="threat budget" title="budget">
+          <input class="input mono" style="width:96px" value="42" aria-label="encounter seed" title="seed">
+          <button class="btn btn-ghost shrink-0"><span aria-hidden="true">⟳</span> Randomize</button>
+          <button class="btn btn-primary shrink-0">Assemble</button>
+        </div>
+        <p class="mono text-[10px] mt-2" style="color:var(--dim)">budget · seed — the encounter seed is explicit: typed, or picked by Randomize before the library is called</p>
+        <p class="mono text-[11px] mt-2" style="color:var(--accent-strong);word-break:break-word">encounter · groups barrow-choir ×1 · threat 5 · budget 5 · seedUsed 42 · heuristic threat-weighted-uniform</p>
+        <p class="mono text-[10px] mt-1" style="color:var(--dim)">state example · groups (none) → roster unchanged</p>
+      </div>
+
       <p class="text-xs mt-3" style="color:var(--dim)">Spawns are chosen from the pack's bestiary ids — no monsters are invented UI-side.</p>
     </section>
   </div>
+
+  <!-- ─── Placement (AUTHOR-DESIGN-CX, Q4 a-i) ───
+       Grid packs only (pack declares `spatial`), between the Allies/Enemies panels and Determinism; a
+       theater-of-mind pack renders no Placement panel. Roster-driven: one token + one row per combatant
+       (allies A<n> then enemies E<n>, roster order). Default layout CX-D9: allies x=0, enemies x=1,
+       y = index in own roster; re-applied when the roster changes. Viewport 12 × 8 squares, display only:
+       origin = (min(0, min x), min(0, min y)); nothing is clamped or refused (CX-D12); off-viewport
+       combatants are listed with coordinates. Shared squares allowed (stacked tokens + count).
+       Begin combat passes exactly these positions to startCombat. -->
+  <section class="panel p-5 mt-6" id="placement">
+    <div class="flex items-baseline justify-between flex-wrap gap-2">
+      <p class="kicker">Placement · grid</p>
+      <span class="chip">host input, not a rule</span>
+    </div>
+    <p class="mono text-[10px] mt-2" style="color:var(--dim);word-break:break-all">spatial {"model":"grid","reach":{"default":1,"barrow-wight":2},"shapes":["single","burst"]}</p>
+
+    <div class="grid lg:grid-cols-[auto,1fr] gap-5 mt-4 items-start">
+      <div class="min-w-0">
+        <div class="overflow-x-auto pb-2"><div id="place-board" class="board editing" role="group" aria-label="Placement board, 12 by 8 viewport"></div></div>
+        <p id="outside" class="mono text-[10px] mt-1 hidden" style="color:var(--dim)"></p>
+        <p class="mono text-[10px] mt-2" style="color:var(--dim)">viewport 12 × 8 · display only · shared squares allowed</p>
+      </div>
+
+      <div>
+        <div id="place-rows" class="space-y-2"></div>
+        <button id="reset" class="btn btn-ghost mt-3">Reset to default layout</button>
+        <div class="panel2 p-3 mt-3">
+          <p class="kicker" style="font-size:10px">Pointer & keyboard</p>
+          <p class="mono text-[10px] mt-2" style="color:var(--dim);line-height:1.7">pointer · click a token, then a square (or drag it)<br>Tab / Shift+Tab · next / previous token, then the x · y inputs<br>← → ↑ ↓ · move the focused token one square<br>Home · focused token back to its default square<br>Esc · clear the selection<br>x · y inputs · any integer; a non-integer marks the input and moves nothing</p>
+        </div>
+        <p class="text-xs mt-3" style="color:var(--dim)">Default: allies in column 0, enemies in column 1, one row each — everyone starts where melee is legal. Change anything before Begin; the library judges reach at every Declare.</p>
+      </div>
+    </div>
+
+    <p class="kicker mt-5" style="font-size:10px">State example</p>
+    <div class="panel2 p-3 mt-2">
+      <p class="mono text-[10px]" style="color:var(--dim)">theater-of-mind pack · header reads "theater-of-mind" · no Placement panel · Begin passes no positions</p>
+    </div>
+  </section>
 
   <!-- determinism strip -->
   <section class="panel p-5 mt-6">
@@ -143,7 +225,7 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
             </div>
             <p class="mono text-[10px] mt-1" style="color:var(--dim)">4 rounds · 61 events · 2 days ago</p>
             <p class="mono text-[11px] mt-1" style="color:var(--dim);word-break:break-all">rng a:9e3779b9 b:243f6a88 c:b7e15162 d:6a09e667</p>
-            <div class="flex gap-2 mt-2"><button class="btn btn-ghost" style="padding:4px 10px">Replay</button></div>
+            <div class="flex gap-2 mt-2"><button class="btn btn-ghost" style="padding:4px 10px">Replay</button><a href="combat.html" class="btn btn-ghost" style="padding:4px 10px">Resume</a></div>
           </div>
           <div class="recrow">
             <div class="flex items-center justify-between gap-2">
@@ -152,10 +234,18 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
             </div>
             <p class="mono text-[10px] mt-1" style="color:var(--dim)">3 rounds · 47 events · first divergence at event 18</p>
             <p class="mono text-[11px] mt-1" style="color:var(--dim);word-break:break-all">rng a:0c3fa211 b:d45e9f07 c:7b1e00a4 d:e3c2915f</p>
-            <div class="flex gap-2 mt-2"><button class="btn btn-ghost" style="padding:4px 10px">Replay</button></div>
+            <div class="flex gap-2 mt-2"><button class="btn btn-ghost" style="padding:4px 10px">Replay</button><button class="btn btn-ghost" style="padding:4px 10px">Resume</button></div>
+            <!-- AUTHOR-DESIGN-CX · refused resume (Q3 a): status line under the row's actions, rendered like a
+                 diverged replay — chip-danger + the first divergent event. Nothing is adopted; the record is
+                 unchanged. A successful resume opens Combat at the point the script reached. -->
+            <div class="flex items-center gap-2 flex-wrap mt-2" role="status">
+              <span class="chip chip-danger">resume refused</span>
+              <span class="mono text-[10px]" style="color:var(--dim)">first divergence at event 18</span>
+            </div>
           </div>
         </div>
         <p class="mono text-[10px] mt-2" style="color:var(--dim)">rng = combat.rng {a,b,c,d} from the stored record, 8-digit lowercase hex (FR-14)</p>
+        <p class="text-xs mt-2" style="color:var(--dim)">Resume re-applies the record's script, repositions included, on the stored pack; play continues only when every re-applied event matches the record.</p>
       </div>
     </div>
   </section>
@@ -165,6 +255,85 @@ body{font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;min
 <nav class="mocknav" aria-label="mock navigation">
   <a href="index.html">shell</a><a href="roll.html">roll</a><a href="world.html">world</a><a href="character.html">character</a><a href="fight.html">fight</a><a href="combat.html">combat</a><a href="design-language.html">tokens</a>
 </nav>
+
+<script>
+/* Mock-only placement behaviour (the same token model as mocks/combat.html). Positions are host input:
+   no bounds, no reach math, shared squares allowed. */
+const COLS=12, ROWS=8, CELL=36, TOK=28;
+const roster=[
+  {id:'brynn',label:'A1',side:'ally',name:'Brynn',def:{x:0,y:0}},
+  {id:'grave-shambles-1',label:'A2',side:'ally',name:'grave-shambles',def:{x:0,y:1}},
+  {id:'barrow-wight-1',label:'E1',side:'enemy',name:'barrow-wight',def:{x:1,y:0}},
+  {id:'barrow-wight-2',label:'E2',side:'enemy',name:'barrow-wight',def:{x:1,y:1}},
+];
+roster.forEach(t=>t.pos={...t.def});
+roster[3].pos={x:1,y:0}; /* example: E2 moved onto E1's square — shared squares are allowed */
+let selected='barrow-wight-2';
+const board=document.getElementById('place-board'), rows=document.getElementById('place-rows');
+const byId=id=>roster.find(t=>t.id===id);
+function render(focusId){
+  const xs=roster.map(r=>r.pos.x), ys=roster.map(r=>r.pos.y);
+  const ox=Math.min(0,...xs), oy=Math.min(0,...ys);
+  board.style.gridTemplateColumns=`16px repeat(${COLS},${CELL}px)`;
+  board.innerHTML='';
+  board.append(Object.assign(document.createElement('span'),{className:'ax'}));
+  for(let c=0;c<COLS;c++)board.append(Object.assign(document.createElement('span'),{className:'ax',textContent:ox+c}));
+  for(let r=0;r<ROWS;r++){
+    board.append(Object.assign(document.createElement('span'),{className:'ax',textContent:oy+r,style:`height:${CELL}px`}));
+    for(let c=0;c<COLS;c++){
+      const x=ox+c,y=oy+r,sq=document.createElement('div');
+      sq.className='sq';sq.style.height=CELL+'px';sq.dataset.x=x;sq.dataset.y=y;
+      const here=roster.filter(t=>t.pos.x===x&&t.pos.y===y);
+      here.forEach(t=>{
+        const b=document.createElement('button');
+        b.className=`tok tok-${t.side}`+(selected===t.id?' selected':'');
+        b.style.width=b.style.height=TOK+'px';b.textContent=t.label;b.dataset.id=t.id;b.dataset.x=t.pos.x;b.dataset.y=t.pos.y;b.draggable=true;
+        b.title=`${t.name} (${t.id}) · ${t.side==='ally'?'allies':'enemies'} · (${t.pos.x}, ${t.pos.y})`;
+        b.setAttribute('aria-label',b.title);
+        sq.append(b);
+      });
+      if(here.length>1)sq.append(Object.assign(document.createElement('span'),{className:'stack',textContent:'×'+here.length}));
+      board.append(sq);
+    }
+  }
+  const out=roster.filter(t=>t.pos.x>=ox+COLS||t.pos.y>=oy+ROWS);
+  const o=document.getElementById('outside');
+  o.classList.toggle('hidden',!out.length);
+  o.textContent=out.length?'outside the viewport · '+out.map(t=>`${t.label} ${t.id} (${t.pos.x}, ${t.pos.y})`).join(' · '):'';
+  rows.innerHTML='';
+  roster.forEach(t=>{
+    const row=document.createElement('div');row.className='placerow';
+    row.innerHTML=`<span class="tok tok-${t.side}" style="width:24px;height:24px" aria-hidden="true">${t.label}</span>
+      <div class="min-w-0"><p class="font-semibold text-sm truncate">${t.name}</p><p class="mono text-[10px]" style="color:var(--dim)">${t.id} · ${t.side==='ally'?'allies':'enemies'} · default (${t.def.x}, ${t.def.y})</p></div>
+      <div class="flex gap-1 items-center"><input class="input mono" style="width:52px;padding:4px 6px" value="${t.pos.x}" aria-label="${t.id} x" data-id="${t.id}" data-k="x"><input class="input mono" style="width:52px;padding:4px 6px" value="${t.pos.y}" aria-label="${t.id} y" data-id="${t.id}" data-k="y"></div>`;
+    rows.append(row);
+  });
+  if(focusId)board.querySelector(`[data-id="${focusId}"]`)?.focus();
+}
+board.addEventListener('click',e=>{
+  const tok=e.target.closest('.tok');
+  if(tok){selected=tok.dataset.id;render(selected);return;}
+  const sq=e.target.closest('.sq');
+  if(sq&&selected){byId(selected).pos={x:+sq.dataset.x,y:+sq.dataset.y};render(selected);}
+});
+board.addEventListener('dragstart',e=>{const t=e.target.closest('.tok');if(t)e.dataTransfer.setData('text/plain',t.dataset.id);});
+board.addEventListener('dragover',e=>{if(e.target.closest('.sq'))e.preventDefault();});
+board.addEventListener('drop',e=>{const sq=e.target.closest('.sq'),id=e.dataTransfer.getData('text/plain');if(sq&&id){e.preventDefault();byId(id).pos={x:+sq.dataset.x,y:+sq.dataset.y};selected=id;render(id);}});
+board.addEventListener('keydown',e=>{
+  const tok=e.target.closest('.tok');if(!tok)return;
+  const t=byId(tok.dataset.id),d={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
+  if(d){e.preventDefault();t.pos={x:t.pos.x+d[0],y:t.pos.y+d[1]};selected=t.id;render(t.id);}
+  else if(e.key==='Home'){e.preventDefault();t.pos={...t.def};render(t.id);}
+  else if(e.key==='Escape'){e.preventDefault();selected=null;render(t.id);}
+});
+rows.addEventListener('change',e=>{
+  const i=e.target;if(!i.dataset.id)return;
+  if(!/^-?\d+$/.test(i.value.trim())){i.classList.add('err');return;}
+  byId(i.dataset.id).pos[i.dataset.k]=parseInt(i.value,10);render();
+});
+document.getElementById('reset').onclick=()=>{roster.forEach(t=>t.pos={...t.def});selected=null;render();};
+render();
+</script>
 
 </body>
 </html>
