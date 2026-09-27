@@ -87,7 +87,8 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
 - **Acceptance criteria:**
   - [ ] Ally side is the active character; the enemy side is composed of bestiary spawns chosen from the pack (`bestiaryIds`, `spawnMonster`).
   - [ ] Either side may hold multiple bestiary-spawned combatants.
-  - [ ] Theater-of-mind (`theaterOfMind`) is the spatial model for v1.
+  - [ ] The spatial model is the pack's: theater-of-mind when the pack declares none, otherwise its grid. On a grid pack, every combatant is placed before combat starts (a default layout the player can change), positions are shown on a board, and the library's reach and validity rejections render verbatim. Between declarations the player may reposition combatants; the engine has no movement rule, so the UI labels this as host repositioning.
+  - [ ] Enemies may instead be assembled from a threat budget (`assembleEncounter`/`spawnEncounter`) with an explicit numeric encounter seed the user types or picks with a user-initiated randomize. The library's result (groups, threat, budget, seed used, heuristic) is shown verbatim.
   - [ ] Starting combat (`startCombat`) renders initial state immediately: round, phase, active combatant.
 
 ### FR-12: Stepwise combat loop
@@ -95,6 +96,7 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
 - **Acceptance criteria:**
   - [ ] All advancement goes through `declare` + `step`; the UI implements no combat rules.
   - [ ] Current phase, round, active combatant, and pending actions are rendered at all times.
+  - [ ] The initiative order (with the library's initiative rolls), and each combatant's action-economy slots, pools, bound slots and conditions, are rendered as the library reports them.
   - [ ] Invalid declarations (`DeclareRejection`) surface inline with the library's reason.
   - [ ] Combat end is announced as the library reports it, and the log remains reviewable afterward.
 
@@ -110,7 +112,8 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
 - **Acceptance criteria:**
   - [ ] The active world's seed is always visible (FR-1).
   - [ ] "Rerun same seed" regenerates the pack from the stored theme + seed + knobs and reports byte-identical vs. the stored pack — a pass/fail, not a shrug.
-  - [ ] A recorded fight can be replayed: the UI stores the declaration sequence and re-applies it against a fresh fight in the re-rolled pack, flagging any divergence in the event log rather than silently continuing.
+  - [ ] A recorded fight can be replayed: the UI stores the declaration sequence and re-applies it, placements and repositions included, against a fresh fight in the re-rolled pack, flagging any divergence in the event log rather than silently continuing.
+  - [ ] A recorded fight can be resumed: its script, repositions included, is re-applied to a fresh fight on the stored pack. When the re-applied events equal the recorded events, play continues from that point. Otherwise resume is refused and the first divergent event is shown.
   - [ ] RNG state is inspectable through fight-record views: each record shows its combat snapshot's four RNG words. *(Revised 2026-09-26, B-3.)*
 
 ### FR-15: Theme-driven mood
@@ -166,7 +169,7 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
 
 - Consumes Ruleswright as a library (sibling repo, built `dist/`); never forks or edits the engine's source. Engine changes are a separate program in that repo. Consumption mechanism (file dependency vs vendored dist) is Architecture's call.
 - All mechanics flow through library API calls — the UI implements zero rules math.
-- The UI never injects nondeterminism into engine calls; the only "random" is an explicit user-initiated seed pick (the Roll seed and the Character loot seed).
+- The UI never injects nondeterminism into engine calls; the only "random" is an explicit user-initiated seed pick (the Roll seed, the Character loot seed and the encounter seed).
 - Design bar (builder-set, binding): simple, generic surface with best-in-class craft — "art to be proud of." Interpreted as *simple in surface, exceptional in craft*: a restrained feature set executed beautifully, not a sprawling feature set skinned pretty. The design phase owns the concrete expression of this bar.
 - v2 awareness: quests/campaign are coming engine-side. v1 makes no promises about them beyond not precluding them architecturally.
 
@@ -195,6 +198,7 @@ Derived from the approved `specs/idea.md`. The app is the game's first shell on 
 - **Provenance:** event metadata — `why.rule` (the pack artifact responsible) and `why.rolls` (the dice, quoted).
 - **Stepwise combat:** the begin → declare → resolve → end loop advanced explicitly via `declare`/`step`.
 - **Theater-of-mind:** the spatial model without positions or grids.
+- **Grid:** the pack-declared spatial model with positions and reach.
 - **Snapshot:** serialized character or combat state carrying pack identity for restore checks. Character snapshots carry no RNG state; combat snapshots carry the four RNG words.
 - **Derived stats:** hp / ac / saves resolved through the pack's own formulas — never hardcoded in the engine or the UI.
 - **Surface:** one of the library's three import entry points: `ruleswright/runtime`, `ruleswright/compiler`, `ruleswright/schema`.
