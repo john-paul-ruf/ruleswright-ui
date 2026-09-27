@@ -70,16 +70,30 @@ export type FightOutcome = 'complete' | 'diverged' | 'abandoned';
 
 export const FIGHT_OUTCOMES: readonly FightOutcome[] = ['complete', 'diverged', 'abandoned'];
 
-/** One host call of a recorded fight, in order (B-2 `script`): rejected declares included. */
+/** A grid position, `{x, y}` integers (CX `start.positions` / `move`). */
+export interface GridPosition {
+  x: number;
+  y: number;
+}
+
+/**
+ * One host call of a recorded fight, in order (B-2 `script`; CX `move`): rejected declares included.
+ * A `move` carries the complete positions map after the reposition (every combatant).
+ */
 export type FightScriptEntry =
   | { op: 'declare'; actionId: string; targetId?: string }
   | { op: 'respond'; triggerId: string; choice: 'take' | 'decline'; targetId?: string }
-  | { op: 'step' };
+  | { op: 'step' }
+  | { op: 'move'; positions: Record<string, GridPosition> };
 
-/** What a recorded fight was started from (B-2 `start`); the snapshot is verbatim `serializeCharacter` output. */
+/**
+ * What a recorded fight was started from (B-2 `start`); the snapshot is verbatim `serializeCharacter` output.
+ * `positions` (CX) are the positions passed to `startCombat`, present iff the pack declares a spatial model.
+ */
 export interface FightStartDoc {
   ally: { id: string; snapshot: unknown };
   enemies: { statblockId: string; instanceId: string }[];
+  positions?: Record<string, GridPosition>;
 }
 
 /**

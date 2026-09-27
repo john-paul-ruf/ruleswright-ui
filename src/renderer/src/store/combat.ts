@@ -162,14 +162,15 @@ export function createCombatStore(
           return false;
         }
         unsubscribe = combat.subscribe(rt, (e) => set((s) => ({ log: [...s.log, e] })));
-        const fight = combat.begin(rt, ally.value, start.enemies);
-        if (!fight.ok) {
+        const live = combat.begin(rt, ally.value, start.enemies);
+        if (!live.ok) {
           get().end();
-          set({ error: fight.error });
+          set({ error: live.error });
           return false;
         }
-        const hpAtStart = Object.fromEntries(Object.values(fight.value.state.combatants).map((c) => [c.id, c.hp.current]));
-        publish(fight.value, { fight: fight.value, start, hpAtStart, script: [], rejection: null, error: null });
+        const { fight } = live.value;
+        const hpAtStart = Object.fromEntries(Object.values(fight.state.combatants).map((c) => [c.id, c.hp.current]));
+        publish(fight, { fight, start, hpAtStart, script: [], rejection: null, error: null });
         return true;
       },
 

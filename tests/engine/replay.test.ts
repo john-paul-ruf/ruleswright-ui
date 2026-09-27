@@ -39,14 +39,15 @@ function recordFight(): Recording {
   const ally = value(allyProfile(rt, brynn, 'brynn'));
   const events: RuntimeEvent[] = [];
   const off = subscribe(rt, (e) => events.push(e));
-  const fight = value(begin(rt, ally, ENEMIES));
+  const live = value(begin(rt, ally, ENEMIES));
+  const { fight } = live;
   const script: ScriptEntry[] = [];
   const declarations: Declaration[] = [];
   let tried = 0;
   for (let calls = 0; fight.state.phase !== 'combat-over' && calls < 2000; calls += 1) {
     const entry = nextEntry(fight, tried);
     const combatantId = fight.state.active;
-    const r = value(perform(fight, entry));
+    const r = value(perform(live, entry));
     script.push(entry);
     if (entry.op === 'declare') {
       declarations.push({ combatantId, action: entry.actionId, options: entry.targetId === undefined ? {} : { targetId: entry.targetId } });
