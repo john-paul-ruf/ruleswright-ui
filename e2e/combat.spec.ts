@@ -1,11 +1,25 @@
 /**
- * CAP-09 (FR-11–13; CA-05, CA-07, CA-08) through the real built app: fight assembly from the active character
- * plus bestiary spawns, the declare/step/respond loop to `combat-over`, and the provenanced log. Every
- * expected value comes from the same library calls made in the test process on the stored pack bytes.
+ * CAP-09 (FR-11–13; CA-05, CA-07, CA-08) and CAP-06 (FR-11 grid; CA-12, CA-13, CA-15) through the real built
+ * app: fight assembly from the active character plus bestiary spawns, placement, the declare/step/respond loop to
+ * `combat-over`, the board and reposition, and the provenanced log. Every expected value comes from the same
+ * library calls made in the test process on the stored pack bytes, at the positions the UI shows before Begin.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Runtime, createCharacter, profileFromCharacter, spawnMonster, startCombat, type Combat, type RuntimeEvent } from 'ruleswright/runtime';
+import { generateCampaign, loadTheme } from 'ruleswright/compiler';
+import {
+  Runtime,
+  createCharacter,
+  deserializeCombat,
+  profileFromCharacter,
+  serializeCombat,
+  spawnMonster,
+  startCombat,
+  type Combat,
+  type CombatantProfile,
+  type Position,
+  type RuntimeEvent,
+} from 'ruleswright/runtime';
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
@@ -27,8 +41,20 @@ function packOf(userData: string): unknown {
   return JSON.parse(readFileSync(join(dir, id, 'pack.json'), 'utf8'));
 }
 
-/** The same fight the app starts: Brynn (profileFromCharacter, id `brynn`) vs `wights` spawned barrow-wights. */
-function referenceFight(pack: unknown, wights = 2): { fight: Combat; events: RuntimeEvent[] } {
+type Positions = Record<string, Position>;
+
+interface Reference {
+  fight: Combat;
+  events: RuntimeEvent[];
+  /** The sides as `startCombat` took them (the reposition seam re-states them). */
+  sides: { id: string; profile: CombatantProfile }[][];
+}
+
+/**
+ * The same fight the app starts: Brynn (profileFromCharacter, id `brynn`) vs `wights` spawned barrow-wights, at
+ * `positions` (what the placement board showed; absent on a theater-of-mind pack).
+ */
+function referenceFight(pack: unknown, wights = 2, positions?: Positions): Reference {
   const rt = new Runtime(pack as ConstructorParameters<typeof Runtime>[0]);
   const ally = profileFromCharacter(rt, createCharacter(rt, { name: 'Brynn', race: 'hillfolk', classes: [{ id: 'warden', level: 1 }] }), 'brynn');
   const events: RuntimeEvent[] = [];
@@ -37,7 +63,30 @@ function referenceFight(pack: unknown, wights = 2): { fight: Combat; events: Run
     id,
     profile: spawnMonster(rt, 'barrow-wight', id),
   }));
-  return { fight: startCombat(rt, { allies: [{ id: 'brynn', ...ally }], enemies }), events };
+  const fight = startCombat(rt, { allies: [{ id: 'brynn', ...ally }], enemies, ...(positions ? { positions } : {}) });
+  return { fight, events, sides: [[{ id: 'brynn', profile: ally.profile }], enemies] };
+}
+
+/** Reposition on the reference: serialize → restore at `positions`, every combatant's live balances re-stated. */
+function moveReference(ref: Reference, positions: Positions): void {
+  const { fight } = ref;
+  const restate = (side: { id: string; profile: CombatantProfile }[]) =>
+    side.map(({ id, profile }) => {
+      const c = fight.state.combatants[id];
+      return { id, profile, balances: { pools: structuredClone(c?.pools ?? {}), boundSlots: structuredClone(c?.boundSlots ?? {}) } };
+    });
+  const [allies = [], enemies = []] = ref.sides;
+  const snap = serializeCombat(fight, { pairsWith: 'brynn' });
+  ref.fight = deserializeCombat(fight.runtime, snap, { allies: restate(allies), enemies: restate(enemies), positions });
+}
+
+/** The placement the board shows before Begin, read from its rows (never assumed). */
+async function placed(page: Page): Promise<Positions> {
+  const rows = page.locator('[data-testid^="fight-place-"][data-x]');
+  const all = await rows.evaluateAll((els) =>
+    els.map((el) => [el.getAttribute('data-testid')?.slice('fight-place-'.length) ?? '', { x: Number(el.getAttribute('data-x')), y: Number(el.getAttribute('data-y')) }] as const),
+  );
+  return Object.fromEntries(all);
 }
 
 /** Policy: decline the first open offer; else declare the active's k-th action at its first standing foe; else step. */
@@ -53,7 +102,7 @@ function nextEntry(fight: Combat, tried: number): Entry {
 }
 
 /** One host call on the reference fight; returns only this call's events (the library returns the round's). */
-function apply(ref: { fight: Combat; events: RuntimeEvent[] }, e: Entry): RuntimeEvent[] {
+function apply(ref: Reference, e: Entry): RuntimeEvent[] {
   const from = ref.events.length;
   if (e.op === 'declare') ref.fight.declare(e.actionId, e.targetId === undefined ? {} : { targetId: e.targetId });
   else if (e.op === 'respond') ref.fight.respond(e.triggerId, e.choice);
@@ -113,13 +162,15 @@ async function forgeWithBrynn(page: Page): Promise<void> {
   await expect(page.getByTestId('char-hp')).toHaveText('27');
 }
 
-/** Fight → add `n` barrow-wights → Begin. */
-async function beginAgainstWights(page: Page, n: number): Promise<void> {
+/** Fight → add `n` barrow-wights → Begin; returns the placement the board showed. */
+async function beginAgainstWights(page: Page, n: number): Promise<Positions> {
   await page.getByTestId('nav-fight').click();
   await page.getByTestId('fight-add-enemy').selectOption('barrow-wight');
   for (let i = 0; i < n; i += 1) await page.getByTestId('fight-add-enemy-submit').click();
+  const positions = await placed(page);
   await page.getByTestId('fight-begin').click();
   await expect(page.getByTestId('combat-phase')).toHaveText('awaiting-declare');
+  return positions;
 }
 
 /** Keyboard only: Tab until the control with `testId` has focus (bounded). */
@@ -146,7 +197,7 @@ test('CAP-09: assemble Brynn vs 2 wights, declare/step/decline to combat-over, e
   // Fight assembly: the ally is the character; enemies are bestiary spawns.
   await page.getByTestId('nav-fight').click();
   await expect(page.getByTestId('fight-ally')).toContainText('hillfolk · warden 1 · hp 27 · ac 12');
-  await expect(page.getByTestId('fight-spatial')).toHaveText('theater-of-mind · seed 42');
+  await expect(page.getByTestId('fight-spatial')).toHaveText('grid · seed 42');
   await expect(page.getByTestId('fight-begin')).toBeDisabled();
   await page.getByTestId('fight-add-enemy').selectOption('barrow-wight');
   await page.getByTestId('fight-add-enemy-submit').click();
@@ -155,10 +206,11 @@ test('CAP-09: assemble Brynn vs 2 wights, declare/step/decline to combat-over, e
   await page.getByTestId('fight-enemy-remove-barrow-wight-3').click();
   await expect(page.locator('[data-testid^="fight-enemy-barrow-wight-"]')).toHaveCount(2);
   await shot(page, 'fight-assembly-fantasy-wide');
+  const positions = await placed(page);
   await page.getByTestId('fight-begin').click();
 
   // Initial state renders immediately (FR-11); the first row is combat:start with its rolls verbatim.
-  const ref = referenceFight(packOf(rw.userData));
+  const ref = referenceFight(packOf(rw.userData), 2, positions);
   const start = ref.events[0];
   if (!start) throw new Error('no combat:start in the reference fight');
   await expect(page.getByTestId('combat-phase')).toHaveText('awaiting-declare');
@@ -276,8 +328,8 @@ test('CAP-09: assemble Brynn vs 2 wights, declare/step/decline to combat-over, e
 test('keyboard only: one full round by Tab, Enter and select type-ahead, rows in lockstep with the library', async ({ rw }) => {
   const page = rw.page;
   await forgeWithBrynn(page);
-  await beginAgainstWights(page, 2);
-  const ref = referenceFight(packOf(rw.userData));
+  const positions = await beginAgainstWights(page, 2);
+  const ref = referenceFight(packOf(rw.userData), 2, positions);
   const rows = page.getByTestId('combat-event');
   await expect(rows).toHaveCount(ref.events.length);
 
@@ -324,8 +376,8 @@ async function scrollFacts(page: Page) {
 test('a 500-event log keeps every row, follows the newest row at the bottom, and never yanks a reader who scrolled up', async ({ rw }) => {
   const page = rw.page;
   await forgeWithBrynn(page);
-  await beginAgainstWights(page, 4);
-  const ref = referenceFight(packOf(rw.userData), 4);
+  const positions = await beginAgainstWights(page, 4);
+  const ref = referenceFight(packOf(rw.userData), 4, positions);
   const rows = page.getByTestId('combat-event');
 
   // Seed a long log: Step while awaiting a declare re-emits `turn:began` without advancing (a real library event).
@@ -364,4 +416,146 @@ test('a 500-event log keeps every row, follows the newest row at the bottom, and
   expect(await scrollFacts(page)).toMatchObject({ atBottom: true, newestVisible: true });
   expect(ms).toBeLessThan(1000);
   expect(ref.events.length).toBeGreaterThan(500);
+});
+
+/** The positions every board token shows, by combatant id. */
+async function tokens(page: Page): Promise<Positions> {
+  const all = await page.locator('[data-testid^="combat-token-"]').evaluateAll((els) =>
+    els.map((el) => [el.getAttribute('data-testid')?.slice('combat-token-'.length) ?? '', { x: Number(el.getAttribute('data-x')), y: Number(el.getAttribute('data-y')) }] as const),
+  );
+  return Object.fromEntries(all);
+}
+
+/** The library's positions (`state.combatants[id].position`), by combatant id. */
+const positionsOf = (fight: Combat): Positions =>
+  Object.fromEntries(Object.values(fight.state.combatants).flatMap((c) => (c.position ? [[c.id, { x: c.position.x, y: c.position.y }]] : [])));
+
+test('CAP-06: grid fight — placement, board, validity and reach rejections, reposition with no events, lockstep to combat-over', async ({ rw }) => {
+  const page = rw.page;
+  await forgeWithBrynn(page);
+
+  // Placement: Brynn vs one barrow-wight, the wight moved 5 squares away through its x input.
+  await page.getByTestId('nav-fight').click();
+  await page.getByTestId('fight-add-enemy').selectOption('barrow-wight');
+  await page.getByTestId('fight-add-enemy-submit').click();
+  await expect(page.getByTestId('fight-placement')).toBeVisible();
+  const home = await placed(page);
+  const wight = home['barrow-wight-1'];
+  if (!wight || !home.brynn) throw new Error('placement rows missing');
+  await page.getByTestId('fight-place-barrow-wight-1-x').fill(String(home.brynn.x + 5));
+  await expect(page.getByTestId('fight-place-barrow-wight-1')).toHaveAttribute('data-x', String(home.brynn.x + 5));
+  const positions = await placed(page);
+  expect(positions['barrow-wight-1']).toEqual({ x: home.brynn.x + 5, y: wight.y });
+  await shot(page, 'fight-placement-fantasy-wide');
+  await page.getByTestId('fight-begin').click();
+  await expect(page.getByTestId('combat-phase')).toHaveText('awaiting-declare');
+
+  // Board: tokens at the library's positions; the pack's spatial section verbatim; distances are the library's.
+  const pack = packOf(rw.userData) as { spatial: unknown };
+  const ref = referenceFight(pack, 1, positions);
+  const rows = page.getByTestId('combat-event');
+  await expect(rows).toHaveCount(ref.events.length);
+  expect(await tokens(page)).toEqual(positionsOf(ref.fight));
+  await expect(page.getByTestId('combat-spatial-def')).toContainText(JSON.stringify(pack.spatial));
+  const distances = async () => {
+    const from = ref.fight.state.combatants[ref.fight.state.active]?.position;
+    if (!from) throw new Error('active has no position');
+    for (const c of Object.values(ref.fight.state.combatants)) {
+      if (c.id === ref.fight.state.active || !c.position) continue;
+      await expect(page.getByTestId(`combat-distance-${c.id}`)).toHaveText(String(ref.fight.runtime.spatial.distance(from, c.position)));
+    }
+  };
+  await distances();
+
+  const run = async (entry: Entry): Promise<readonly RuntimeEvent[]> => {
+    const out = apply(ref, entry);
+    await perform(page, entry);
+    await expect(rows).toHaveCount(ref.events.length);
+    return out;
+  };
+
+  // Far apart: the active combatant's declares are refused by the library — validity and reach — verbatim.
+  const active = ref.fight.state.active;
+  const kinds: string[] = [];
+  for (const actionId of ref.fight.state.combatants[active]?.actions ?? []) {
+    const rejection = (await run({ op: 'declare', actionId })).find((e) => e.type === 'declare:rejected');
+    if (!rejection) throw new Error(`the reference fight accepted ${actionId} at distance 5`);
+    kinds.push(String(rejection.payload.kind));
+    const card = page.getByTestId('combat-rejection');
+    await expect(card).toContainText(`declare:rejected · ${String(rejection.payload.kind)}`);
+    await expect(card).toContainText(String(rejection.payload.message));
+    await expect(card).toContainText(rejection.why.rule);
+  }
+  expect(kinds).toEqual(expect.arrayContaining(['valid', 'spatial']));
+  await shot(page, 'combat-grid-rejection-fantasy-wide');
+
+  // Reposition (keyboard): Brynn next to the wight; the complete map goes to the library; no event is emitted.
+  const eventsBefore = ref.events.length;
+  await expect(page.getByTestId('combat-move')).toBeEnabled();
+  await page.getByTestId('combat-move').click();
+  await expect(page.getByTestId('combat-move-banner')).toContainText('host repositioning — the engine has no movement rule');
+  await page.getByTestId('combat-token-brynn').focus();
+  for (let i = 0; i < 4; i += 1) await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('combat-token-brynn')).toBeFocused();
+  await shot(page, 'combat-grid-reposition-fantasy-wide');
+  await page.getByTestId('combat-move-apply').click();
+  await expect(page.getByTestId('combat-move')).toBeFocused();
+  const moved = { ...positionsOf(ref.fight), brynn: { x: home.brynn.x + 4, y: home.brynn.y } };
+  moveReference(ref, moved);
+  expect(ref.events.length).toBe(eventsBefore);
+  await expect(page.getByTestId('combat-token-brynn')).toHaveAttribute('data-x', String(home.brynn.x + 4));
+  expect(await tokens(page)).toEqual(positionsOf(ref.fight));
+  await expect(rows).toHaveCount(eventsBefore);
+  await expect(page.getByTestId('error-card')).toHaveCount(0);
+  await distances();
+
+  // Declare again: accepted, the log continues in lockstep; after a declare the reposition control is disabled.
+  const hit = await run({ op: 'declare', actionId: 'cut-down' });
+  expect(hit.some((e) => e.type === 'declare:rejected')).toBe(false);
+  await expect(page.getByTestId('combat-move')).toBeDisabled();
+  await expect(page.getByTestId('combat-move-unavailable')).toHaveText('Reposition is unavailable after a declare / while offers are open.');
+
+  let tried = 0;
+  for (let calls = 0; ref.fight.state.phase !== 'combat-over'; calls += 1) {
+    if (calls > 500) throw new Error('the grid fight never ended');
+    const entry = nextEntry(ref.fight, tried);
+    const out = await run(entry);
+    if (entry.op === 'step') tried = 0;
+    else if (entry.op === 'declare') tried = out.some((e) => e.type === 'declare:rejected') ? tried + 1 : 0;
+  }
+  await expect(page.getByTestId('combat-over')).toBeVisible();
+  await expect(page.getByTestId('combat-move')).toBeDisabled();
+  expect(await rows.evaluateAll((els) => els.map((el) => el.getAttribute('data-type')))).toEqual(ref.events.map((e) => e.type));
+  expect(await tokens(page)).toEqual(positionsOf(ref.fight));
+  expect(await layoutFacts(page)).toMatchObject({ overflowX: 0, columnRightOfLog: true });
+  await shot(page, 'combat-grid-over-fantasy-wide');
+});
+
+test('theater-of-mind: an imported pack without `spatial` has no placement, no board, and Begin needs no positions', async ({ rw }) => {
+  const page = rw.page;
+  const { spatial: _spatial, ...theater } = JSON.parse(JSON.stringify(generateCampaign({ theme: loadTheme('dark-fantasy'), seed: 42, knobs: {} })));
+  await page.getByTestId('nav-roll').click();
+  await page.getByTestId('import-paste').fill(JSON.stringify(theater));
+  await page.getByTestId('import-paste-submit').click();
+  await expect(page.getByTestId('active-world-name')).toBeVisible();
+  await page.getByTestId('nav-character').click();
+  await page.getByTestId('char-name').fill('Brynn');
+  await page.getByTestId('char-race').selectOption('hillfolk');
+  await page.getByTestId('char-class').selectOption('warden');
+  await page.getByTestId('char-level').fill('1');
+  await page.getByTestId('char-create').click();
+  await expect(page.getByTestId('char-hp')).toHaveText('27');
+
+  await page.getByTestId('nav-fight').click();
+  await page.getByTestId('fight-add-enemy').selectOption('barrow-wight');
+  await page.getByTestId('fight-add-enemy-submit').click();
+  await expect(page.getByTestId('fight-spatial')).toContainText('theater-of-mind');
+  await expect(page.getByTestId('fight-placement')).toHaveCount(0);
+  await page.getByTestId('fight-begin').click();
+  await expect(page.getByTestId('combat-phase')).toHaveText('awaiting-declare');
+  await expect(page.locator('.combat-head')).toContainText('theater-of-mind');
+  await expect(page.getByTestId('combat-board')).toHaveCount(0);
+  const ref = referenceFight(packOf(rw.userData), 1);
+  await expect(page.getByTestId('combat-event')).toHaveCount(ref.events.length);
+  await shot(page, 'combat-theater-fantasy-wide');
 });

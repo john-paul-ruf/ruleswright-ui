@@ -2,7 +2,9 @@
  * CAP-10 (FR-14b; CA-06 RNG on records, CA-09, CA-12) through the real built app: record a finished fight,
  * show its stored RNG words, replay after a restart, flag a tampered script's first divergent event and persist
  * `outcome: diverged`, and report replay unavailable for a legacy record and for a world with unknown params.
- * Expected values come from the same library calls in the test process, on the stored bytes.
+ * CAP-06 / CA-14: a grid fight's placement and reposition are recorded (`start.positions`, one `move`) and replay
+ * complete after a restart. Expected values come from the same library calls in the test process, on the stored
+ * bytes, at the positions the placement board showed before Begin.
  */
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -10,12 +12,15 @@ import { join } from 'node:path';
 import {
   Runtime,
   createCharacter,
+  deserializeCombat,
   profileFromCharacter,
   restoreCharacter,
+  serializeCombat,
   spawnMonster,
   startCombat,
   type CharacterSnapshot,
   type Combat,
+  type Position,
   type RuntimeEvent,
 } from 'ruleswright/runtime';
 import type { Page } from '@playwright/test';
@@ -34,7 +39,11 @@ interface FightFile {
   id: string;
   outcome: string;
   combat: { rng: Record<'a' | 'b' | 'c' | 'd', number> };
-  start: { ally: { id: string; snapshot: CharacterSnapshot }; enemies: { statblockId: string; instanceId: string }[] };
+  start: {
+    ally: { id: string; snapshot: CharacterSnapshot };
+    enemies: { statblockId: string; instanceId: string }[];
+    positions?: Record<string, Position>;
+  };
   script?: Entry[];
   events: RuntimeEvent[];
 }
@@ -84,7 +93,8 @@ function replayInProcess(packJson: string, doc: FightFile): RuntimeEvent[] {
   const events: RuntimeEvent[] = [];
   rt.events.on((e) => events.push(e));
   const enemies = doc.start.enemies.map((e) => ({ id: e.instanceId, profile: spawnMonster(rt, e.statblockId, e.instanceId) }));
-  const fight = startCombat(rt, { allies: [{ id: doc.start.ally.id, ...ally }], enemies });
+  const positions = doc.start.positions;
+  const fight = startCombat(rt, { allies: [{ id: doc.start.ally.id, ...ally }], enemies, ...(positions ? { positions } : {}) });
   for (const entry of doc.script ?? []) apply(fight, entry);
   return events;
 }
@@ -99,6 +109,14 @@ async function createBrynn(page: Page): Promise<void> {
   await page.getByTestId('char-level').fill('1');
   await page.getByTestId('char-create').click();
   await expect(page.getByTestId('char-hp')).toHaveText('27');
+}
+
+/** The placement the board shows before Begin, read from its rows (never assumed). */
+async function placed(page: Page): Promise<Record<string, Position>> {
+  const all = await page.locator('[data-testid^="fight-place-"][data-x]').evaluateAll((els) =>
+    els.map((el) => [el.getAttribute('data-testid')?.slice('fight-place-'.length) ?? '', { x: Number(el.getAttribute('data-x')), y: Number(el.getAttribute('data-y')) }] as const),
+  );
+  return Object.fromEntries(all);
 }
 
 async function perform(page: Page, e: Entry): Promise<void> {
@@ -128,6 +146,7 @@ test('CAP-10: record, RNG words, restart + replay complete, tamper → diverged 
   await page.getByTestId('fight-add-enemy').selectOption('barrow-wight');
   await page.getByTestId('fight-add-enemy-submit').click();
   await page.getByTestId('fight-add-enemy-submit').click();
+  const positions = await placed(page);
   await page.getByTestId('fight-begin').click();
   await expect(page.getByTestId('combat-phase')).toHaveText('awaiting-declare');
 
@@ -139,7 +158,7 @@ test('CAP-10: record, RNG words, restart + replay complete, tamper → diverged 
   const refEvents: RuntimeEvent[] = [];
   rt.events.on((e) => refEvents.push(e));
   const enemies = ['barrow-wight-1', 'barrow-wight-2'].map((id) => ({ id, profile: spawnMonster(rt, 'barrow-wight', id) }));
-  const ref = startCombat(rt, { allies: [{ id: 'brynn', ...ally }], enemies });
+  const ref = startCombat(rt, { allies: [{ id: 'brynn', ...ally }], enemies, positions });
   const rows = page.getByTestId('combat-event');
   const script: Entry[] = [];
   let tried = 0;
@@ -236,4 +255,97 @@ test('CAP-10: record, RNG words, restart + replay complete, tamper → diverged 
   await expect(page.getByTestId('fight-replay-status')).toHaveAttribute('data-status', 'unavailable');
   await expect(page.getByTestId('fight-replay-status')).toContainText('generation parameters unknown');
   await shot(page, 'fight-replay-unavailable-archive-wide');
+});
+
+test('CAP-06 / CA-14: a grid fight with its placement and one reposition is recorded, then replays complete after a restart', async ({ rw }) => {
+  let page = rw.page;
+  await page.getByTestId('nav-roll').click();
+  await page.getByTestId('roll-theme-dark-fantasy').click();
+  await page.getByTestId('roll-seed').fill('42');
+  await page.getByTestId('roll-forge').click();
+  await expect(page.getByTestId('active-world-seed')).toHaveText('dark-fantasy · 42');
+  await createBrynn(page);
+
+  // Placement: one barrow-wight 5 squares from Brynn.
+  await page.getByTestId('nav-fight').click();
+  await page.getByTestId('fight-add-enemy').selectOption('barrow-wight');
+  await page.getByTestId('fight-add-enemy-submit').click();
+  const home = (await placed(page)).brynn;
+  if (!home) throw new Error('no placement row for brynn');
+  await page.getByTestId('fight-place-barrow-wight-1-x').fill(String(home.x + 5));
+  await expect(page.getByTestId('fight-place-barrow-wight-1')).toHaveAttribute('data-x', String(home.x + 5));
+  const positions = await placed(page);
+  await page.getByTestId('fight-begin').click();
+  await expect(page.getByTestId('combat-phase')).toHaveText('awaiting-declare');
+
+  const worldId = worldIdWhere(rw.userData, (w) => w.seed === 42);
+  const rt = new Runtime(JSON.parse(readFileSync(packFile(rw.userData, worldId), 'utf8')));
+  const ally = profileFromCharacter(rt, createCharacter(rt, { name: 'Brynn', race: 'hillfolk', classes: [{ id: 'warden', level: 1 }] }), 'brynn');
+  const refEvents: RuntimeEvent[] = [];
+  rt.events.on((e) => refEvents.push(e));
+  const enemies = [{ id: 'barrow-wight-1', profile: spawnMonster(rt, 'barrow-wight', 'barrow-wight-1') }];
+  let ref = startCombat(rt, { allies: [{ id: 'brynn', ...ally }], enemies, positions });
+  const rows = page.getByTestId('combat-event');
+  const script: unknown[] = [];
+  const run = async (entry: Entry): Promise<void> => {
+    apply(ref, entry);
+    script.push(entry);
+    await perform(page, entry);
+    await expect(rows).toHaveCount(refEvents.length);
+  };
+
+  // Out of reach: the library refuses; then the host repositions Brynn next to the wight (keyboard) and applies.
+  await run({ op: 'declare', actionId: 'cut-down' });
+  await expect(page.getByTestId('combat-rejection')).toBeVisible();
+  await page.getByTestId('combat-move').click();
+  await page.getByTestId('combat-token-brynn').focus();
+  for (let i = 0; i < 4; i += 1) await page.keyboard.press('ArrowRight');
+  await page.getByTestId('combat-move-apply').click();
+  const moved = { ...positions, brynn: { x: home.x + 4, y: home.y } };
+  const balances = (id: string) => {
+    const c = ref.state.combatants[id];
+    return { pools: structuredClone(c?.pools ?? {}), boundSlots: structuredClone(c?.boundSlots ?? {}) };
+  };
+  ref = deserializeCombat(rt, serializeCombat(ref, { pairsWith: 'brynn' }), {
+    allies: [{ id: 'brynn', profile: ally.profile, balances: balances('brynn') }],
+    enemies: enemies.map((e) => ({ ...e, balances: balances(e.id) })),
+    positions: moved,
+  });
+  script.push({ op: 'move', positions: moved });
+  await expect(page.getByTestId('combat-token-brynn')).toHaveAttribute('data-x', String(home.x + 4));
+  await expect(rows).toHaveCount(refEvents.length);
+
+  let tried = 0;
+  for (let calls = 0; ref.state.phase !== 'combat-over'; calls += 1) {
+    if (calls > 500) throw new Error('the grid fight never ended');
+    const entry = nextEntry(ref, tried);
+    const from = refEvents.length;
+    await run(entry);
+    if (entry.op === 'declare') tried = refEvents.slice(from).some((e) => e.type === 'declare:rejected') ? tried + 1 : 0;
+    else if (entry.op === 'step') tried = 0;
+  }
+  await expect(page.getByTestId('combat-over')).toBeVisible();
+
+  // Record: the stored FightDoc carries the placement and exactly the one move the UI made.
+  await page.getByTestId('combat-record-name').fill('grid-journey');
+  await page.getByTestId('combat-record').click();
+  await expect(page.getByTestId('fight-record-grid-journey')).toBeVisible();
+  const doc = JSON.parse(readFileSync(fightFile(rw.userData, worldId, 'grid-journey'), 'utf8')) as Omit<FightFile, 'script'> & { script: { op: string }[] };
+  expect(doc.start.positions).toEqual(positions);
+  expect(doc.script.filter((e) => e.op === 'move')).toEqual([{ op: 'move', positions: moved }]);
+  expect(doc.script).toEqual(script);
+  expect(JSON.stringify(doc.events)).toBe(JSON.stringify(refEvents));
+  expect(doc.outcome).toBe('complete');
+
+  // Restart → Brynn again (session-scoped) → Fight → Replay: complete, every event.
+  await rw.restart();
+  page = rw.page;
+  await expect(page.getByTestId('active-world-seed')).toHaveText('dark-fantasy · 42');
+  await createBrynn(page);
+  await page.getByTestId('nav-fight').click();
+  await page.getByTestId('fight-replay-grid-journey').click();
+  await expect(page.getByTestId('fight-replay-status')).toHaveAttribute('data-status', 'complete');
+  await expect(page.getByTestId('fight-replay-event')).toHaveCount(doc.events.length);
+  await expect(page.getByTestId('fight-replay-divergence')).toHaveCount(0);
+  await shot(page, 'fight-replay-grid-complete-fantasy-wide');
 });
