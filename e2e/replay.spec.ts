@@ -4,8 +4,9 @@
  * `outcome: diverged`, and report replay unavailable for a legacy record and for a world with unknown params.
  * CAP-06 / CA-14: a grid fight's placement and reposition are recorded (`start.positions`, one `move`) and replay
  * complete after a restart. CAP-03 / CA-04b: a fight with an ally-side spawn records `start.allySpawns` as the Allies
- * panel showed it and replays complete after a restart. Expected values come from the same library calls in the test process, on the stored
- * bytes, at the positions the placement board showed before Begin.
+ * panel showed it and replays complete after a restart. CAP-05 / CA-09..11: a mid-fight grid record with a reposition resumes
+ * after a restart at the recorded point, continues and replays complete; a tampered move is refused. Expected values come from
+ * the same library calls in the test process, on the stored bytes, at the positions the placement board showed before Begin.
  */
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -21,6 +22,7 @@ import {
   startCombat,
   type CharacterSnapshot,
   type Combat,
+  type CombatantProfile,
   type Position,
   type RuntimeEvent,
 } from 'ruleswright/runtime';
@@ -425,4 +427,183 @@ test('CAP-03 / CA-04b: a fight with an ally spawn records start.allySpawns as sh
   await expect(page.getByTestId('fight-replay-event')).toHaveCount(doc.events.length);
   await expect(page.getByTestId('fight-replay-divergence')).toHaveCount(0);
   await shot(page, 'fight-replay-ally-spawn-complete-fantasy-wide');
+});
+
+type MoveEntry = { op: 'move'; positions: Record<string, Position> };
+type Side = { id: string; profile: CombatantProfile };
+
+/** The resume rule in the test process: the replay rebuild on the stored pack, a `move` through serialize → restore. */
+function rebuildInProcess(packJson: string, doc: Omit<FightFile, 'script'> & { script: (Entry | MoveEntry)[] }): RuntimeEvent[] {
+  const rt = new Runtime(JSON.parse(packJson));
+  const ally = profileFromCharacter(rt, restoreCharacter(rt, doc.start.ally.snapshot), doc.start.ally.id);
+  const events: RuntimeEvent[] = [];
+  rt.events.on((e) => events.push(e));
+  const enemies = doc.start.enemies.map((e) => ({ id: e.instanceId, profile: spawnMonster(rt, e.statblockId, e.instanceId) }));
+  let fight = startCombat(rt, { allies: [{ id: doc.start.ally.id, ...ally }], enemies, ...(doc.start.positions ? { positions: doc.start.positions } : {}) });
+  for (const entry of doc.script) {
+    if (entry.op !== 'move') {
+      apply(fight, entry);
+      continue;
+    }
+    try {
+      fight = moved(fight, { id: doc.start.ally.id, profile: ally.profile }, enemies, entry.positions);
+    } catch {
+      // a refused move changes nothing
+    }
+  }
+  return events;
+}
+
+/** The reposition seam (CA-13): serialize → restore with every combatant's live balances and the new positions. */
+function moved(fight: Combat, ally: Side, enemies: Side[], positions: Record<string, Position>): Combat {
+  const balances = (id: string) => {
+    const c = fight.state.combatants[id];
+    return { pools: structuredClone(c?.pools ?? {}), boundSlots: structuredClone(c?.boundSlots ?? {}) };
+  };
+  return deserializeCombat(fight.runtime, serializeCombat(fight, { pairsWith: ally.id }), {
+    allies: [{ ...ally, balances: balances(ally.id) }],
+    enemies: enemies.map((e) => ({ ...e, balances: balances(e.id) })),
+    positions,
+  });
+}
+
+/** What the Combat surface shows of the fight: round/turn/active, phase, token squares and log row count. */
+async function combatView(page: Page): Promise<{ header: string; phase: string; tokens: Record<string, Position>; rows: number }> {
+  const tokens = await page.locator('[data-testid^="combat-token-"][data-x]').evaluateAll((els) =>
+    els.map((el) => [el.getAttribute('data-testid')?.slice('combat-token-'.length) ?? '', { x: Number(el.getAttribute('data-x')), y: Number(el.getAttribute('data-y')) }] as const),
+  );
+  return {
+    header: (await page.getByTestId('combat-round').innerText()) + ' · ' + (await page.getByTestId('combat-active').innerText()),
+    phase: await page.getByTestId('combat-phase').innerText(),
+    tokens: Object.fromEntries(tokens),
+    rows: await page.getByTestId('combat-event').count(),
+  };
+}
+
+test('CAP-05 / CA-09..11: a mid-fight grid record resumes after a restart at the recorded point, continues and replays complete; a tampered move is refused', async ({ rw }) => {
+  let page = rw.page;
+  await page.getByTestId('nav-roll').click();
+  await page.getByTestId('roll-theme-dark-fantasy').click();
+  await page.getByTestId('roll-seed').fill('42');
+  await page.getByTestId('roll-forge').click();
+  await expect(page.getByTestId('active-world-seed')).toHaveText('dark-fantasy · 42');
+  await createBrynn(page);
+  await page.getByTestId('nav-fight').click();
+  await page.getByTestId('fight-add-enemy').selectOption('barrow-wight');
+  await page.getByTestId('fight-add-enemy-submit').click();
+  await page.getByTestId('fight-add-enemy-submit').click();
+  const positions = await placed(page);
+  await page.getByTestId('fight-begin').click();
+  await expect(page.getByTestId('combat-phase')).toHaveText('awaiting-declare');
+
+  // The reference fight on the stored pack bytes, in lockstep with the UI.
+  const worldId = worldIdWhere(rw.userData, (w) => w.seed === 42);
+  const packJson = readFileSync(packFile(rw.userData, worldId), 'utf8');
+  const rt = new Runtime(JSON.parse(packJson));
+  const ally = profileFromCharacter(rt, createCharacter(rt, { name: 'Brynn', race: 'hillfolk', classes: [{ id: 'warden', level: 1 }] }), 'brynn');
+  const refEvents: RuntimeEvent[] = [];
+  rt.events.on((e) => refEvents.push(e));
+  const enemies = ['barrow-wight-1', 'barrow-wight-2'].map((id) => ({ id, profile: spawnMonster(rt, 'barrow-wight', id) }));
+  let ref = startCombat(rt, { allies: [{ id: 'brynn', ...ally }], enemies, positions });
+  let rows = page.getByTestId('combat-event');
+  const script: (Entry | MoveEntry)[] = [];
+  let tried = 0;
+  const call = async (): Promise<void> => {
+    const entry = nextEntry(ref, tried);
+    const from = refEvents.length;
+    apply(ref, entry);
+    script.push(entry);
+    if (entry.op === 'declare') tried = refEvents.slice(from).some((e) => e.type === 'declare:rejected') ? tried + 1 : 0;
+    else if (entry.op === 'step') tried = 0;
+    await perform(page, entry);
+    await expect(rows).toHaveCount(refEvents.length);
+  };
+  const quiet = () => ref.state.phase === 'awaiting-declare' && ref.pendingTriggers.length === 0;
+
+  // A few calls, then one reposition (Brynn one square down, keyboard) at a quiet awaiting-declare.
+  for (let calls = 0; calls < 4 || !quiet(); calls += 1) {
+    if (calls > 200 || ref.state.phase === 'combat-over') throw new Error('no quiet point to reposition');
+    await call();
+  }
+  const eventsBeforeMove = refEvents.length;
+  await page.getByTestId('combat-move').click();
+  await page.getByTestId('combat-token-brynn').focus();
+  await page.keyboard.press('ArrowDown');
+  await page.getByTestId('combat-move-apply').click();
+  const from = ref.state.combatants.brynn?.position ?? { x: 0, y: 0 };
+  const after = { ...Object.fromEntries(Object.values(ref.state.combatants).map((c) => [c.id, c.position as Position])), brynn: { x: from.x, y: from.y + 1 } };
+  ref = moved(ref, { id: 'brynn', profile: ally.profile }, enemies, after);
+  script.push({ op: 'move', positions: after });
+  await expect(page.getByTestId('combat-token-brynn')).toHaveAttribute('data-y', String(from.y + 1));
+  // The first call after the move is a declare (a far move would make it a rejection), then a few more.
+  expect(nextEntry(ref, tried).op).toBe('declare');
+  for (let calls = 0; calls < 3; calls += 1) await call();
+  expect(ref.state.phase).not.toBe('combat-over');
+
+  await page.getByTestId('combat-record-name').fill('mid-1');
+  await page.getByTestId('combat-record').click();
+  await expect(page.getByTestId('fight-record-mid-1')).toBeVisible();
+  await expect(page.locator('[data-testid^="fight-resume-"]')).toHaveCount(0);
+  const recorded = await combatView(page);
+  const file = fightFile(rw.userData, worldId, 'mid-1');
+  const stored = readFileSync(file, 'utf8');
+  const doc = JSON.parse(stored) as Omit<FightFile, 'script'> & { script: (Entry | MoveEntry)[] };
+  expect(doc.outcome).toBe('abandoned');
+  expect(doc.script).toEqual(script);
+  expect(doc.script.filter((e) => e.op === 'move')).toEqual([{ op: 'move', positions: after }]);
+  expect(JSON.stringify(doc.events)).toBe(JSON.stringify(refEvents));
+  expect(recorded.rows).toBe(doc.events.length);
+  expect(recorded.tokens).toEqual(Object.fromEntries(Object.values(ref.state.combatants).map((c) => [c.id, c.position])));
+
+  // Restart → Brynn again (session-scoped) → Fight → Resume mid-1 → Combat at the recorded point.
+  await rw.restart();
+  page = rw.page;
+  rows = page.getByTestId('combat-event');
+  await expect(page.getByTestId('active-world-seed')).toHaveText('dark-fantasy · 42');
+  await createBrynn(page);
+  await page.getByTestId('nav-fight').click();
+  await page.getByTestId('fight-resume-mid-1').click();
+  await expect(page.getByTestId('combat-surface')).toBeVisible();
+  await expect(rows).toHaveCount(doc.events.length);
+  expect(await combatView(page)).toEqual(recorded);
+  await expect(page.getByTestId(`combat-order-${ref.state.active}`)).toHaveAttribute('data-active', 'true');
+  await expect(page.locator('[data-testid^="fight-resume-"]')).toHaveCount(0);
+  await shot(page, 'combat-resumed-fantasy-wide');
+
+  // One more call continues the adopted fight: exactly that call's events (CA-11) → record mid-2 → replay complete.
+  await call();
+  await page.getByTestId('combat-record-name').fill('mid-2');
+  await page.getByTestId('combat-record').click();
+  await expect(page.getByTestId('fight-record-mid-2')).toBeVisible();
+  const doc2 = readFight(fightFile(rw.userData, worldId, 'mid-2')) as unknown as typeof doc;
+  expect(doc2.script).toEqual(script);
+  expect(JSON.stringify(doc2.events)).toBe(JSON.stringify(refEvents));
+  expect(doc2.start).toEqual(doc.start);
+  await page.getByTestId('nav-fight').click();
+  await page.getByTestId('fight-replay-mid-2').click();
+  await expect(page.getByTestId('fight-replay-status')).toHaveAttribute('data-status', 'complete');
+  await expect(page.getByTestId('fight-replay-event')).toHaveCount(doc2.events.length);
+  await expect(page.getByTestId('fight-replay-divergence')).toHaveCount(0);
+  expect(readFileSync(file, 'utf8')).toBe(stored);
+
+  // Tamper mid-1's stored move (far apart) → Resume refused at the first divergent event (computed in-process);
+  // the record and the Fight surface's other state (the last replay) are unchanged. Combat has no nav entry (only
+  // Begin/Resume open it), so the unchanged open fight is the store test's assertion.
+  const far = Object.fromEntries(Object.keys(after).map((id, i) => [id, { x: i * 10, y: 0 }]));
+  const tampered = JSON.stringify({ ...doc, script: doc.script.map((e) => (e.op === 'move' ? { op: 'move', positions: far } : e)) });
+  writeFileSync(file, tampered);
+  const rebuilt = rebuildInProcess(packJson, JSON.parse(tampered));
+  const index = doc.events.findIndex((e, i) => JSON.stringify(e) !== JSON.stringify(rebuilt[i]));
+  expect(index).toBe(eventsBeforeMove);
+  expect(rebuilt[index]?.type).toBe('declare:rejected');
+  await page.getByTestId('fight-resume-mid-1').click();
+  const status = page.getByTestId('fight-resume-status');
+  await expect(status).toHaveAttribute('data-status', 'diverged');
+  await expect(status).toContainText('resume refused');
+  await expect(status).toContainText(`first divergence at event ${index}`);
+  await expect(page.getByTestId('fight-record-mid-1')).toContainText('abandoned');
+  expect(readFileSync(file, 'utf8')).toBe(tampered);
+  await expect(page.getByTestId('fight-replay-status')).toHaveAttribute('data-status', 'complete');
+  await expect(page.getByTestId('fight-replay-event')).toHaveCount(doc2.events.length);
+  await shot(page, 'fight-resume-refused-fantasy-wide');
 });
