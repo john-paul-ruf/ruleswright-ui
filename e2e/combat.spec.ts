@@ -1,6 +1,6 @@
 /**
  * CAP-09 (FR-11–13; CA-05, CA-07, CA-08), CAP-06 (FR-11 grid; CA-12, CA-13, CA-15), CAP-01/02 (FR-11/12/16;
- * CA-01..04) and CAP-03 (FR-11 ally spawns; CA-04b, CA-12) through the real built app: fight assembly from the active character plus bestiary spawns, placement,
+ * CA-01..04), CAP-03 (FR-11 ally spawns; CA-04b, CA-12) and CAP-04 (FR-11 threat budget; CA-07, CA-08) through the real built app: fight assembly from the active character plus bestiary spawns, placement,
  * the declare/step/respond loop to `combat-over`, the board and reposition, turn order, initiative, slot ledgers,
  * conditions, action detail, and the provenanced log. Every expected value comes from the same
  * library calls made in the test process on the stored pack bytes, at the positions the UI shows before Begin.
@@ -10,11 +10,13 @@ import { join } from 'node:path';
 import { generateCampaign, loadTheme } from 'ruleswright/compiler';
 import {
   Runtime,
+  assembleEncounter,
   createCharacter,
   deserializeCombat,
   profileFromCharacter,
   resolveSlotGrants,
   serializeCombat,
+  spawnEncounter,
   spawnMonster,
   startCombat,
   type Combat,
@@ -770,4 +772,93 @@ test('CAP-03: Brynn + a hill-spider ally spawn vs one barrow-wight — roster, p
   if (!ended) throw new Error('no combat:ended in the reference fight');
   await expect(page.getByTestId('combat-over')).toContainText(`winner ${String(ended.payload.winner)} · defeated ${String(ended.payload.defeated)}`);
   await shot(page, 'combat-ally-spawn-over-fantasy-wide');
+});
+
+test('CAP-04: assemble by threat budget 3 · seed 7 — verbatim summary, library ids on roster and board, order, lockstep, record → restart → replay', async ({ rw }) => {
+  let page = rw.page;
+  await forgeWithBrynn(page);
+  await page.getByTestId('nav-fight').click();
+
+  // Only finite numbers enable Assemble; ⟳ is a user-initiated pick into the visible seed field.
+  const assemble = page.getByTestId('fight-assemble');
+  await expect(assemble).toBeDisabled();
+  await page.getByTestId('fight-assemble-budget').fill('3');
+  await expect(assemble).toBeDisabled();
+  await page.getByTestId('fight-assemble-seed-randomize').click();
+  await expect(page.getByTestId('fight-assemble-seed')).toHaveValue(/^\d+$/);
+  await expect(assemble).toBeEnabled();
+  await page.getByTestId('fight-assemble-seed').fill('7');
+  await assemble.click();
+
+  // CA-08: the summary is the Node reference `assembleEncounter` on the stored pack, verbatim.
+  const rt = new Runtime(packOf(rw.userData) as ConstructorParameters<typeof Runtime>[0]);
+  const encounter = assembleEncounter(rt, { budget: 3, seed: 7 });
+  expect(encounter.groups.length).toBeGreaterThan(0);
+  const groups = encounter.groups.map((g) => `${g.id} ×${g.count}`).join(', ');
+  await expect(page.getByTestId('fight-encounter-summary')).toHaveText(
+    `encounter · groups ${groups} · threat ${encounter.threat} · budget ${encounter.budget} · seedUsed ${encounter.seedUsed} · heuristic ${encounter.heuristic}`,
+  );
+
+  // CA-07: enemy rows are the reference `spawnEncounter` ids; the placement board shows them in the default layout.
+  const profiles = spawnEncounter(rt, encounter);
+  const ids = profiles.map((p) => p.id);
+  expect(await page.locator('[data-testid^="fight-enemy-"].combatant').evaluateAll((els) => els.map((el) => el.getAttribute('data-testid')))).toEqual(
+    ids.map((id) => `fight-enemy-${id}`),
+  );
+  const positions = await placed(page);
+  expect(Object.keys(positions)).toEqual(['brynn', ...ids]);
+  ids.forEach((id, y) => expect(positions[id]).toEqual({ x: 1, y }));
+  for (const id of ids) await expect(page.getByTestId(`fight-token-${id}`)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+  await shot(page, 'fight-assemble-threat-fantasy-wide');
+
+  // Begin: combat order = the reference `startCombat` order, at the positions the board showed.
+  await page.getByTestId('fight-begin').click();
+  await expect(page.getByTestId('combat-phase')).toHaveText('awaiting-declare');
+  const ally = profileFromCharacter(rt, createCharacter(rt, { name: 'Brynn', race: 'hillfolk', classes: [{ id: 'warden', level: 1 }] }), 'brynn');
+  const events: RuntimeEvent[] = [];
+  rt.events.on((e) => events.push(e));
+  const enemies = profiles.map((profile) => ({ id: profile.id, profile }));
+  const fight = startCombat(rt, { allies: [{ id: 'brynn', ...ally }], enemies, positions });
+  const ref: Reference = { fight, events, sides: [[{ id: 'brynn', profile: ally.profile }], enemies] };
+  expect(await orderRows(page)).toEqual(ref.fight.state.order.map((id) => [id, String(id === ref.fight.state.active)]));
+  expect(await tokens(page)).toEqual(positionsOf(ref.fight));
+  const rows = page.getByTestId('combat-event');
+  await expect(rows).toHaveCount(ref.events.length);
+
+  // Lockstep to combat-over, then record.
+  let tried = 0;
+  for (let calls = 0; ref.fight.state.phase !== 'combat-over'; calls += 1) {
+    if (calls > 1500) throw new Error('the fight never ended');
+    const entry = nextEntry(ref.fight, tried);
+    const out = apply(ref, entry);
+    await perform(page, entry);
+    await expect(rows).toHaveCount(ref.events.length);
+    if (entry.op === 'declare') tried = out.some((e) => e.type === 'declare:rejected') ? tried + 1 : 0;
+    else if (entry.op === 'step') tried = 0;
+  }
+  expect(await rows.evaluateAll((els) => els.map((el) => el.getAttribute('data-type')))).toEqual(ref.events.map((e) => e.type));
+  await page.getByTestId('combat-record-name').fill('threat-journey');
+  await page.getByTestId('combat-record').click();
+  await expect(page.getByTestId('fight-record-threat-journey')).toBeVisible();
+  const [worldId] = readdirSync(join(rw.userData, 'worlds'));
+  const doc = JSON.parse(readFileSync(join(rw.userData, 'fights', worldId ?? '', 'threat-journey.json'), 'utf8'));
+  expect(doc.start.enemies).toEqual(ids.map((instanceId, i) => ({ statblockId: encounter.groups.flatMap((g) => Array<string>(g.count).fill(g.id))[i], instanceId })));
+  expect(doc.start.positions).toEqual(positions);
+  expect(JSON.stringify(doc.events)).toBe(JSON.stringify(ref.events));
+
+  await rw.restart();
+  page = rw.page;
+  await expect(page.getByTestId('active-world-seed')).toHaveText('dark-fantasy · 42');
+  await page.getByTestId('nav-character').click();
+  await page.getByTestId('char-name').fill('Brynn');
+  await page.getByTestId('char-race').selectOption('hillfolk');
+  await page.getByTestId('char-class').selectOption('warden');
+  await page.getByTestId('char-level').fill('1');
+  await page.getByTestId('char-create').click();
+  await page.getByTestId('nav-fight').click();
+  await page.getByTestId('fight-replay-threat-journey').click();
+  await expect(page.getByTestId('fight-replay-status')).toHaveAttribute('data-status', 'complete');
+  await expect(page.getByTestId('fight-replay-event')).toHaveCount(doc.events.length);
+  await expect(page.getByTestId('fight-replay-divergence')).toHaveCount(0);
 });
