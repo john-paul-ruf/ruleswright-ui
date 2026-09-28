@@ -12,6 +12,7 @@ import {
   reposition,
   slotGrants,
   spatialLabel,
+  spawnProfile,
   spatialOf,
   step,
   subscribe,
@@ -21,6 +22,7 @@ import {
   type Position,
   type RuntimeEvent,
   type ScriptEntry,
+  type SpawnSpec,
 } from '../../src/renderer/src/engine/combat';
 import { create, type Character, type Outcome } from '../../src/renderer/src/engine/runtime';
 import { openPack, type Pack, type Runtime } from '../../src/renderer/src/engine/schema';
@@ -49,18 +51,20 @@ const WIGHTS: EnemySpec[] = [
 ];
 
 /** CX-D9 default layout: allies x=0, enemies x=1, y = index in its own side, roster order — one step apart. */
-function layout(ally: AllyCombatant, enemies: readonly EnemySpec[]): Record<string, Position> {
+function layout(ally: AllyCombatant, enemies: readonly EnemySpec[], allySpawns: readonly SpawnSpec[] = []): Record<string, Position> {
   return Object.fromEntries([
-    [ally.profile.id, { x: 0, y: 0 }],
+    ...[ally.profile.id, ...allySpawns.map((s) => s.instanceId)].map((id, y) => [id, { x: 0, y }] as const),
     ...enemies.map((e, y) => [e.instanceId, { x: 1, y }] as const),
   ]);
 }
 
 /** A fight on `rt`: grid packs get the default layout, theater packs no positions. */
-function fightOf(rt: Runtime, enemies = WIGHTS): LiveFight {
+function fightOf(rt: Runtime, enemies = WIGHTS, allySpawns: readonly SpawnSpec[] = []): LiveFight {
   const ally = value(allyProfile(rt, brynn(rt), 'brynn'));
-  return value(begin(rt, ally, enemies, spatialOf(rt.pack) === null ? undefined : layout(ally, enemies)));
+  return value(begin(rt, ally, enemies, spatialOf(rt.pack) === null ? undefined : layout(ally, enemies, allySpawns), allySpawns));
 }
+
+const SPIDER: SpawnSpec[] = [{ statblockId: 'hill-spider', instanceId: 'hill-spider-1' }];
 
 /** Test policy: answer offers first; else declare the active combatant's k-th action at its first standing foe; else step. */
 function nextEntry({ fight }: LiveFight, tried: number, choice: 'take' | 'decline'): ScriptEntry {
@@ -160,6 +164,41 @@ describe('combat wrappers over the real library (dark-fantasy · 42, grid, defau
     for (const [id, p] of Object.entries(positions)) expect(fight.state.combatants[id]?.position).toEqual(p);
     expect(sides.allies).toEqual([{ id: 'brynn', profile: ally.profile }]);
     expect(sides.enemies.map((e) => e.id)).toEqual(['barrow-wight-1', 'barrow-wight-2']);
+  });
+
+  it('ally spawns (CA-04b): [character, ...allySpawns] join the allies side in that order, placed verbatim', () => {
+    const { rt } = world('dark-fantasy');
+    const ally = value(allyProfile(rt, brynn(rt), 'brynn'));
+    const enemies = WIGHTS.slice(0, 1);
+    const positions = layout(ally, enemies, SPIDER);
+    const { fight, sides } = value(begin(rt, ally, enemies, positions, SPIDER));
+    expect(sides.allies.map((a) => a.id)).toEqual(['brynn', 'hill-spider-1']);
+    expect(sides.allies[1]?.profile).toEqual(value(spawnProfile(rt, 'hill-spider', 'hill-spider-1')));
+    expect(fight.state.combatants['hill-spider-1']).toMatchObject({ side: 'allies', position: { x: 0, y: 1 } });
+    expect(fight.state.combatants['barrow-wight-1']?.side).toBe('enemies');
+    expect([...fight.state.order].sort()).toEqual(['barrow-wight-1', 'brynn', 'hill-spider-1']);
+  });
+
+  it('CA-05: an id used twice across both sides is refused before startCombat — no events, named id', () => {
+    const { rt } = world('dark-fantasy');
+    const ally = value(allyProfile(rt, brynn(rt), 'brynn'));
+    const cases: [readonly SpawnSpec[], readonly SpawnSpec[], string][] = [
+      [[{ statblockId: 'barrow-wight', instanceId: 'barrow-wight-1' }], WIGHTS, 'barrow-wight-1'],
+      [[...SPIDER, ...SPIDER], WIGHTS, 'hill-spider-1'],
+      [[{ statblockId: 'hill-spider', instanceId: 'brynn' }], WIGHTS, 'brynn'],
+      [[], [...WIGHTS, WIGHTS[0] as SpawnSpec], 'barrow-wight-1'],
+    ];
+    for (const [allySpawns, enemies, id] of cases) {
+      const events: RuntimeEvent[] = [];
+      const off = subscribe(rt, (e) => events.push(e));
+      const r = begin(rt, ally, enemies, undefined, allySpawns);
+      off();
+      expect(r).toEqual({
+        ok: false,
+        error: { kind: 'unexpected', operation: 'fight:begin', message: `combatant id "${id}" is used twice — ids must be unique across both sides` },
+      });
+      expect(events).toEqual([]);
+    }
   });
 
   it('fail-closed: a grid pack begun without positions is the library refusal, one E-SPAT-01 card per combatant', () => {
@@ -300,8 +339,8 @@ describe('combat wrappers over the real library (dark-fantasy · 42, grid, defau
 
 describe('reposition (CA-13, CX-D10, CX-D11)', () => {
   /** Play `calls` host calls, then answer offers / step until a fresh `awaiting-declare` with no open offer. */
-  function midFight(calls: number): LiveFight {
-    const live = fightOf(world('dark-fantasy').rt);
+  function midFight(calls: number, allySpawns: readonly SpawnSpec[] = []): LiveFight {
+    const live = fightOf(world('dark-fantasy').rt, WIGHTS, allySpawns);
     let tried = 0;
     for (let i = 0; i < calls && live.fight.state.phase !== 'combat-over'; i += 1) {
       const entry = nextEntry(live, tried, 'decline');
@@ -347,6 +386,21 @@ describe('reposition (CA-13, CX-D10, CX-D11)', () => {
     expect(kept(live)).toEqual(before);
     for (const [id, p] of Object.entries(positions)) expect(moved.state.combatants[id]?.position).toEqual(p);
     expect(moved.state.phase).toBe('awaiting-declare');
+  });
+
+  it('an ally spawn is re-stated like every combatant: same equality list, its new position, zero events', () => {
+    const live = midFight(12, SPIDER);
+    expect(live.sides.allies.map((a) => a.id)).toEqual(['brynn', 'hill-spider-1']);
+    const before = kept(live);
+    expect(before.each.map((c) => c.id)).toContain('hill-spider-1');
+    const positions = Object.fromEntries(Object.keys(live.fight.state.combatants).map((id, i) => [id, { x: 3 + i, y: 2 }]));
+    const events: RuntimeEvent[] = [];
+    const off = subscribe(live.fight.runtime, (e) => events.push(e));
+    value(reposition(live, positions));
+    off();
+    expect(events).toEqual([]);
+    expect(kept(live)).toEqual(before);
+    expect(live.fight.state.combatants['hill-spider-1']).toMatchObject({ side: 'allies', position: positions['hill-spider-1'] });
   });
 
   it('live balances are re-stated: a pool spent by ember-surge stays spent after the move (probe-grid2)', () => {

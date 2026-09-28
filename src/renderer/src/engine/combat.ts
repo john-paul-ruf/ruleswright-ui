@@ -40,11 +40,13 @@ export type {
 } from 'ruleswright/runtime';
 export type { ActionCost, SpatialDef } from 'ruleswright/schema';
 
-/** One bestiary spawn on the enemy side, in `startCombat` order (B-2). */
-export interface EnemySpec {
+/** One bestiary spawn (`spawnMonster`), on either side, in `startCombat` order (B-2, CA-04b). */
+export interface SpawnSpec {
   statblockId: string;
   instanceId: string;
 }
+
+export type EnemySpec = SpawnSpec;
 
 /** What a fight was started from (FightDoc `start`, B-2). */
 export interface FightStart {
@@ -52,6 +54,8 @@ export interface FightStart {
   enemies: EnemySpec[];
   /** FightDoc `start.positions` (CA-14): the positions passed to `startCombat`, only on spatial packs. */
   positions?: Record<string, Position>;
+  /** FightDoc `start.allySpawns` (CA-04b): ally-side spawns after the character, only when non-empty. */
+  allySpawns?: SpawnSpec[];
 }
 
 /** One host call, in order (FightDoc `script`, B-2): rejected declares included. */
@@ -117,23 +121,43 @@ export function spawnProfile(rt: Runtime, statblockId: string, instanceId: strin
   return attempt('fight:spawn', () => spawnMonster(rt, statblockId, instanceId));
 }
 
+/** CA-05: the first combatant id used twice across both sides (the library would merge them), else null. */
+function duplicateId(ids: readonly string[]): string | null {
+  const seen = new Set<string>();
+  for (const id of ids) {
+    if (seen.has(id)) return id;
+    seen.add(id);
+  }
+  return null;
+}
+
 /**
- * FR-11: spawn each enemy (`spawnMonster`) and start the fight; initiative rolls land in `combat:start`.
- * `positions` (CA-12) go to `startCombat` verbatim — the library judges them.
+ * FR-11: spawn each ally spawn and enemy (`spawnMonster`) and start the fight; initiative rolls land in
+ * `combat:start`. Allies are `[character, ...allySpawns]` in that order (CA-04b). `positions` (CA-12) go to
+ * `startCombat` verbatim — the library judges them. Ids must be unique across both sides (CA-05).
  */
 export function begin(
   rt: Runtime,
   ally: AllyCombatant,
   enemies: readonly EnemySpec[],
   positions?: Readonly<Record<string, Position>>,
+  allySpawns: readonly SpawnSpec[] = [],
 ): Outcome<LiveFight> {
+  const twice = duplicateId([ally.profile.id, ...allySpawns.map((s) => s.instanceId), ...enemies.map((e) => e.instanceId)]);
+  if (twice !== null) {
+    return {
+      ok: false,
+      error: { kind: 'unexpected', operation: 'fight:begin', message: `combatant id "${twice}" is used twice — ids must be unique across both sides` },
+    };
+  }
   return attempt('fight:begin', () => {
+    const spawn = (s: SpawnSpec) => ({ id: s.instanceId, profile: spawnMonster(rt, s.statblockId, s.instanceId) });
     const sides: Sides = {
-      allies: [{ id: ally.profile.id, profile: ally.profile }],
-      enemies: enemies.map((e) => ({ id: e.instanceId, profile: spawnMonster(rt, e.statblockId, e.instanceId) })),
+      allies: [{ id: ally.profile.id, profile: ally.profile }, ...allySpawns.map(spawn)],
+      enemies: enemies.map(spawn),
     };
     const fight = startCombat(rt, {
-      allies: [{ id: ally.profile.id, ...ally }],
+      allies: [{ id: ally.profile.id, ...ally }, ...sides.allies.slice(1)],
       enemies: sides.enemies,
       ...(positions === undefined ? {} : { positions }),
     });

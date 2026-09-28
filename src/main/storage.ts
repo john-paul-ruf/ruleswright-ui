@@ -134,6 +134,11 @@ function isPositions(v: unknown): boolean {
   return isObject(v) && Object.values(v).every((p) => isObject(p) && isInt(p.x) && isInt(p.y));
 }
 
+/** `start.enemies` / `start.allySpawns` (CX): `[{statblockId: string, instanceId: string}]` (database.md). */
+function isSpawns(v: unknown): boolean {
+  return Array.isArray(v) && v.every((e) => isObject(e) && typeof e.statblockId === 'string' && typeof e.instanceId === 'string');
+}
+
 function isOutcome(v: unknown): v is FightOutcome {
   return (FIGHT_OUTCOMES as readonly unknown[]).includes(v);
 }
@@ -166,10 +171,8 @@ function fightBodyViolation(doc: Json): string | null {
     if (!isObject(s.ally.snapshot) || s.ally.snapshot.kind !== 'character') {
       return "start.ally.snapshot.kind must be 'character'";
     }
-    const enemiesOk =
-      Array.isArray(s.enemies) &&
-      s.enemies.every((e) => isObject(e) && typeof e.statblockId === 'string' && typeof e.instanceId === 'string');
-    if (!enemiesOk) return 'start.enemies must be [{statblockId, instanceId}]';
+    if (!isSpawns(s.enemies)) return 'start.enemies must be [{statblockId, instanceId}]';
+    if ('allySpawns' in s && !isSpawns(s.allySpawns)) return 'start.allySpawns must be [{statblockId, instanceId}]';
     if ('positions' in s && !isPositions(s.positions)) return 'start.positions must be {[id]: {x: integer, y: integer}}';
   }
   return null;

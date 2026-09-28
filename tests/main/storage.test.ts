@@ -301,6 +301,47 @@ describe('fights — CX placement and moves (CA-14)', () => {
   });
 });
 
+describe('fights — CX ally spawns (CA-04b, CA-06)', () => {
+  const ALLY_SPAWNS = [{ statblockId: 'hill-spider', instanceId: 'hill-spider-1' }];
+  const CX = {
+    ...FIGHT,
+    start: {
+      ally: { id: 'brynn', snapshot: { kind: 'character', state: { name: 'Brynn' } } },
+      enemies: [{ statblockId: 'barrow-wight', instanceId: 'barrow-wight-1' }],
+      allySpawns: ALLY_SPAWNS,
+    },
+    script: [{ op: 'step' }],
+    events: [],
+  } as const;
+
+  it('accepts start.allySpawns and loads it verbatim; a start without it (legacy) still saves and loads', async () => {
+    const { id } = await storage.saveWorld(WORLD, PACK);
+    await storage.saveFight(id, 'with spider', CX as never);
+    expect((await storage.loadFight(id, 'with spider')).start?.allySpawns).toEqual(ALLY_SPAWNS);
+    const { allySpawns: _a, ...start } = CX.start;
+    await storage.saveFight(id, 'no spawns', { ...CX, start } as never);
+    expect(await storage.loadFight(id, 'no spawns')).not.toHaveProperty('start.allySpawns');
+    expect((await storage.listFights(id)).map((f) => f.name).sort()).toEqual(['no spawns', 'with spider']);
+  });
+
+  it('refuses a malformed allySpawns by name', async () => {
+    const { id } = await storage.saveWorld(WORLD, PACK);
+    const cases = [
+      { 'hill-spider-1': 'hill-spider' },
+      [{ statblockId: 'hill-spider' }],
+      [{ statblockId: 'hill-spider', instanceId: 7 }],
+      ['hill-spider-1'],
+    ];
+    for (const [i, allySpawns] of cases.entries()) {
+      await expect(storage.saveFight(id, `bad ${i}`, { ...CX, start: { ...CX.start, allySpawns } } as never)).rejects.toMatchObject({
+        code: 'invalid-input',
+        message: 'start.allySpawns must be [{statblockId, instanceId}]',
+      });
+    }
+    expect(await storage.listFights(id)).toEqual([]);
+  });
+});
+
 describe('atomic writes', () => {
   it('leaves no .tmp- files behind', async () => {
     const { id } = await storage.saveWorld(WORLD, PACK);

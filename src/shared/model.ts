@@ -89,11 +89,13 @@ export type FightScriptEntry =
 /**
  * What a recorded fight was started from (B-2 `start`); the snapshot is verbatim `serializeCharacter` output.
  * `positions` (CX) are the positions passed to `startCombat`, present iff the pack declares a spatial model.
+ * `allySpawns` (CX) are in `startCombat` ally order after the character, written only when non-empty.
  */
 export interface FightStartDoc {
   ally: { id: string; snapshot: unknown };
   enemies: { statblockId: string; instanceId: string }[];
   positions?: Record<string, GridPosition>;
+  allySpawns?: { statblockId: string; instanceId: string }[];
 }
 
 /**

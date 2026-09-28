@@ -57,8 +57,9 @@ function firstDifference(expected: readonly RuntimeEvent[], actual: readonly Run
 
 /**
  * FR-14b (database.md replay rule): re-roll → pack divergence, else restore the ally into a fresh Runtime,
- * re-derive its profile (B-1), spawn `start.enemies`, begin with `start.positions`, re-apply `script` (a `move`
- * through the reposition seam) and compare events index by index.
+ * re-derive its profile (B-1), spawn `start.allySpawns` (absent = none) and `start.enemies`, begin with
+ * `start.positions`, re-apply `script` (a `move` through the reposition seam) and compare events index by index.
+ * Ids used twice across both sides are `begin`'s refusal (CA-05), returned as `error`.
  * A world with null params or a record without `script` is unavailable. Returns the replayed events too.
  */
 export function replay(
@@ -85,7 +86,7 @@ export function replay(
   const off = subscribe(rt, (e) => events.push(e));
   try {
     // A spatial pack without `start.positions` is the library's refusal, never guessed (CA-14).
-    const live = begin(rt, profile.value, rec.start.enemies, rec.start.positions);
+    const live = begin(rt, profile.value, rec.start.enemies, rec.start.positions, rec.start.allySpawns ?? []);
     if (!live.ok) return { result: { status: 'error', error: live.error }, events };
     // A call that now fails (e.g. a declare after the fight ended) is left to show up as an event difference.
     for (const entry of rec.script) perform(live.value, entry);

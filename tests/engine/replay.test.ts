@@ -1,6 +1,6 @@
 import { generateCampaign, loadTheme } from 'ruleswright/compiler';
 import { describe, expect, it } from 'vitest';
-import { begin, perform, subscribe, type LiveFight, type Position, type RuntimeEvent, type ScriptEntry } from '../../src/renderer/src/engine/combat';
+import { begin, perform, subscribe, type LiveFight, type Position, type RuntimeEvent, type ScriptEntry, type SpawnSpec } from '../../src/renderer/src/engine/combat';
 import { allyProfile } from '../../src/renderer/src/engine/combat-profile';
 import { recordingOf, replay, type Declaration, type Recording } from '../../src/renderer/src/engine/replay';
 import { create, serialize, type Outcome } from '../../src/renderer/src/engine/runtime';
@@ -14,6 +14,13 @@ const ENEMIES = [
 ];
 /** CX-D9 default layout for Brynn + ENEMIES (host input; the library judges it). */
 const POSITIONS: Record<string, Position> = { brynn: { x: 0, y: 0 }, 'barrow-wight-1': { x: 1, y: 0 }, 'barrow-wight-2': { x: 1, y: 1 } };
+/** Brynn + a hill-spider ally spawn vs one barrow-wight, CX-D9 layout (CA-04b). */
+const SPIDER: SpawnSpec[] = [{ statblockId: 'hill-spider', instanceId: 'hill-spider-1' }];
+const SPIDER_FIGHT = {
+  enemies: ENEMIES.slice(0, 1),
+  positions: { brynn: { x: 0, y: 0 }, 'hill-spider-1': { x: 0, y: 1 }, 'barrow-wight-1': { x: 1, y: 0 } },
+  allySpawns: SPIDER,
+};
 /** The same relative layout two squares over: every melee stays legal. */
 const SHIFTED: Record<string, Position> = { brynn: { x: 2, y: 0 }, 'barrow-wight-1': { x: 3, y: 0 }, 'barrow-wight-2': { x: 3, y: 1 } };
 
@@ -38,16 +45,20 @@ function nextEntry({ fight }: LiveFight, tried: number): ScriptEntry {
  * layout, script. With `moveAfter`, one `move` to SHIFTED is issued at the first quiet `awaiting-declare`
  * after that many calls; `eventsBeforeMove` counts the events recorded before it.
  */
-function recordFight(moveAfter?: number): Recording & { eventsBeforeMove: number } {
+function recordFight(
+  moveAfter?: number,
+  fightOf: { enemies: typeof ENEMIES; positions: Record<string, Position>; allySpawns?: SpawnSpec[] } = { enemies: ENEMIES, positions: POSITIONS },
+): Recording & { eventsBeforeMove: number } {
   const gate = openPack(PACK_JSON);
   if (!gate.ok) throw new Error('gate rejected a forged pack');
   const rt = gate.runtime;
   const brynn = value(create(rt, { name: 'Brynn', race: 'hillfolk', classes: [{ id: 'warden', level: 1 }] }));
-  const start = { ally: { id: 'brynn', snapshot: serialize(rt, brynn) }, enemies: ENEMIES, positions: POSITIONS };
+  const { enemies, positions, allySpawns } = fightOf;
+  const start = { ally: { id: 'brynn', snapshot: serialize(rt, brynn) }, enemies, positions, ...(allySpawns ? { allySpawns } : {}) };
   const ally = value(allyProfile(rt, brynn, 'brynn'));
   const events: RuntimeEvent[] = [];
   const off = subscribe(rt, (e) => events.push(e));
-  const live = value(begin(rt, ally, ENEMIES, POSITIONS));
+  const live = value(begin(rt, ally, enemies, positions, allySpawns));
   const script: ScriptEntry[] = [];
   const declarations: Declaration[] = [];
   let tried = 0;
@@ -149,6 +160,32 @@ describe('replay (database.md replay rule, CA-09)', () => {
       expect(result.error.cards.length).toBeGreaterThan(0);
       expect(result.error.cards.every((c) => c.rule === 'E-SPAT-01')).toBe(true);
     }
+  });
+
+  it('CA-04b: a record with an ally spawn replays complete; without start.allySpawns it no longer matches', () => {
+    const rec = recordFight(undefined, SPIDER_FIGHT);
+    expect(rec.start.allySpawns).toEqual(SPIDER);
+    expect(rec.events[0]?.payload.order).toContain('hill-spider-1');
+    const { result, events } = replay(META, PACK_JSON, rec);
+    expect(result).toEqual({ status: 'complete' });
+    expect(JSON.stringify(events)).toBe(JSON.stringify(rec.events));
+    const { allySpawns: _a, ...start } = rec.start;
+    expect(replay(META, PACK_JSON, { ...rec, start }).result.status).not.toBe('complete');
+  });
+
+  it('CA-06: a record without allySpawns (every pre-CX record) replays exactly as before', () => {
+    const rec = recordFight();
+    expect(rec.start).not.toHaveProperty('allySpawns');
+    expect(replay(META, PACK_JSON, rec).result).toEqual({ status: 'complete' });
+  });
+
+  it('CA-05: a record whose ids collide across sides → error, never begun', () => {
+    const rec = recordFight(undefined, SPIDER_FIGHT);
+    const start = { ...rec.start, allySpawns: [{ statblockId: 'hill-spider', instanceId: 'barrow-wight-1' }] };
+    const { result, events } = replay(META, PACK_JSON, { ...rec, start });
+    expect(result).toMatchObject({ status: 'error', error: { kind: 'unexpected', operation: 'fight:begin' } });
+    if (result.status === 'error' && result.error.kind === 'unexpected') expect(result.error.message).toContain('"barrow-wight-1" is used twice');
+    expect(events).toEqual([]);
   });
 
   it('null params, or a record without script, is unavailable — never guessed', () => {
