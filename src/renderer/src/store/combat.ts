@@ -1,5 +1,5 @@
 /**
- * Combat store (M09, FR-11–13): the enemy roster, grid placement, the live fight and its provenanced
+ * Combat store (M09, FR-11–13): the enemy and ally-spawn rosters, grid placement, the live fight and its provenanced
  * log. Every host call goes through `engine/combat` and is appended to `script` (B-2, CX `move`); every
  * event on the world's runtime reaches `log` while a fight is open — never dropped, never deduped (CA-07).
  * Never throws to views.
@@ -18,6 +18,7 @@ import type {
   Position,
   RuntimeEvent,
   ScriptEntry,
+  SpawnSpec,
 } from '../engine/combat';
 import { allyProfile } from '../engine/combat-profile';
 import { fromIpcError, toAppError, type AppError } from '../engine/errors';
@@ -36,6 +37,10 @@ export interface CombatStore {
   enemies: EnemySpec[];
   addEnemy(statblockId: string): void;
   removeEnemy(instanceId: string): void;
+  /** FR-11 (CA-04b): bestiary spawns on the ally side, after the character in `startCombat` order. */
+  allySpawns: SpawnSpec[];
+  addAllySpawn(statblockId: string): void;
+  removeAllySpawn(instanceId: string): void;
   /**
    * FR-11 placement passed to the next `begin` (CA-12): the default layout after every roster change, then
    * the user's edits. Null on theater-of-mind packs (nothing is passed). A `move` does not change it.
@@ -64,7 +69,7 @@ export interface CombatStore {
   over: boolean;
   filters: LogFilters;
   setFilters(filters: Partial<LogFilters>): void;
-  /** What the fight was started from (B-2, CX `positions`); captured at begin, before `startCombat`. */
+  /** What the fight was started from (B-2, CX `positions`/`allySpawns`); captured at begin, before `startCombat`. */
   start: FightStart | null;
   script: ScriptEntry[];
   /** The declare calls with the combatant active when each was issued (FightDoc `declarations`). */
@@ -157,8 +162,18 @@ export function createCombatStore(
 
     const worldId = (): string | null => worlds.getState().active?.meta.id ?? null;
 
+    /** CA-05: one allocator over both rosters — `${statblockId}-${n}`, the smallest n unused on either side. */
+    function spawnOf(statblockId: string): SpawnSpec {
+      const { enemies, allySpawns } = get();
+      const taken = new Set([allyId(), ...enemies.map((e) => e.instanceId), ...allySpawns.map((s) => s.instanceId)]);
+      let n = 1;
+      while (taken.has(`${statblockId}-${n}`)) n += 1;
+      return { statblockId, instanceId: `${statblockId}-${n}` };
+    }
+
     return {
       enemies: [],
+      allySpawns: [],
       positions: null,
       defaultPositions: null,
       ...IDLE,
@@ -167,15 +182,22 @@ export function createCombatStore(
       replayed: null,
 
       addEnemy(statblockId) {
-        const taken = new Set(get().enemies.map((e) => e.instanceId));
-        let n = 1;
-        while (taken.has(`${statblockId}-${n}`)) n += 1;
-        set({ enemies: [...get().enemies, { statblockId, instanceId: `${statblockId}-${n}` }] });
+        set({ enemies: [...get().enemies, spawnOf(statblockId)] });
         relayout();
       },
 
       removeEnemy(instanceId) {
         set({ enemies: get().enemies.filter((e) => e.instanceId !== instanceId) });
+        relayout();
+      },
+
+      addAllySpawn(statblockId) {
+        set({ allySpawns: [...get().allySpawns, spawnOf(statblockId)] });
+        relayout();
+      },
+
+      removeAllySpawn(instanceId) {
+        set({ allySpawns: get().allySpawns.filter((s) => s.instanceId !== instanceId) });
         relayout();
       },
 
@@ -192,11 +214,14 @@ export function createCombatStore(
         set({ filters: { ...get().filters, ...filters } });
       },
 
-      /** FR-11: snapshot the ally (B-2), derive its profile (B-1), subscribe, then start the fight at `positions`. */
+      /**
+       * FR-11: snapshot the ally (B-2), derive its profile (B-1), subscribe, then start the fight at `positions`
+       * with the ally spawns after the character. A duplicate id is `begin`'s refusal (CA-05): no fight, no log.
+       */
       begin() {
         const rt = worlds.getState().active?.runtime;
         const character = characters.getState().character;
-        const { enemies, positions } = get();
+        const { enemies, allySpawns, positions } = get();
         if (!rt || !character || enemies.length === 0) return false;
         get().end();
         const id = allyIdOf(character.state.name);
@@ -204,6 +229,7 @@ export function createCombatStore(
           ally: { id, snapshot: serialize(rt, character) },
           enemies: enemies.map((e) => ({ ...e })),
           ...(positions === null ? {} : { positions: structuredClone(positions) }),
+          ...(allySpawns.length === 0 ? {} : { allySpawns: allySpawns.map((s) => ({ ...s })) }),
         };
         const ally = allyProfile(rt, character, id);
         if (!ally.ok) {
@@ -211,7 +237,7 @@ export function createCombatStore(
           return false;
         }
         unsubscribe = combat.subscribe(rt, (e) => set((s) => ({ log: [...s.log, e] })));
-        const live = combat.begin(rt, ally.value, start.enemies, start.positions);
+        const live = combat.begin(rt, ally.value, start.enemies, start.positions, start.allySpawns);
         if (!live.ok) {
           get().end();
           set({ error: live.error });
@@ -248,7 +274,7 @@ export function createCombatStore(
         if (call(entry, (live) => combat.reposition(live, entry.positions))) set({ rejection: null });
       },
 
-      /** Stop listening and drop the fight; the enemy roster and placement stay for the next one. */
+      /** Stop listening and drop the fight; the rosters and placement stay for the next one. */
       end() {
         unsubscribe?.();
         unsubscribe = null;
@@ -317,16 +343,18 @@ export function createCombatStore(
 
   /**
    * CX-D9 on a roster change: allies `x=0`, enemies `x=1`, `y` = index within its own side in roster order
-   * (character first); null on a theater-of-mind pack. Replaces any edits.
+   * (character first, then the ally spawns — CA-12); null on a theater-of-mind pack. Replaces any edits.
    */
   function relayout() {
     const rt = worlds.getState().active?.runtime;
     const ally = allyId();
+    const { enemies, allySpawns } = store.getState();
+    const allies = [...(ally === null ? [] : [ally]), ...allySpawns.map((s) => s.instanceId)];
     const layout =
       rt && combat.spatialOf(rt.pack) !== null
         ? Object.fromEntries([
-            ...(ally === null ? [] : [[ally, { x: 0, y: 0 }] as const]),
-            ...store.getState().enemies.map((e, y) => [e.instanceId, { x: 1, y }] as const),
+            ...allies.map((id, y) => [id, { x: 0, y }] as const),
+            ...enemies.map((e, y) => [e.instanceId, { x: 1, y }] as const),
           ])
         : null;
     store.setState({ defaultPositions: layout, positions: structuredClone(layout) });
@@ -336,7 +364,7 @@ export function createCombatStore(
   worlds.subscribe((next, prev) => {
     if (next.active?.runtime === prev.active?.runtime) return;
     store.getState().end();
-    store.setState({ enemies: [], records: [], recordsError: null, replayed: null });
+    store.setState({ enemies: [], allySpawns: [], records: [], recordsError: null, replayed: null });
     relayout();
     void store.getState().refreshRecords();
   });
@@ -365,6 +393,7 @@ export type {
   Position,
   RuntimeEvent,
   SpatialDef,
+  SpawnSpec,
 } from '../engine/combat';
 
 /**

@@ -175,11 +175,12 @@ describe('combat store over the real library', () => {
   it('a world change ends the fight, clears the roster and stops listening to the old runtime', async () => {
     const { worlds, store } = await setup();
     store.getState().addEnemy('barrow-wight');
+    store.getState().addAllySpawn('hill-spider');
     store.getState().begin();
     const old = store.getState().fight;
     expect(await worlds.getState().forge({ themeId: 'dark-fantasy', seed: 43, knobs: KNOBS })).toBe(true);
     const s = store.getState();
-    expect([s.fight, s.state, s.start, s.enemies, s.log, s.script]).toEqual([null, null, null, [], [], []]);
+    expect([s.fight, s.state, s.start, s.enemies, s.allySpawns, s.log, s.script]).toEqual([null, null, null, [], [], [], []]);
     old?.step();
     expect(store.getState().log).toEqual([]);
   });
@@ -361,6 +362,95 @@ describe('placement and moves (CAP-06, CA-12..14)', () => {
     expect(await worlds2.getState().open(worldId)).toBe(true);
     const store2 = createCombatStore(worlds2, createCharacterStore(worlds2));
     await store2.getState().replay('grid watch');
+    expect(store2.getState().replayed?.result).toEqual({ status: 'complete' });
+    expect(JSON.stringify(store2.getState().replayed?.events)).toBe(JSON.stringify(doc.events));
+  });
+});
+
+describe('ally-side spawns (CAP-03, CA-04b, CA-05, CA-12)', () => {
+  it('one allocator over both rosters: the smallest n unused on either side', async () => {
+    const { store } = await setup();
+    store.getState().addAllySpawn('hill-spider');
+    store.getState().addEnemy('hill-spider');
+    store.getState().addAllySpawn('hill-spider');
+    expect(store.getState().allySpawns.map((a) => a.instanceId)).toEqual(['hill-spider-1', 'hill-spider-3']);
+    expect(store.getState().enemies.map((e) => e.instanceId)).toEqual(['hill-spider-2']);
+    store.getState().removeAllySpawn('hill-spider-1');
+    store.getState().addEnemy('hill-spider');
+    expect(store.getState().enemies.map((e) => e.instanceId)).toEqual(['hill-spider-2', 'hill-spider-1']);
+    expect(store.getState().allySpawns).toEqual([{ statblockId: 'hill-spider', instanceId: 'hill-spider-3' }]);
+  });
+
+  it('the default layout puts ally spawns in the allies column after the character, in roster order', async () => {
+    const { store } = await setup();
+    store.getState().addEnemy('barrow-wight');
+    store.getState().addAllySpawn('hill-spider');
+    store.getState().addAllySpawn('grave-shambles');
+    const layout = {
+      brynn: { x: 0, y: 0 },
+      'hill-spider-1': { x: 0, y: 1 },
+      'grave-shambles-1': { x: 0, y: 2 },
+      'barrow-wight-1': { x: 1, y: 0 },
+    };
+    expect(store.getState().defaultPositions).toEqual(layout);
+    expect(Object.keys(store.getState().defaultPositions ?? {})).toEqual(Object.keys(layout));
+    store.getState().setPosition('hill-spider-1', { x: 5, y: 5 });
+    store.getState().removeAllySpawn('hill-spider-1');
+    expect(store.getState().positions).toEqual({ brynn: { x: 0, y: 0 }, 'grave-shambles-1': { x: 0, y: 1 }, 'barrow-wight-1': { x: 1, y: 0 } });
+  });
+
+  it('begin puts [character, ...allySpawns] on the allies side and records start.allySpawns; none → no key', async () => {
+    const { store } = await setup();
+    store.getState().addEnemy('barrow-wight');
+    expect(store.getState().begin()).toBe(true);
+    expect(store.getState().start).not.toHaveProperty('allySpawns');
+    store.getState().addAllySpawn('hill-spider');
+    expect(store.getState().begin()).toBe(true);
+    const s = store.getState();
+    expect(s.start?.allySpawns).toEqual([{ statblockId: 'hill-spider', instanceId: 'hill-spider-1' }]);
+    expect(s.live?.sides.allies.map((a) => a.id)).toEqual(['brynn', 'hill-spider-1']);
+    expect(s.state?.combatants['hill-spider-1']).toMatchObject({ side: 'allies', position: { x: 0, y: 1 } });
+    expect(s.state?.order).toContain('hill-spider-1');
+  });
+
+  it('CA-05: colliding ids are refused before startCombat — error named, no fight, no log rows, no events', async () => {
+    const { worlds, store } = await setup();
+    const rt = worlds.getState().active?.runtime;
+    if (!rt) throw new Error('setup');
+    store.getState().addEnemy('barrow-wight');
+    store.setState({ allySpawns: [{ statblockId: 'hill-spider', instanceId: 'barrow-wight-1' }] });
+    const before = rt.events.sinceRound(0).length;
+    expect(store.getState().begin()).toBe(false);
+    const s = store.getState();
+    expect(s.error).toEqual({
+      kind: 'unexpected',
+      operation: 'fight:begin',
+      message: 'combatant id "barrow-wight-1" is used twice — ids must be unique across both sides',
+    });
+    expect([s.fight, s.live, s.start, s.log, s.script]).toEqual([null, null, null, [], []]);
+    expect(rt.events.sinceRound(0).length).toBe(before);
+  });
+
+  it('restart leg: a recorded fight with an ally spawn replays complete from a new store over the real main handlers', async () => {
+    const { worlds, store } = await setup();
+    store.getState().addAllySpawn('hill-spider');
+    store.getState().addEnemy('barrow-wight');
+    expect(store.getState().begin()).toBe(true);
+    drive(store);
+    expect(store.getState().over).toBe(true);
+    expect(await store.getState().record('spider watch')).toBe(true);
+
+    const worldId = worlds.getState().active?.meta.id as string;
+    const doc = JSON.parse(readFileSync(join(root, 'fights', worldId, 'spider watch.json'), 'utf8'));
+    expect(doc.start.allySpawns).toEqual([{ statblockId: 'hill-spider', instanceId: 'hill-spider-1' }]);
+    expect(doc.start.positions).toEqual({ brynn: { x: 0, y: 0 }, 'hill-spider-1': { x: 0, y: 1 }, 'barrow-wight-1': { x: 1, y: 0 } });
+    expect(doc.events.some((e: RuntimeEvent) => e.actor === 'hill-spider-1')).toBe(true);
+
+    setPersistence(createInProcessBridge(root));
+    const worlds2 = createWorldsStore();
+    expect(await worlds2.getState().open(worldId)).toBe(true);
+    const store2 = createCombatStore(worlds2, createCharacterStore(worlds2));
+    await store2.getState().replay('spider watch');
     expect(store2.getState().replayed?.result).toEqual({ status: 'complete' });
     expect(JSON.stringify(store2.getState().replayed?.events)).toBe(JSON.stringify(doc.events));
   });
