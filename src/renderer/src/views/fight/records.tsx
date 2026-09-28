@@ -1,11 +1,13 @@
 /**
  * Fight records (FR-14b, B-3), per the record rows of mocks/fight.html and mocks/combat.html: each row shows
  * the stored `combat.rng` words, and Replay re-applies the record's script, flagging the first divergent event.
+ * On Fight only (design "Resume action (CX)"), Resume continues a record in Combat when every event matches.
  */
 import { useEffect, useState } from 'react';
 import type { FightRecordMeta } from '../../../../shared/model';
 import { useCombatStore, type RuntimeEvent } from '../../store/combat';
-import { Button, DeterminismStrip, ErrorCard, Field, Input, RecordRow } from '../../ui';
+import { useUiStore } from '../../store/ui';
+import { Button, Chip, DeterminismStrip, ErrorCard, Field, Input, RecordRow } from '../../ui';
 import { LogRow } from '../combat/log';
 import './fight.css';
 
@@ -99,12 +101,34 @@ function ReplayResultView(): JSX.Element | null {
   );
 }
 
-/** The records list (+ the record form on the Combat surface) and the latest replay. */
+/** FR-14 resume refused (design "Resume action (CX)"): a status line under the row's actions, like a diverged replay. */
+function ResumeRefusal({ name }: { name: string }): JSX.Element | null {
+  const resumed = useCombatStore((s) => (s.resumed?.name === name ? s.resumed.result : null));
+  if (!resumed) return null;
+  let detail: JSX.Element;
+  if (resumed.status === 'diverged') detail = <span className="mono row-data">first divergence at event {resumed.index}</span>;
+  else if (resumed.status === 'unavailable') detail = <span className="mono row-data">{resumed.reason}</span>;
+  else detail = <ErrorCard error={resumed.error} className="resume-status-error" />;
+  return (
+    <div className="resume-status" data-testid="fight-resume-status" data-status={resumed.status} role="status" aria-live="polite">
+      <Chip tone="danger">resume refused</Chip>
+      {detail}
+    </div>
+  );
+}
+
+/** The records list (+ the record form on the Combat surface) and the latest replay; Resume only off Combat. */
 export function RecordsPanel({ recordable = false }: { recordable?: boolean }): JSX.Element {
   const records = useCombatStore((s) => s.records);
   const error = useCombatStore((s) => s.recordsError);
   const refresh = useCombatStore((s) => s.refreshRecords);
   const replay = useCombatStore((s) => s.replay);
+  const resume = useCombatStore((s) => s.resume);
+  const navigate = useUiStore((s) => s.navigate);
+
+  async function onResume(name: string): Promise<void> {
+    if (await resume(name)) navigate('combat');
+  }
 
   useEffect(() => {
     void refresh();
@@ -124,15 +148,31 @@ export function RecordsPanel({ recordable = false }: { recordable?: boolean }): 
             meta={metaLine(r)}
             rng={<span data-testid={`fight-record-rng-${r.name}`}>{rngLine(r.rng)}</span>}
             actions={
-              <Button size="s" data-testid={`fight-replay-${r.name}`} onClick={() => void replay(r.name)}>
-                Replay
-              </Button>
+              <>
+                <Button size="s" data-testid={`fight-replay-${r.name}`} onClick={() => void replay(r.name)}>
+                  Replay
+                </Button>
+                {!recordable && (
+                  <>
+                    <Button size="s" data-testid={`fight-resume-${r.name}`} onClick={() => void onResume(r.name)}>
+                      Resume
+                    </Button>
+                    <ResumeRefusal name={r.name} />
+                  </>
+                )}
+              </>
             }
           />
         ))}
         {records.length === 0 && <p className="text-12 dim">No recorded fights in this world yet.</p>}
       </div>
       <p className="mono fight-note">rng = the record&apos;s stored combat.rng &#123;a,b,c,d&#125;, four uint32 words as 8-digit lowercase hex (FR-14)</p>
+      {!recordable && (
+        <p className="fight-note">
+          Resume re-applies the record&apos;s script, repositions included, on the stored pack; play continues only when every re-applied
+          event matches the record.
+        </p>
+      )}
       <ReplayResultView />
     </div>
   );

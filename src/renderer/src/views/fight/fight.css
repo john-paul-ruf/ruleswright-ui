@@ -216,6 +216,19 @@
   gap: var(--space-2);
 }
 
+/* Resume refused (CX): its own line under the row's actions (mock: flex, gap-2, wrap, mt-2 = the actions' row gap). */
+.resume-status {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.resume-status-error {
+  flex-basis: 100%;
+}
+
 .records-scroll {
   display: flex;
   flex-direction: column;
