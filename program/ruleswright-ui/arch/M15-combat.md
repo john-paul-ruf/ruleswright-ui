@@ -19,3 +19,12 @@
   - Test ids: `combat-board`, `combat-spatial-def`, `combat-token-<id>` (`data-x`, `data-y`, `data-active`), `combat-distance-<id>`, `combat-move`, `combat-move-banner`, `combat-move-apply`, `combat-move-cancel`, `combat-move-unavailable`.
 - `controls.tsx`: the declare rejection card is now `ErrorCard{ kind: 'library', operation: rejection.type, name: payload.kind, cards: [{ rule, jsonPath: resource, message }] }`, i.e. `declare:rejected · <kind>` / `<rule> <resource>` / message (design row "Declare rejection examples").
 - M15 now imports M08 `Board`. There are no new module edges (views → store + ui as before).
+
+
+<!-- combat-complete SESSION-03 --> M15
+### combat-complete SESSION-03 delta — M15 views/combat
+- New `order.tsx`: `TurnOrderPanel({ state })` — DF-CX-1 Turn order panel (`state.order` rows, active = `state.active`, `round R · turn T+1 of K`) + Initiative provenance block (from `initiativeOf(log)`; absent → "initiative event not in this log"). Mounted in `index.tsx` between `CombatBoard` and `CombatantsPanel`.
+- `controls.tsx`: `ActionDetail` (under the Declare select, before Target/Declare) and `CombatantDetail` (`details/summary` under each `CombatantRow`, open for the active combatant); read `fight.runtime.pack` for `actionInfo`, `slotGrants` and `content.conditions[id].restricts`.
+- `index.tsx`: DF-CX-1 Spatial caption beside the header chip (`model <model> · reach.default <n>` / "this pack declares no spatial model").
+- `combat.css`: `.combat-head-chips`, `.combat-caption`, `.combat-well`, `.combat-strong`, `.combat-order-*`, `.combat-detail`, `.combat-chips`, `.combat-condition`, `.combat-note-s`, `.combat-empty`.
+- Module edges unchanged (views → store + ui only).

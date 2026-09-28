@@ -74,3 +74,9 @@ Imports engine/combat, engine/combat-profile, engine/errors, engine/replay, engi
 <!-- combat-complete SESSION-02 --> M09
 ### combat-complete SESSION-02 delta — M09 store — `store/combat.ts` (lease r2, re-export only)
 - The view-facing re-exports gain `distance`, `spatialOf` and type `SpatialDef` (from `engine/combat`).
+
+
+<!-- combat-complete SESSION-03 --> M09
+### combat-complete SESSION-03 delta — M09 store — `src/renderer/src/store/combat.ts`
+- Re-exports added: `actionInfo`, `slotGrants`; types `ActionCost`, `ActionInfo`.
+- `initiativeOf(log: readonly RuntimeEvent[]): RuntimeEvent | undefined` — the log's `combat:start` event (CA-01); survives a `move` (the log keeps it).

@@ -48,3 +48,13 @@
 ### combat-complete SESSION-02 delta — M17 tests — `e2e/combat.spec.ts`, `e2e/replay.spec.ts`
 - The reference fights take the positions read from `fight-place-<id>` before Begin.
 - New e2e tests: "CAP-06: grid fight …", "theater-of-mind: …" (combat.spec) and "CAP-06 / CA-14: … recorded, then replays complete after a restart" (replay.spec).
+
+
+<!-- combat-complete SESSION-03 --> M17
+### combat-complete SESSION-03 delta — M17 tests — new test ids
+- `combat-order` (panel), `combat-order-<id>` (row, `data-active` true/false), `combat-order-position`, `combat-initiative`,
+  `combat-action-detail`, `combat-ledger-<id>` (chips `<slot> <remaining>/<grant>`), `combat-pools-<id>`,
+  `combat-bound-<id>` (only when the library reports bound slots), `combat-conditions-<id>`, `combat-spatial-caption`.
+- Unit: `tests/engine/combat.test.ts` describe 'slot grants and action detail (CA-02, CA-03)' (3 tests);
+  `tests/store/combat.test.ts` describe 'initiative provenance (CAP-01, CA-01)' (1 test).
+- e2e: `e2e/combat.spec.ts` test 'CAP-01/02: turn order, initiative, slot ledgers, conditions and action detail, in lockstep with the library'; theater test also asserts the caption.

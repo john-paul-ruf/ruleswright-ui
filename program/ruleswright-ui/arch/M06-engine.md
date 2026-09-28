@@ -123,3 +123,11 @@ Imports `ruleswright/runtime` `serializeCombat`; `./combat` (`begin`, `perform`,
 - `distance(rt, a, b) → number` (`rt.spatial.distance`).
 - `spatialLabel(pack)` is now typed (no cast); every generated pack is `'grid'`.
 - `replay.ts`: begins with `rec.start.positions` and re-applies the script through `perform(live, …)`. The result shape is unchanged. A spatial record without `start.positions` gives `{status:'error'}` with the library's `E-SPAT-01` cards.
+
+
+<!-- combat-complete SESSION-03 --> M06
+### combat-complete SESSION-03 delta — M06 engine — `src/renderer/src/engine/combat.ts`
+- New value import `resolveSlotGrants` from `ruleswright/runtime`; new type import + re-export `ActionCost` from `ruleswright/schema`.
+- `slotGrants(rt: Runtime): Readonly<Record<string, number>>` — `resolveSlotGrants(rt.pack).slots` verbatim (CA-02).
+- `interface ActionInfo { actionId; cost: ActionCost; tags: readonly string[]; triggerOn: string | null; valid: string | null }`.
+- `actionInfo(pack: Pack, actionId: string): ActionInfo | null` — own-property lookup of `pack.actions[actionId]`; `tags ?? []`, `trigger?.on ?? null`, `valid ?? null`; `effect` is not carried (CA-03). Unknown id (incl. prototype keys) → null.

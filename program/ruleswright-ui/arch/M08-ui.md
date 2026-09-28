@@ -36,3 +36,8 @@ Barrel `ui/index.ts` (imports `ui.css`). Files → exports:
   - `BoardPiece { id, label ('A<n>'|'E<n>'), side ('ally'|'enemy'), x, y, title, active?, testId? }`; the token carries `data-x`, `data-y`, `data-active`.
   - `TokenMark({ label, side })`: a 24px roster token (aria-hidden) for rows.
   - CSS: `.board`, `.board-place` (36px squares / 28px tokens), `.board-combat` (28 / 22), `.board-token(-ally|-enemy|.active|.selected|-mark)`, `.board-sq`, `.board-ax`, `.board-stack`, `.board-note`. Tokens only; the geometry px come from design.md.
+
+
+<!-- combat-complete SESSION-03 --> M08
+### combat-complete SESSION-03 delta — M08 ui
+- No change (DF-CX-1 names no new design-system component; the rows are combat-surface markup).
