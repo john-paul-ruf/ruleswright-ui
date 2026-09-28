@@ -73,3 +73,9 @@
   `fight-encounter-summary`, `fight-assemble-error`.
 - `tests/engine/combat.test.ts` 'threat-budget assembly (CAP-04, CA-07, CA-08)' (5); `tests/store/combat.test.ts`
   'threat-budget assembly (CAP-04, CA-05, CA-07, CA-08)' (5, incl. restart leg); `e2e/combat.spec.ts` 'CAP-04: …'.
+
+
+<!-- combat-complete SESSION-06 --> M17
+### combat-complete SESSION-06 delta — M17 tests — new ids `fight-resume-<name>` and `fight-resume-status` (`data-status` = diverged | unavailable | error).
+  - Unit: `tests/engine/replay.test.ts` 'resume (FR-14, CA-09, CA-10)' (+7) and `tests/store/combat.test.ts` 'resume (CAP-05, CA-09..11)' (+3).
+  - e2e: `e2e/replay.spec.ts` 'CAP-05 / CA-09..11 …' (+1).

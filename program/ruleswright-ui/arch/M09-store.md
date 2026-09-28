@@ -100,3 +100,14 @@ Imports engine/combat, engine/combat-profile, engine/errors, engine/replay, engi
   roster unchanged (CA-05). Throw → `error` from `toAppError('fight:assemble', …)`.
 - The CA-05 ally-id set (`allyIds()`) is shared by `spawnOf` and `assembleEnemies`.
 - Re-exports type `Encounter`.
+
+
+<!-- combat-complete SESSION-06 --> M09
+### combat-complete SESSION-06 delta — M09 store — `combat.ts`
+  - `resume(name): Promise<boolean>` works as follows:
+    - It loads the record through `fight:load` and calls `engine.resume` with `active.packJson`.
+    - On `resumed` it ends the old subscription, subscribes the log sink to `live.fight.runtime`, then publishes `{fight, live, start, script, declarations, log, hpAtStart}` from the record and the rebuild.
+    - Otherwise it only sets `resumed`.
+    - It never rewrites `outcome`. `enemies`, `allySpawns`, `positions` and `encounter` are untouched.
+  - New state `resumed: {name, result} | null` (refused resumes only). A successful resume or a world change clears it.
+  - The adopted fight's runtime is a fresh `Runtime` on the stored pack, not `worlds.active.runtime`. The views read `fight.runtime`.

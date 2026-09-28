@@ -30,3 +30,12 @@
   `crypto.getRandomValues`), primary Assemble, dim hint, verbatim summary line
   `encounter · groups <id ×n, …|(none)> · threat · budget · seedUsed · heuristic`; `fight:assemble` errors render
   under the row (not in the header).
+
+
+<!-- combat-complete SESSION-06 --> M14
+### combat-complete SESSION-06 delta — M14 views/fight — `records.tsx`, `fight.css`
+  - `RecordsPanel` renders **Resume** (ghost, `btn-s`) beside Replay only when `recordable` is false, so it appears on Fight → Records and not in Combat.
+  - Success → `navigate('combat')`.
+  - Refusal → `ResumeRefusal` status line under the row's actions: `chip-danger` "resume refused" plus a mono `row-data` detail. The detail is "first divergence at event n", or the unavailable reason, or an `ErrorCard` for `error`.
+  - The mock's Resume note paragraph appears under the rng note, on Fight only.
+  - CSS: `.resume-status` and `.resume-status-error`.

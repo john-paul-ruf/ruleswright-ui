@@ -151,3 +151,11 @@ Imports `ruleswright/runtime` `serializeCombat`; `./combat` (`begin`, `perform`,
   A library throw (e.g. empty bestiary) → `toAppError('fight:assemble', e)`.
 - New imports from `ruleswright/runtime`: `assembleEncounter`, `spawnEncounter`, type `Encounter`; `Encounter` re-exported.
 - Library naming fact: a group of count 1 spawns with the bare statblock id (`barrow-wight`), count > 1 as `<id>-<n>`.
+
+
+<!-- combat-complete SESSION-06 --> M06
+### combat-complete SESSION-06 delta — M06 engine — `replay.ts`
+  - `ResumeResult` = `{status:'resumed', live: LiveFight, events, hpAtStart}` | `{status:'diverged', index, expected?, actual?}` | `{status:'unavailable', reason}` | `{status:'error', error}`.
+  - `resume(storedPackJson, rec)`: the replay rebuild on the stored pack bytes, with no re-roll. The rebuilt fight is handed over only when every event equals `rec.events`.
+  - The rebuild (openPack → restore ally → `allyProfile` → subscribe → `begin(…, positions, allySpawns ?? [])` → `hpAtStart` → `perform` each entry) is now one private `rebuild(operation, …)` shared by `replay` and `resume`. `replay`'s behavior is unchanged.
+  - The missing-parts reason text is the shared constant ("record has no replay script (recorded before B-2)").
