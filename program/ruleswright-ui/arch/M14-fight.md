@@ -13,3 +13,11 @@
 <!-- combat-complete SESSION-02 --> M14
 ### combat-complete SESSION-02 delta — M14 views/fight — `index.tsx`, `fight.css`
 - `PlacementPanel` (internal to `index.tsx`; the design's "Placement board"), rendered between the Allies/Enemies panels and Determinism, only when `spatialOf(pack) !== null`. It reads the store's `positions`/`defaultPositions` and writes `setPosition`/`resetPositions`. Test ids: `fight-placement`, `fight-spatial-def`, `fight-place-<id>` (row; `data-x`, `data-y`), `fight-place-<id>-x|y` (integer inputs; a non-integer gives a danger border and nothing moves), `fight-token-<id>`, `fight-place-reset`.
+
+
+<!-- combat-complete SESSION-04 --> M14
+### combat-complete SESSION-04 delta — M14 views/fight — `views/fight/index.tsx`
+- `AlliesPanel` now takes `runtime` and follows the design's Ally spawn row:
+  - The spawn rows come after the character row. Each shows the statblock name and the mono line `spawnMonster · <instanceId> · ally side`, with a ghost − remove button.
+  - A bestiary picker plus "+ Add bestiary spawn" sits below the note.
+- `PlacementPanel`: the side is `enemy` only for enemy-roster ids. Names come from both rosters, so ally spawns show as `A2…` with their statblock name.

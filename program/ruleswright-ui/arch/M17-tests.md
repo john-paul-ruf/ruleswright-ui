@@ -58,3 +58,10 @@
 - Unit: `tests/engine/combat.test.ts` describe 'slot grants and action detail (CA-02, CA-03)' (3 tests);
   `tests/store/combat.test.ts` describe 'initiative provenance (CAP-01, CA-01)' (1 test).
 - e2e: `e2e/combat.spec.ts` test 'CAP-01/02: turn order, initiative, slot ledgers, conditions and action detail, in lockstep with the library'; theater test also asserts the caption.
+
+
+<!-- combat-complete SESSION-04 --> M17
+### combat-complete SESSION-04 delta — M17 tests — new test ids and proofs
+- New ids: `fight-ally-spawn-<instanceId>`, `fight-ally-spawn-remove-<instanceId>`, `fight-add-ally` (select), `fight-add-ally-submit`.
+- `e2e/combat.spec.ts` 'CAP-03 …': `referenceFight(pack, wights, positions?, allySpawns = [])` now spawns ally spawns too.
+- `e2e/replay.spec.ts` 'CAP-03 / CA-04b …': `FightFile.start.allySpawns?`.

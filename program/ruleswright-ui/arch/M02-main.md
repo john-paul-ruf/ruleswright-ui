@@ -24,3 +24,10 @@
 - `isPositions`: an object whose values are all `{x: integer, y: integer}`.
 - `script[i].op === 'move'` requires `isPositions(positions)`. The refusal text is now `script[i] is not a valid declare/respond/step/move entry`.
 - `start.positions` (when present) must be valid positions, else it is refused with `start.positions must be {[id]: {x: integer, y: integer}}`.
+
+
+<!-- combat-complete SESSION-04 --> M02
+### combat-complete SESSION-04 delta — M02 main — `src/main/storage.ts`
+- New `isSpawns(v)` validates both `start.enemies` and `start.allySpawns`.
+- When `start.allySpawns` is present and malformed, the save is refused with `invalid-input` `'start.allySpawns must be [{statblockId, instanceId}]'`.
+- Records without the field load and list unchanged (CA-06).

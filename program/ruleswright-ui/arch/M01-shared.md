@@ -26,3 +26,8 @@
 - `FightScriptEntry` gains `{ op: 'move'; positions: Record<string, GridPosition> }`: the complete post-reposition map, every combatant.
 - `FightStartDoc.positions?: Record<string, GridPosition>`: the positions passed to `startCombat`, present iff the pack declares a spatial model.
 - `start.allySpawns` is NOT realized yet (SESSION-04).
+
+
+<!-- combat-complete SESSION-04 --> M01
+### combat-complete SESSION-04 delta — M01 shared — `src/shared/model.ts`
+- `FightStartDoc.allySpawns?: { statblockId: string; instanceId: string }[]`. This is the DB name (`specs/database.md` `af47822`), in `startCombat` ally order after the character, written only when non-empty.

@@ -80,3 +80,12 @@ Imports engine/combat, engine/combat-profile, engine/errors, engine/replay, engi
 ### combat-complete SESSION-03 delta — M09 store — `src/renderer/src/store/combat.ts`
 - Re-exports added: `actionInfo`, `slotGrants`; types `ActionCost`, `ActionInfo`.
 - `initiativeOf(log: readonly RuntimeEvent[]): RuntimeEvent | undefined` — the log's `combat:start` event (CA-01); survives a `move` (the log keeps it).
+
+
+<!-- combat-complete SESSION-04 --> M09
+### combat-complete SESSION-04 delta — M09 store — `store/combat.ts`
+- New state: `allySpawns: SpawnSpec[]`. New actions: `addAllySpawn(statblockId)` and `removeAllySpawn(instanceId)`. The store re-exports type `SpawnSpec`.
+- There is one allocator (`spawnOf`) over both rosters, used by `addEnemy` and `addAllySpawn`. Ids are `${statblockId}-${n}`, with the smallest `n` unused on either side; the character's ally id also counts as taken (CA-05).
+- CX-D9 layout (CA-12 extended): allies are `[character, ...allySpawns]` at `x=0`, `y` = index; enemies stay at `x=1`.
+- `begin` passes `start.allySpawns` to `engine.begin`. `start.allySpawns` is set only when non-empty, so the record body carries it only then. When `begin` refuses under CA-05, there is no fight, no log rows and no events.
+- A world change clears `allySpawns` along with the enemy roster.

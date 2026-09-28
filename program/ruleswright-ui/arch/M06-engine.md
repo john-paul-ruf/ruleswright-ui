@@ -131,3 +131,13 @@ Imports `ruleswright/runtime` `serializeCombat`; `./combat` (`begin`, `perform`,
 - `slotGrants(rt: Runtime): Readonly<Record<string, number>>` — `resolveSlotGrants(rt.pack).slots` verbatim (CA-02).
 - `interface ActionInfo { actionId; cost: ActionCost; tags: readonly string[]; triggerOn: string | null; valid: string | null }`.
 - `actionInfo(pack: Pack, actionId: string): ActionInfo | null` — own-property lookup of `pack.actions[actionId]`; `tags ?? []`, `trigger?.on ?? null`, `valid ?? null`; `effect` is not carried (CA-03). Unknown id (incl. prototype keys) → null.
+
+
+<!-- combat-complete SESSION-04 --> M06
+### combat-complete SESSION-04 delta — M06 engine — `engine/combat.ts`, `engine/replay.ts`
+- `SpawnSpec { statblockId; instanceId }` is the bestiary spawn type for either side. `EnemySpec` stays as a type alias of `SpawnSpec`.
+- `FightStart.allySpawns?: SpawnSpec[]`.
+- The signature is now `begin(rt, ally, enemies, positions?, allySpawns = [])`. The parameter is appended, so SESSION-01's order is kept.
+  - Allies passed to `startCombat` are `[character, ...allySpawns.map(spawnMonster)]`. `Sides.allies` uses the same order, so `reposition` re-states the spawns with live balances.
+  - CA-05: before any `spawnMonster` or `startCombat` call, `begin` refuses a combatant id used twice across the ally, the ally spawns and the enemies. The refusal is `{kind:'unexpected', operation:'fight:begin', message:'combatant id "<id>" is used twice — ids must be unique across both sides'}`.
+- `replay` passes `rec.start.allySpawns ?? []` to `begin`. A record whose ids collide gets `begin`'s refusal and returns `status: 'error'`.
