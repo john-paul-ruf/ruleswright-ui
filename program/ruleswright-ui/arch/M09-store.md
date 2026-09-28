@@ -56,3 +56,16 @@ Imports engine/combat, engine/combat-profile, engine/errors, engine/replay, engi
 — `store/character.ts`
 - `CharacterSection` gains `'inventory'`.
 - New actions `grant(itemId, qty)`, `drop(itemId, qty)`, `loot(tableId, seed)`, each `mutate('inventory', …)`; rejections land in `errors.inventory`, the view is unchanged.
+
+
+<!-- combat-complete SESSION-01 --> M09
+### combat-complete SESSION-01 delta — M09 store — `src/renderer/src/store/combat.ts`
+- `createCombatStore(worlds, characters)`: `characters` is now `Pick<StoreApi, 'getState' | 'subscribe'>`. A change of character name/presence changes the ally id, which relayouts.
+- `positions: Record<string, Position> | null` is the placement for the next `begin`. It resets to the default layout on every roster change (enemy add/remove, world change, character change) and is `null` on theater packs. `move` does not change it.
+- `defaultPositions: Record<string, Position> | null` is the CX-D9 layout (allies x=0, enemies x=1, y = index in own side, character first). Only roster changes change it.
+- `setPosition(id, position)`, `resetPositions()`.
+- `live: LiveFight | null` sits alongside `fight: Combat | null`; `fight` is kept readable and always equals `live.fight`.
+- `begin()` passes `positions` and captures `start.positions` (spatial packs only).
+- `move(positions)` runs `reposition`, appends `{op:'move', positions}` to `script`, and republishes. It adds no log rows or declarations; a refusal goes to `error`.
+- `record()` writes `start.positions` through `start` (spatial packs only).
+- The store now also re-exports the type `Position`.

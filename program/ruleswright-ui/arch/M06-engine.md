@@ -103,3 +103,23 @@ Imports `ruleswright/runtime` `serializeCombat`; `./combat` (`begin`, `perform`,
   - `interface ItemOption { id; name: string | null; kind: string | null }`.
   - `type InventoryEntry` re-exported from `ruleswright/runtime`.
 - `CharacterView` gains `items: readonly ItemOption[]` (`pack.content.items` in pack order, verbatim, `null` when absent) and `lootTables: readonly string[]`; both filled in `viewOf` (CA-13).
+
+
+<!-- combat-complete SESSION-01 --> M06
+### combat-complete SESSION-01 delta — M06 engine — `src/renderer/src/engine/combat.ts`, `replay.ts`
+- Type re-exports: `Position`, `CombatRestoreRequest` (runtime) and `SpatialDef` (schema).
+- `FightStart.positions?: Record<string, Position>`; `ScriptEntry` gains `{op:'move'; positions}`.
+- `interface Sides { allies, enemies: {id, profile}[] }` holds the sides exactly as `startCombat` took them.
+- `interface LiveFight { fight: Combat; sides: Sides }`: a `move` replaces `fight` in place.
+- `begin(rt, ally, enemies, positions?) → Outcome<LiveFight>` (was `Outcome<Combat>`). Positions go to `startCombat` verbatim. On a grid pack with no positions it returns the library's `E-SPAT-01` refusal (`kind 'library'`, operation `fight:begin`).
+- `reposition(live, positions) → Outcome<Combat>` (CA-13) runs through `serializeCombat` → `deserializeCombat`. The begin-time sides are re-stated with live `{pools, boundSlots}` copied from `fight.state.combatants[id]`.
+  - Preconditions are checked in this order. Each failure returns `{kind:'unexpected', operation:'combat:move'}`, naming the condition:
+    1. the pack is spatial;
+    2. no open offer;
+    3. phase is `awaiting-declare`.
+  - A library throw becomes `toAppError('combat:move')`. Success replaces `live.fight`. It emits zero events.
+- `perform(live: LiveFight, entry) → Outcome<unknown>` (was `perform(fight: Combat, …)`); `move` → `reposition`.
+- `spatialOf(pack) → SpatialDef | null` (verbatim `pack.spatial`).
+- `distance(rt, a, b) → number` (`rt.spatial.distance`).
+- `spatialLabel(pack)` is now typed (no cast); every generated pack is `'grid'`.
+- `replay.ts`: begins with `rec.start.positions` and re-applies the script through `perform(live, …)`. The result shape is unchanged. A spatial record without `start.positions` gives `{status:'error'}` with the library's `E-SPAT-01` cards.

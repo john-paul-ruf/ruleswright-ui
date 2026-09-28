@@ -19,3 +19,10 @@
 - v1-shell plan: created (planned).
 - SESSION-01 c2 (`77d8e63`): realized as planned; adds `IpcContract`/`Channel`/`IpcRequest`/`IpcResponse`/`ApiMethod`/`Deleted`/`IpcErrorCode`, the byte/name caps, `FightRecordBody` (D-21) and `FIGHT_OUTCOMES`.
 - SESSION-06 c5 (`98a14e3`): `FightDoc` gains optional `start?: FightStartDoc`, `script?: FightScriptEntry[]`, `events?: unknown[]` (B-2, D-19); new `FightScriptEntry`, `FightStartDoc`; `FightRecordMeta` = envelope + outcome + `rng` (stored `combat.rng` verbatim) + `round` (`combat.round`) + `eventCount` (`events.length`) — no `start`/`script`/`events`/`declarations`/`combat` in list metadata.
+
+<!-- combat-complete SESSION-01 --> M01
+### combat-complete SESSION-01 delta — M01 shared — `src/shared/model.ts` (DB `af47822` names)
+- New `GridPosition { x: number; y: number }` (integers; validated by M02).
+- `FightScriptEntry` gains `{ op: 'move'; positions: Record<string, GridPosition> }`: the complete post-reposition map, every combatant.
+- `FightStartDoc.positions?: Record<string, GridPosition>`: the positions passed to `startCombat`, present iff the pack declares a spatial model.
+- `start.allySpawns` is NOT realized yet (SESSION-04).

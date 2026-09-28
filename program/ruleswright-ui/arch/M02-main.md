@@ -18,3 +18,9 @@
 - SESSION-01 c1 (`ca1d972`): root scaffold with main/preload/renderer wiring.
 - SESSION-01 c2 (`77d8e63`): realized — `storage.ts` (`createStorage(root)` → `Storage`, `StorageError`, `sha256Hex`), `dialogs.ts` (`Dialogs` interface, call-time dialog lookup), `ipc.ts` (`Handler`, `IpcHandlers`), `window.ts` (bounds/onClose signature, deferred close).
 - SESSION-06 c5 (`98a14e3`): `fightMeta` in `storage.ts` projects `rng / round / eventCount` from the stored document (S01 followUp resolved; `ipc.ts` unchanged). B-2 validation was already present from S01.
+
+<!-- combat-complete SESSION-01 --> M02
+### combat-complete SESSION-01 delta — M02 main — `src/main/storage.ts` FightDoc validation
+- `isPositions`: an object whose values are all `{x: integer, y: integer}`.
+- `script[i].op === 'move'` requires `isPositions(positions)`. The refusal text is now `script[i] is not a valid declare/respond/step/move entry`.
+- `start.positions` (when present) must be valid positions, else it is refused with `start.positions must be {[id]: {x: integer, y: integer}}`.
