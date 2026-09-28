@@ -8,7 +8,7 @@ import { restore, serialize } from '../../src/renderer/src/engine/runtime';
 import { openPack } from '../../src/renderer/src/engine/schema';
 import { setPersistence } from '../../src/renderer/src/persistence/client';
 import { createCharacterStore } from '../../src/renderer/src/store/character';
-import { createCombatStore, offerEvents, roundsOf, typesOf, visibleLog } from '../../src/renderer/src/store/combat';
+import { createCombatStore, initiativeOf, offerEvents, roundsOf, typesOf, visibleLog } from '../../src/renderer/src/store/combat';
 import { createWorldsStore } from '../../src/renderer/src/store/worlds';
 import { createInProcessBridge } from '../support/in-process-bridge';
 import { makeTmpDir } from '../support/tmp';
@@ -363,5 +363,24 @@ describe('placement and moves (CAP-06, CA-12..14)', () => {
     await store2.getState().replay('grid watch');
     expect(store2.getState().replayed?.result).toEqual({ status: 'complete' });
     expect(JSON.stringify(store2.getState().replayed?.events)).toBe(JSON.stringify(doc.events));
+  });
+});
+
+describe('initiative provenance (CAP-01, CA-01)', () => {
+  it('initiativeOf is the combat:start event: its order is state.order after begin and still after a move', async () => {
+    const { store } = await setup();
+    expect(initiativeOf([])).toBeUndefined();
+    store.getState().addEnemy('barrow-wight');
+    store.getState().addEnemy('barrow-wight');
+    expect(store.getState().begin()).toBe(true);
+    const start = initiativeOf(store.getState().log);
+    expect(start?.type).toBe('combat:start');
+    expect(start?.why.rule).toBe('combat.startCombat');
+    expect(start?.payload.order).toEqual(store.getState().state?.order);
+    drive(store, quietAfter(store, 5));
+    store.getState().move(shifted(store));
+    expect(store.getState().error).toBeNull();
+    expect(initiativeOf(store.getState().log)).toBe(start);
+    expect(start?.payload.order).toEqual(store.getState().state?.order);
   });
 });

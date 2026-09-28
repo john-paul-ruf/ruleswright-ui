@@ -6,6 +6,7 @@
 import {
   bestiaryIds,
   deserializeCombat,
+  resolveSlotGrants,
   serializeCombat,
   spatialFromPack,
   spawnMonster,
@@ -18,7 +19,7 @@ import {
   type RuntimeEvent,
   type StepOutcome,
 } from 'ruleswright/runtime';
-import type { Pack, SpatialDef } from 'ruleswright/schema';
+import type { ActionCost, Pack, SpatialDef } from 'ruleswright/schema';
 import { toAppError } from './errors';
 import type { CharacterSnapshot, Outcome } from './runtime';
 
@@ -37,7 +38,7 @@ export type {
   Position,
   CombatRestoreRequest,
 } from 'ruleswright/runtime';
-export type { SpatialDef } from 'ruleswright/schema';
+export type { ActionCost, SpatialDef } from 'ruleswright/schema';
 
 /** One bestiary spawn on the enemy side, in `startCombat` order (B-2). */
 export interface EnemySpec {
@@ -217,4 +218,25 @@ export function spatialOf(pack: Pack): SpatialDef | null {
 /** FR-11: the library's grid distance (`rt.spatial.distance`), never computed UI-side. */
 export function distance(rt: Runtime, a: Position, b: Position): number {
   return rt.spatial.distance(a, b);
+}
+
+/** FR-12/16 (CA-02): the pack's per-turn slot grants as the library resolves them (`resolveSlotGrants`). */
+export function slotGrants(rt: Runtime): Readonly<Record<string, number>> {
+  return resolveSlotGrants(rt.pack).slots;
+}
+
+/** CA-03: one pack action's declared parts, verbatim (`effect` is deliberately not carried). */
+export interface ActionInfo {
+  actionId: string;
+  cost: ActionCost;
+  tags: readonly string[];
+  triggerOn: string | null;
+  valid: string | null;
+}
+
+/** FR-12 (CA-03): `pack.actions[actionId]` as declared, or null for an id the pack does not define. */
+export function actionInfo(pack: Pack, actionId: string): ActionInfo | null {
+  const def = Object.hasOwn(pack.actions, actionId) ? pack.actions[actionId] : undefined;
+  if (!def) return null;
+  return { actionId, cost: def.cost, tags: def.tags ?? [], triggerOn: def.trigger?.on ?? null, valid: def.valid ?? null };
 }

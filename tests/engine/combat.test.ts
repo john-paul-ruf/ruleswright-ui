@@ -1,13 +1,16 @@
 import { generateCampaign, loadTheme } from 'ruleswright/compiler';
+import { resolveSlotGrants } from 'ruleswright/runtime';
 import { describe, expect, it } from 'vitest';
 import { allyProfile } from '../../src/renderer/src/engine/combat-profile';
 import {
+  actionInfo,
   begin,
   declare,
   distance,
   listSpawnable,
   perform,
   reposition,
+  slotGrants,
   spatialLabel,
   spatialOf,
   step,
@@ -419,5 +422,44 @@ describe('reposition (CA-13, CX-D10, CX-D11)', () => {
     const positions = Object.fromEntries(Object.keys(live.fight.state.combatants).map((id, y) => [id, { x: 2, y }]));
     value(perform(live, { op: 'move', positions }));
     for (const [id, p] of Object.entries(positions)) expect(live.fight.state.combatants[id]?.position).toEqual(p);
+  });
+});
+
+describe('slot grants and action detail (CA-02, CA-03)', () => {
+  it('slotGrants is the library resolution: dark-fantasy declares {main, move, reaction}; zombie-urban (no economy) gets the default', () => {
+    const { rt, pack } = world('dark-fantasy');
+    expect(slotGrants(rt)).toEqual({ main: 1, move: 1, reaction: 1 });
+    expect(slotGrants(rt)).toEqual(resolveSlotGrants(pack).slots);
+    const urban = world('zombie-urban');
+    expect(urban.pack.economy).toBeUndefined();
+    expect(resolveSlotGrants(urban.pack).fromPackEconomy).toBe(false);
+    expect(slotGrants(urban.rt)).toEqual(resolveSlotGrants(urban.pack).slots);
+  });
+
+  it('the turn-start ledger the library replenishes equals the grants (turn:began payload.slots)', () => {
+    const live = fightOf(world('dark-fantasy').rt);
+    const events: RuntimeEvent[] = [];
+    const off = subscribe(live.fight.runtime, (e) => events.push(e));
+    for (let i = 0; i < 12 && !events.some((e) => e.type === 'turn:began'); i += 1) value(step(live.fight));
+    off();
+    const began = events.find((e) => e.type === 'turn:began');
+    expect(began?.payload.slots).toEqual(slotGrants(live.fight.runtime));
+  });
+
+  it('actionInfo carries cost, tags, trigger.on and valid verbatim; unknown ids are null', () => {
+    const { pack } = world('dark-fantasy');
+    expect(actionInfo(pack, 'parry')).toEqual({
+      actionId: 'parry',
+      cost: pack.actions.parry?.cost,
+      tags: pack.actions.parry?.tags,
+      triggerOn: 'attack:rolled[target=self]',
+      valid: null,
+    });
+    expect(actionInfo(pack, 'cut-down')?.valid).toBe('hasTarget(adjacent)');
+    expect(actionInfo(pack, 'cut-down')?.triggerOn).toBeNull();
+    expect(actionInfo(pack, 'ember-surge')?.cost.points).toEqual({ pool: 'ember', amount: 2 });
+    expect(actionInfo(pack, 'ember-surge')).not.toHaveProperty('effect');
+    expect(actionInfo(pack, 'no-such-action')).toBeNull();
+    expect(actionInfo(pack, 'constructor')).toBeNull();
   });
 });

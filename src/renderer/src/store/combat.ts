@@ -354,8 +354,26 @@ export function createCombatStore(
 export const useCombatStore = createCombatStore();
 
 /** Library facts the Fight/Combat surfaces read (views reach the engine only through stores). */
-export { distance, listSpawnable, spatialLabel, spatialOf, spawnProfile } from '../engine/combat';
-export type { CombatState, CombatantState, EnemySpec, PendingTrigger, Position, RuntimeEvent, SpatialDef } from '../engine/combat';
+export { actionInfo, distance, listSpawnable, slotGrants, spatialLabel, spatialOf, spawnProfile } from '../engine/combat';
+export type {
+  ActionCost,
+  ActionInfo,
+  CombatState,
+  CombatantState,
+  EnemySpec,
+  PendingTrigger,
+  Position,
+  RuntimeEvent,
+  SpatialDef,
+} from '../engine/combat';
+
+/**
+ * FR-11/12 (CA-01): the fight's `combat:start` event — initiative order, bonuses and rolls as the library
+ * emitted them — or undefined when this log does not hold it.
+ */
+export function initiativeOf(log: readonly RuntimeEvent[]): RuntimeEvent | undefined {
+  return log.find((e) => e.type === 'combat:start');
+}
 
 /** FR-13: rounds present in the log, ascending. */
 export function roundsOf(log: readonly RuntimeEvent[]): number[] {
