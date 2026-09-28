@@ -70,6 +70,52 @@
   color: var(--dim);
 }
 
+/* Assemble by threat (CX): below the add row, mirrors the Character → Inventory Loot row. */
+.fight-assemble {
+  margin-top: var(--space-4);
+}
+
+.fight-assemble-kicker {
+  margin-bottom: var(--space-1);
+}
+
+.fight-assemble-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.fight-assemble-row .btn {
+  flex-shrink: 0;
+}
+
+.fight-assemble-budget {
+  width: 80px;
+  flex: none;
+}
+
+.fight-assemble-seed {
+  width: 96px;
+  flex: none;
+}
+
+.fight-assemble-hint {
+  margin-top: var(--space-2);
+  font-size: var(--text-10);
+  color: var(--dim);
+}
+
+.fight-assemble-summary {
+  margin-top: var(--space-2);
+  font-size: var(--text-11);
+  color: var(--accent-strong);
+  word-break: break-word;
+}
+
+.fight-assemble-error {
+  margin-top: var(--space-2);
+}
+
 /* Placement · grid (CX Placement board): board left, one row per combatant right; stacked below `lg`. */
 .place-spatial {
   margin-top: var(--space-2);

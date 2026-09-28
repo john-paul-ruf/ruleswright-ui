@@ -44,7 +44,7 @@ function Fight({ active }: { active: ActiveWorld }): JSX.Element {
           Begin combat →
         </Button>
       </header>
-      {error && <ErrorCard error={error} />}
+      {error && error.operation !== ASSEMBLE && <ErrorCard error={error} />}
 
       <div className="fight-sides">
         <AlliesPanel runtime={runtime} />
@@ -171,8 +171,82 @@ function EnemiesPanel({ runtime }: { runtime: ActiveWorld['runtime'] }): JSX.Ele
           + Add spawn
         </Button>
       </div>
+      <AssembleByThreat />
       <p className="fight-note">Spawns are the pack&apos;s bestiary ids — no monsters are invented UI-side.</p>
     </Panel>
+  );
+}
+
+const ASSEMBLE = 'fight:assemble';
+
+function isFiniteNumber(text: string): boolean {
+  return text.trim() !== '' && Number.isFinite(Number(text));
+}
+
+/**
+ * FR-11 threat budget (CX Assemble by threat row): budget + an explicit encounter seed → the library's
+ * `assembleEncounter`; its result is shown verbatim (CA-08). Only finite numbers enable Assemble.
+ */
+function AssembleByThreat(): JSX.Element {
+  const encounter = useCombatStore((s) => s.encounter);
+  const error = useCombatStore((s) => s.error);
+  const assemble = useCombatStore((s) => s.assembleEnemies);
+  const [budget, setBudget] = useState('');
+  const [seed, setSeed] = useState('');
+  const ready = isFiniteNumber(budget) && isFiniteNumber(seed);
+
+  function randomizeSeed(): void {
+    // A user-initiated pick into the visible field, never passed implicitly (Constraints: the encounter seed).
+    setSeed(String(crypto.getRandomValues(new Uint32Array(1))[0]));
+  }
+
+  const groups = encounter && (encounter.groups.length === 0 ? '(none)' : encounter.groups.map((g) => `${g.id} ×${g.count}`).join(', '));
+  return (
+    <div className="fight-assemble">
+      <p className="kicker fight-assemble-kicker">Assemble by threat</p>
+      <div className="fight-assemble-row">
+        <Input
+          className="mono fight-assemble-budget"
+          type="number"
+          step="any"
+          aria-label="threat budget"
+          title="budget"
+          data-testid="fight-assemble-budget"
+          value={budget}
+          onChange={(e) => setBudget(e.target.value)}
+        />
+        <Input
+          className="mono fight-assemble-seed"
+          type="number"
+          step={1}
+          aria-label="encounter seed"
+          title="seed"
+          data-testid="fight-assemble-seed"
+          value={seed}
+          onChange={(e) => setSeed(e.target.value)}
+        />
+        <Button data-testid="fight-assemble-seed-randomize" onClick={randomizeSeed}>
+          <span aria-hidden="true">⟳</span> Randomize
+        </Button>
+        <Button variant="primary" data-testid="fight-assemble" disabled={!ready} onClick={() => assemble(Number(budget), Number(seed))}>
+          Assemble
+        </Button>
+      </div>
+      <p className="mono fight-assemble-hint">
+        budget · seed — the encounter seed is explicit: typed, or picked by Randomize before the library is called
+      </p>
+      {encounter && (
+        <p className="mono fight-assemble-summary" data-testid="fight-encounter-summary">
+          encounter · groups {groups} · threat {encounter.threat} · budget {encounter.budget} · seedUsed {encounter.seedUsed} · heuristic{' '}
+          {encounter.heuristic}
+        </p>
+      )}
+      {error && error.operation === ASSEMBLE && (
+        <div className="fight-assemble-error" data-testid="fight-assemble-error" role="alert">
+          <ErrorCard error={error} />
+        </div>
+      )}
+    </div>
   );
 }
 
