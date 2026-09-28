@@ -1,7 +1,8 @@
 /**
- * CAP-09 (FR-11–13; CA-05, CA-07, CA-08) and CAP-06 (FR-11 grid; CA-12, CA-13, CA-15) through the real built
- * app: fight assembly from the active character plus bestiary spawns, placement, the declare/step/respond loop to
- * `combat-over`, the board and reposition, and the provenanced log. Every expected value comes from the same
+ * CAP-09 (FR-11–13; CA-05, CA-07, CA-08), CAP-06 (FR-11 grid; CA-12, CA-13, CA-15) and CAP-01/02 (FR-11/12/16;
+ * CA-01..04) through the real built app: fight assembly from the active character plus bestiary spawns, placement,
+ * the declare/step/respond loop to `combat-over`, the board and reposition, turn order, initiative, slot ledgers,
+ * conditions, action detail, and the provenanced log. Every expected value comes from the same
  * library calls made in the test process on the stored pack bytes, at the positions the UI shows before Begin.
  */
 import { readdirSync, readFileSync } from 'node:fs';
@@ -12,6 +13,7 @@ import {
   createCharacter,
   deserializeCombat,
   profileFromCharacter,
+  resolveSlotGrants,
   serializeCombat,
   spawnMonster,
   startCombat,
@@ -554,8 +556,161 @@ test('theater-of-mind: an imported pack without `spatial` has no placement, no b
   await page.getByTestId('fight-begin').click();
   await expect(page.getByTestId('combat-phase')).toHaveText('awaiting-declare');
   await expect(page.locator('.combat-head')).toContainText('theater-of-mind');
+  await expect(page.getByTestId('combat-spatial-caption')).toHaveText('this pack declares no spatial model');
   await expect(page.getByTestId('combat-board')).toHaveCount(0);
   const ref = referenceFight(packOf(rw.userData), 1);
   await expect(page.getByTestId('combat-event')).toHaveCount(ref.events.length);
   await shot(page, 'combat-theater-fantasy-wide');
+});
+
+/** The Turn order rows as shown: `[id, data-active]` in panel order. */
+async function orderRows(page: Page): Promise<string[][]> {
+  return page
+    .locator('[data-testid^="combat-order-"][data-active]')
+    .evaluateAll((els) => els.map((el) => [el.getAttribute('data-testid')?.slice('combat-order-'.length) ?? '', el.getAttribute('data-active') ?? '']));
+}
+
+/** CA-02/CA-04 + turn position: every combatant's detail and the order panel equal the reference fight's state. */
+async function economyMatches(page: Page, ref: Reference, grants: Readonly<Record<string, number>>): Promise<void> {
+  const { state } = ref.fight;
+  await expect(page.getByTestId('combat-order-position')).toHaveText(`round ${state.round} · turn ${state.turn + 1} of ${state.order.length}`);
+  expect(await orderRows(page)).toEqual(state.order.map((id) => [id, String(id === state.active)]));
+  for (const c of Object.values(state.combatants)) {
+    await expect(page.getByTestId(`combat-ledger-${c.id}`).locator('.chip')).toHaveText(
+      Object.entries(grants).map(([name, grant]) => `${name} ${c.slots.remaining[name]}/${grant}`),
+    );
+    const pools = Object.entries(c.pools);
+    await expect(page.getByTestId(`combat-pools-${c.id}`)).toHaveText(pools.length > 0 ? pools.map(([id, n]) => `${id} ${n}`).join(' · ') : 'no pools');
+    const bound = Object.entries(c.boundSlots);
+    if (bound.length > 0) await expect(page.getByTestId(`combat-bound-${c.id}`)).toHaveText(bound.map(([l, n]) => `L${l} ×${n}`).join(' · '));
+    else await expect(page.getByTestId(`combat-bound-${c.id}`)).toHaveCount(0);
+    const conditions = page.getByTestId(`combat-conditions-${c.id}`);
+    if (c.conditions.length === 0) await expect(conditions).toHaveText('no conditions');
+    for (const k of c.conditions) await expect(conditions).toContainText(`${k.conditionId} · ${k.duration}`);
+  }
+}
+
+test('CAP-01/02: turn order, initiative, slot ledgers, conditions and action detail, in lockstep with the library', async ({ rw }) => {
+  const page = rw.page;
+  await forgeWithBrynn(page);
+  const positions = await beginAgainstWights(page, 2);
+  const pack = packOf(rw.userData) as {
+    spatial: { model: string; reach: { default: number } };
+    actions: Record<string, { cost: unknown }>;
+    content: { conditions: Record<string, { restricts?: string[] }> };
+  };
+  const ref = referenceFight(pack, 2, positions);
+  const grants = resolveSlotGrants(ref.fight.runtime.pack).slots;
+  const rows = page.getByTestId('combat-event');
+  await expect(rows).toHaveCount(ref.events.length);
+  await expect(page.getByTestId('combat-spatial-caption')).toHaveText(`model ${pack.spatial.model} · reach.default ${pack.spatial.reach.default}`);
+
+  // 1. After Begin: the order is the library's, the active row is state.active, the initiative block is combat:start verbatim.
+  const start = ref.events[0];
+  if (start?.type !== 'combat:start') throw new Error('no combat:start in the reference fight');
+  expect(await orderRows(page)).toEqual(ref.fight.state.order.map((id) => [id, String(id === ref.fight.state.active)]));
+  const initiative = page.getByTestId('combat-initiative');
+  for (const roll of start.why.rolls) await expect(initiative).toContainText(roll);
+  await expect(initiative).toContainText((start.payload.initiative as string[]).join(' · '));
+  await expect(initiative).toContainText(start.why.rule);
+  await economyMatches(page, ref, grants);
+  await shot(page, 'combat-turn-order-fantasy-wide');
+
+  // 2. Every host call in lockstep: the log, then each combatant's ledger/pools/bound/conditions and the turn position.
+  const run = async (entry: Entry): Promise<readonly RuntimeEvent[]> => {
+    const out = apply(ref, entry);
+    await perform(page, entry);
+    await expect(rows).toHaveCount(ref.events.length);
+    await economyMatches(page, ref, grants);
+    return out;
+  };
+  const quiet = () => ref.fight.state.phase === 'awaiting-declare' && ref.fight.pendingTriggers.length === 0;
+  let tried = 0;
+  for (let calls = 0; !(ref.fight.state.active === 'brynn' && quiet()); calls += 1) {
+    if (calls > 100 || ref.fight.state.phase === 'combat-over') throw new Error("Brynn's turn was never reached");
+    const entry = nextEntry(ref.fight, tried);
+    const out = await run(entry);
+    if (entry.op === 'step') tried = 0;
+    else if (entry.op === 'declare') tried = out.some((e) => e.type === 'declare:rejected') ? tried + 1 : 0;
+  }
+
+  // 3. Brynn's turn, adjacent to barrow-wight-1 (the placement shown; the library's distance is its reach.default).
+  const brynnAt = ref.fight.state.combatants.brynn?.position;
+  const wightAt = ref.fight.state.combatants['barrow-wight-1']?.position;
+  if (!brynnAt || !wightAt) throw new Error('positions missing');
+  expect(ref.fight.runtime.spatial.distance(brynnAt, wightAt)).toBe(pack.spatial.reach.default);
+  await page.getByTestId('combat-declare-select').selectOption('cut-down');
+  const detail = page.getByTestId('combat-action-detail');
+  await expect(detail).toContainText('Action · cut-down');
+  await expect(detail).toContainText(JSON.stringify(pack.actions['cut-down']?.cost));
+  await expect(detail).toContainText('"main":1');
+  await expect(detail).toContainText('hasTarget(adjacent)');
+  const cutDown: Entry = { op: 'declare', actionId: 'cut-down', targetId: 'barrow-wight-1' };
+  expect((await run(cutDown)).some((e) => e.type === 'declare:rejected')).toBe(false);
+  await expect(page.getByTestId('combat-ledger-brynn')).toContainText(`main 0/${grants.main}`);
+  for (let offer = ref.fight.pendingTriggers[0]; offer; offer = ref.fight.pendingTriggers[0]) {
+    await run({ op: 'respond', triggerId: offer.triggerId, choice: 'decline' });
+  }
+  const ledgerBefore = await page.getByTestId('combat-ledger-brynn').textContent();
+  const rejection = (await run(cutDown)).find((e) => e.type === 'declare:rejected');
+  if (!rejection) throw new Error('the reference fight accepted a second cut-down');
+  expect(rejection.payload.kind).toBe('slot-exhausted');
+  const card = page.getByTestId('combat-rejection');
+  await expect(card).toContainText(`declare:rejected · ${String(rejection.payload.kind)}`);
+  await expect(card).toContainText(String(rejection.payload.message));
+  await expect(card).toContainText(String(rejection.payload.resource));
+  await expect(card).toContainText(rejection.why.rule);
+  expect(await page.getByTestId('combat-ledger-brynn').textContent()).toBe(ledgerBefore);
+  await shot(page, 'combat-economy-fantasy-wide');
+
+  // Answer offers and end the turn until the next declare point (a declare here would change what is compared).
+  const toNextTurn = async () => {
+    do {
+      const entry = nextEntry(ref.fight, 0);
+      await run(entry.op === 'declare' ? { op: 'step' } : entry);
+    } while (!quiet());
+  };
+
+  // CA-04: barrow-wight-1's grave-gaze puts a pack condition on Brynn, shown with the pack's `restricts` verbatim.
+  await toNextTurn();
+  expect(ref.fight.state.active).toBe('barrow-wight-1');
+  // Turn start is the library's: the first Step at awaiting-declare replenishes the ledger and emits turn:began.
+  await run({ op: 'step' });
+  const began = ref.events.at(-1);
+  expect(began?.type).toBe('turn:began');
+  expect(began?.payload.slots).toEqual(ref.fight.state.combatants['barrow-wight-1']?.slots.remaining);
+  await expect(page.getByTestId('combat-ledger-barrow-wight-1')).toContainText(`main ${grants.main}/${grants.main}`);
+  expect((await run({ op: 'declare', actionId: 'grave-gaze', targetId: 'brynn' })).some((e) => e.type === 'declare:rejected')).toBe(false);
+  const held = ref.fight.state.combatants.brynn?.conditions ?? [];
+  expect(held.length).toBeGreaterThan(0);
+  for (const { conditionId } of held) {
+    const restricts = pack.content.conditions[conditionId]?.restricts ?? [];
+    if (restricts.length > 0) await expect(page.getByTestId('combat-conditions-brynn')).toContainText(`restricts ${restricts.join(' · ')}`);
+  }
+
+  // 4. One reposition (SESSION-02 control) at the next quiet declare point: order panel, ledgers and conditions unchanged.
+  await toNextTurn();
+  const facts = async () => ({
+    order: await page.getByTestId('combat-order').textContent(),
+    ledgers: await page.locator('[data-testid^="combat-ledger-"]').allTextContents(),
+    conditions: await page.locator('[data-testid^="combat-conditions-"]').allTextContents(),
+  });
+  const before = await facts();
+  const eventsBefore = ref.events.length;
+  await page.getByTestId('combat-move').click();
+  await page.getByTestId('combat-token-brynn').focus();
+  await page.keyboard.press('ArrowDown');
+  await page.getByTestId('combat-move-apply').click();
+  moveReference(ref, { ...positionsOf(ref.fight), brynn: { x: brynnAt.x, y: brynnAt.y + 1 } });
+  await expect(page.getByTestId('combat-token-brynn')).toHaveAttribute('data-y', String(brynnAt.y + 1));
+  expect(await tokens(page)).toEqual(positionsOf(ref.fight));
+  expect(ref.events.length).toBe(eventsBefore);
+  await expect(rows).toHaveCount(eventsBefore);
+  expect(await facts()).toEqual(before);
+  await economyMatches(page, ref, grants);
+  for (const roll of start.why.rolls) await expect(initiative).toContainText(roll);
+  expect(await layoutFacts(page)).toMatchObject({ overflowX: 0, columnRightOfLog: true });
+  await page.setViewportSize({ width: 900, height: 800 });
+  expect(await layoutFacts(page)).toMatchObject({ overflowX: 0, columnBelowLog: true });
+  await shot(page, 'combat-economy-fantasy-narrow');
 });
