@@ -354,8 +354,8 @@ export function createCombatStore(
 export const useCombatStore = createCombatStore();
 
 /** Library facts the Fight/Combat surfaces read (views reach the engine only through stores). */
-export { listSpawnable, spatialLabel, spawnProfile } from '../engine/combat';
-export type { CombatState, CombatantState, EnemySpec, PendingTrigger, Position, RuntimeEvent } from '../engine/combat';
+export { distance, listSpawnable, spatialLabel, spatialOf, spawnProfile } from '../engine/combat';
+export type { CombatState, CombatantState, EnemySpec, PendingTrigger, Position, RuntimeEvent, SpatialDef } from '../engine/combat';
 
 /** FR-13: rounds present in the log, ascending. */
 export function roundsOf(log: readonly RuntimeEvent[]): number[] {

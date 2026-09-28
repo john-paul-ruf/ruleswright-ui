@@ -28,7 +28,16 @@ export {
   type SnapshotCardProps,
   type WorldPlateProps,
 } from './Plates';
-export { CombatOverBanner, TriggerOffer, type CombatOverBannerProps, type TriggerOfferProps } from './Combat';
+export {
+  Board,
+  CombatOverBanner,
+  TokenMark,
+  TriggerOffer,
+  type BoardPiece,
+  type BoardProps,
+  type CombatOverBannerProps,
+  type TriggerOfferProps,
+} from './Combat';
 export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog';
 export { JsonView, type JsonViewProps } from './JsonView';
 export type { AppErrorLike, ErrorCardLike, MoodLike } from './types';

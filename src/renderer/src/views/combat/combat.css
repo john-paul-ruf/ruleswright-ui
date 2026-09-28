@@ -118,6 +118,28 @@
   text-align: center;
 }
 
+/* Board (CX Combat board): the pack's spatial section, then the library's distances. */
+.combat-spatial {
+  margin-top: var(--space-2);
+  font-size: var(--text-10);
+  color: var(--dim);
+  word-break: break-all;
+}
+
+.combat-kicker-s {
+  font-size: var(--text-10);
+}
+
+.combat-dl {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-1);
+  font-size: var(--text-11);
+  overflow-wrap: anywhere;
+}
+
 /* Below the mock's `lg` breakpoint the control column stacks under the log. */
 @media (max-width: 1023px) {
   .combat-grid {

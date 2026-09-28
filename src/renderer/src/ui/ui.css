@@ -650,3 +650,130 @@
   gap: var(--space-2);
   margin-top: var(--space-6);
 }
+
+/* ── Board (CX: Board token, Placement board, Combat board) ───── */
+.board-scroll {
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+}
+
+.board {
+  display: grid;
+  grid-template-columns: 16px repeat(var(--board-cols), var(--board-cell));
+  grid-template-rows: auto repeat(var(--board-rows), var(--board-cell));
+  gap: 2px;
+  width: max-content;
+}
+
+.board-place {
+  --board-cell: 36px;
+  --board-token: 28px;
+  --board-overlap: -12px;
+}
+
+.board-combat {
+  --board-cell: 28px;
+  --board-token: 22px;
+  --board-overlap: -10px;
+}
+
+.board-ax {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-10);
+  color: var(--dim);
+}
+
+.board-sq {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-s);
+  background: var(--surface2);
+  transition: border-color var(--dur-fast);
+}
+
+.board.editing .board-sq:hover {
+  border-color: var(--accent);
+}
+
+.board-token {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--board-token);
+  height: var(--board-token);
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-size: var(--text-10);
+  font-weight: 500;
+  cursor: default;
+  transition: box-shadow var(--dur-fast);
+}
+
+.board-token-ally {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface2));
+  color: var(--accent-strong);
+}
+
+.board-token-enemy {
+  border-color: var(--accent2);
+  background: color-mix(in srgb, var(--accent2) 18%, var(--surface2));
+  color: var(--ink);
+}
+
+.board-token.active {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 18px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.board-token.selected {
+  box-shadow: 0 0 0 2px var(--accent-strong);
+}
+
+.board-token:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.board.editing .board-token {
+  cursor: grab;
+}
+
+.board-sq .board-token + .board-token {
+  margin-left: var(--board-overlap);
+}
+
+.board-token-mark {
+  --board-token: 24px;
+}
+
+.board-stack {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  padding: 2px var(--space-1);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1;
+  color: var(--dim);
+}
+
+.board-note {
+  margin-top: var(--space-1);
+  font-size: var(--text-10);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}

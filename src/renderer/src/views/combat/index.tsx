@@ -1,4 +1,4 @@
-/** Combat (M15, FR-12/13), per mocks/combat.html + DF-1: the event log is the primary panel. */
+/** Combat (M15, FR-11–13), per mocks/combat.html + DF-1 + CX: the event log is the primary panel. */
 import { useEffect, useRef } from 'react';
 import { EmptyState } from '../../shell/EmptyState';
 import { spatialLabel, useCombatStore, type RuntimeEvent } from '../../store/combat';
@@ -6,6 +6,7 @@ import { useUiStore } from '../../store/ui';
 import { useWorldsStore } from '../../store/worlds';
 import { Button, Chip, CombatOverBanner, Panel } from '../../ui';
 import { RECORD_NAME_INPUT, RecordsPanel } from '../fight/records';
+import { CombatBoard } from './board';
 import { CombatantsPanel, OffersPanel, PhasePanel } from './controls';
 import { EventLog } from './log';
 import './combat.css';
@@ -35,6 +36,7 @@ export function CombatView(): JSX.Element {
         <aside className="combat-column">
           <PhasePanel state={state} />
           <OffersPanel state={state} />
+          <CombatBoard state={state} />
           <CombatantsPanel state={state} />
           <Panel pad="s" kicker="Replay & records">
             <RecordsPanel recordable />

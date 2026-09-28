@@ -70,6 +70,87 @@
   color: var(--dim);
 }
 
+/* Placement · grid (CX Placement board): board left, one row per combatant right; stacked below `lg`. */
+.place-spatial {
+  margin-top: var(--space-2);
+  font-size: var(--text-10);
+  color: var(--dim);
+  word-break: break-all;
+}
+
+.place-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+  margin-top: var(--space-4);
+}
+
+.place-board {
+  min-width: 0;
+}
+
+.place-caption {
+  margin-top: var(--space-2);
+  font-size: var(--text-10);
+  color: var(--dim);
+}
+
+.place-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.place-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-s);
+  background: var(--surface2);
+}
+
+.place-name {
+  overflow: hidden;
+  font-size: var(--text-14);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-coords {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.place-coord {
+  width: 52px;
+  padding: var(--space-1) 6px;
+}
+
+.place-reset {
+  margin-top: var(--space-3);
+}
+
+.place-keys {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+}
+
+.place-keys-kicker {
+  font-size: var(--text-10);
+}
+
+.place-keys-lines {
+  margin-top: var(--space-2);
+  font-size: var(--text-10);
+  line-height: 1.7;
+  color: var(--dim);
+}
+
 /* Fight records (FR-14b, B-3): shared by the Fight and Combat surfaces. */
 .records,
 .records-list,
@@ -96,6 +177,13 @@
   max-height: 50vh;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* Below the mock's `lg` breakpoint the placement rows stack under the board. */
+@media (max-width: 1023px) {
+  .place-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Below the mock's `md` breakpoint the panels stack. */
