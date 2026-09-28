@@ -47,7 +47,7 @@ function Fight({ active }: { active: ActiveWorld }): JSX.Element {
       {error && <ErrorCard error={error} />}
 
       <div className="fight-sides">
-        <AlliesPanel />
+        <AlliesPanel runtime={runtime} />
         <EnemiesPanel runtime={runtime} />
       </div>
 
@@ -58,22 +58,63 @@ function Fight({ active }: { active: ActiveWorld }): JSX.Element {
   );
 }
 
-function AlliesPanel(): JSX.Element | null {
+/** The ally side (FR-11, CX Ally spawn row): the character, then its bestiary spawns in `startCombat` order. */
+function AlliesPanel({ runtime }: { runtime: ActiveWorld['runtime'] }): JSX.Element | null {
   const view = useCharacterStore((s) => s.view);
+  const allySpawns = useCombatStore((s) => s.allySpawns);
+  const add = useCombatStore((s) => s.addAllySpawn);
+  const remove = useCombatStore((s) => s.removeAllySpawn);
+  const spawnable = useMemo(() => listSpawnable(runtime), [runtime]);
+  const [pick, setPick] = useState(spawnable[0] ?? '');
   if (!view) return null;
   const { state, derived } = view;
   const classes = state.classes.map((c) => `${c.id} ${c.level}`).join(' / ');
   return (
     <Panel kicker="Allies" aside={<Chip tone="accent">your character</Chip>}>
-      <CombatantRow
-        className="fight-row"
-        data-testid="fight-ally"
-        active
-        name={state.name}
-        meta={`${state.race} · ${classes} · hp ${derived.hp} · ac ${derived.ac}`}
-        trailing={<Chip>fixed</Chip>}
-      />
+      <div className="fight-stack">
+        <CombatantRow
+          className="fight-row"
+          data-testid="fight-ally"
+          active
+          name={state.name}
+          meta={`${state.race} · ${classes} · hp ${derived.hp} · ac ${derived.ac}`}
+          trailing={<Chip>fixed</Chip>}
+        />
+        {allySpawns.map((a) => (
+          <CombatantRow
+            key={a.instanceId}
+            className="fight-row"
+            data-testid={`fight-ally-spawn-${a.instanceId}`}
+            name={a.statblockId}
+            meta={`spawnMonster · ${a.instanceId} · ally side`}
+            trailing={
+              <Button
+                size="s"
+                aria-label={`Remove ${a.instanceId}`}
+                data-testid={`fight-ally-spawn-remove-${a.instanceId}`}
+                onClick={() => remove(a.instanceId)}
+              >
+                −
+              </Button>
+            }
+          />
+        ))}
+      </div>
       <p className="fight-note">The active character anchors the ally side (FR-11). Its combat profile comes from the library.</p>
+      <div className="fight-add">
+        <Field label="Ally bestiary spawn" className="fight-grow">
+          <Select data-testid="fight-add-ally" value={pick} onChange={(e) => setPick(e.target.value)}>
+            {spawnable.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Button data-testid="fight-add-ally-submit" disabled={pick === ''} onClick={() => add(pick)}>
+          + Add bestiary spawn
+        </Button>
+      </div>
     </Panel>
   );
 }
@@ -169,13 +210,15 @@ function PlacementPanel({ pack }: { pack: ActiveWorld['pack'] }): JSX.Element | 
   const positions = useCombatStore((s) => s.positions);
   const defaults = useCombatStore((s) => s.defaultPositions);
   const enemies = useCombatStore((s) => s.enemies);
+  const allySpawns = useCombatStore((s) => s.allySpawns);
   const setPosition = useCombatStore((s) => s.setPosition);
   const resetPositions = useCombatStore((s) => s.resetPositions);
   const allyName = useCharacterStore((s) => s.view?.state.name);
   const spatial = spatialOf(pack);
   if (spatial === null || positions === null || defaults === null) return null;
 
-  const statblockOf = new Map(enemies.map((e) => [e.instanceId, e.statblockId]));
+  const statblockOf = new Map([...allySpawns, ...enemies].map((e) => [e.instanceId, e.statblockId]));
+  const enemyIds = new Set(enemies.map((e) => e.instanceId));
   let allies = 0;
   let foes = 0;
   const roster = Object.keys(defaults).flatMap((id) => {
@@ -183,7 +226,7 @@ function PlacementPanel({ pack }: { pack: ActiveWorld['pack'] }): JSX.Element | 
     const home = defaults[id];
     if (!at || !home) return [];
     const statblock = statblockOf.get(id);
-    const side = statblock === undefined ? ('ally' as const) : ('enemy' as const);
+    const side = enemyIds.has(id) ? ('enemy' as const) : ('ally' as const);
     const label = side === 'ally' ? `A${(allies += 1)}` : `E${(foes += 1)}`;
     const name = statblock ?? allyName ?? id;
     const sideName = side === 'ally' ? 'allies' : 'enemies';
