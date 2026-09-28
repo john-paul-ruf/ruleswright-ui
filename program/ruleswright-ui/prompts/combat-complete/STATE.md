@@ -24,8 +24,8 @@
 | 02 | Grid UI: placement, board, reposition; e2e green | M14 M15 M08? M17 | `src/renderer/src/views/fight/{index.tsx,fight.css}`, `src/renderer/src/views/combat/{index,controls,board}.tsx`, `src/renderer/src/views/combat/combat.css`, `src/renderer/src/ui/{Combat.tsx,ui.css,index.ts}`, `e2e/{combat,replay}.spec.ts` | pending | — | — | **done** | 3/3 | 2026-09-28 | lease r2; `58fb329` c1, `bde3bd2` c2, `f8ef15c` c3; arch `c02ec42`. e2e red window **closed** (Orchestrator re-run: unit 217/217, e2e combat+replay 7/7 on fresh build of `f8ef15c`, dirty false) |
 | 03 | Turn order, initiative, economy, conditions | M06 M09 M15 M08? M17 | `src/renderer/src/engine/combat.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/combat/{index,controls,order}.tsx`, `src/renderer/src/views/combat/combat.css`, `src/renderer/src/ui/{Combat.tsx,ui.css,index.ts}`, `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts` | pending | — | — | **done** | 3/3 | 2026-09-28 | `229cd74` c1, `462e296` c2, `a62ee03` c3; arch `e033c16`. Orchestrator re-run: unit 221/221, e2e combat 6/6 on clean build of `a62ee03` |
 | 04 | Ally-side spawns | M01 M02 M06 M09 M14 M17 | `src/shared/model.ts`, `src/main/storage.ts`, `src/renderer/src/engine/{combat,replay}.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{index.tsx,fight.css}`, `tests/main/storage.test.ts`, `tests/engine/{combat,replay}.test.ts`, `tests/store/combat.test.ts`, `e2e/{combat,replay}.spec.ts` | pending | — | — | **done** | 4/4 | 2026-09-28 | `497ab84` c1, `d88b071` c2, `9324268` c3, `bd10c7b` c4; arch `79fe4fc`. Orchestrator re-run: unit 234/234, e2e combat+replay 10/10 on clean build of `bd10c7b` |
-| 05 | Threat-budget encounters | M06 M09 M14 M17 | `src/renderer/src/engine/combat.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{index.tsx,fight.css}`, `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts` | pending | — | — | ready (S04 ✓; Spec ✓ `24601f4`, Design ✓ `9cb5aa8`); must use the store's shared `spawnOf` allocator (CA-05) |
-| 06 | Resume a recorded fight | M06 M09 M14 M17 | `src/renderer/src/engine/replay.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{records.tsx,fight.css}`, `tests/engine/replay.test.ts`, `tests/store/combat.test.ts`, `e2e/replay.spec.ts` | pending | — | — | waits on S05 (Spec ✓ `24601f4`, Design ✓ `9cb5aa8`); Resume on Fight → Records only (`recordable` false), F5 note in SESSION-06 |
+| 05 | Threat-budget encounters | M06 M09 M14 M17 | `src/renderer/src/engine/combat.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{index.tsx,fight.css}`, `tests/engine/combat.test.ts`, `tests/store/combat.test.ts`, `e2e/combat.spec.ts` | pending | — | — | **done** | 3/3 | 2026-09-28 | `650668d` c1, `ba3d122` c2, `8612519` c3; arch (see below). Orchestrator re-run: unit 244/244, e2e combat 8/8 on clean build of `8612519` |
+| 06 | Resume a recorded fight | M06 M09 M14 M17 | `src/renderer/src/engine/replay.ts`, `src/renderer/src/store/combat.ts`, `src/renderer/src/views/fight/{records.tsx,fight.css}`, `tests/engine/replay.test.ts`, `tests/store/combat.test.ts`, `e2e/replay.spec.ts` | pending | — | — | ready (S05 ✓; Spec ✓ `24601f4`, Design ✓ `9cb5aa8`); Resume on Fight → Records only (`recordable` false), F5 note in SESSION-06 |
 
 Brace globs here are shorthand; each SESSION-NN.md `Owns` line is the lease.
 
@@ -108,7 +108,7 @@ declare/respond/step, l.142–154); engine grid-combat FINAL-REPORT; loot-invent
 | `pnpm typecheck` | per PROGRAM-CONFIG | **actual** @ `268a2f1`: **GREEN** rc 0 (was RED at `tests/engine/combat.test.ts(119,25)` @ `7802c19`) | Orchestrator re-run at S01 receive |
 | `pnpm lint` | per PROGRAM-CONFIG | **actual** @ `268a2f1`: GREEN rc 0 | Orchestrator re-run at S01 receive |
 | `pnpm e2e` | `playwright test` | **actual** @ `f8ef15c`: GREEN 21/21 in 8 files (S02 `pnpm verify`); Orchestrator re-run combat+replay 7/7 on fresh build, identity dirty false. (c0 baseline: 4/4 combat/replay failed) | S02 + Orchestrator |
-| `pnpm verify` | all of the above | **actual** @ `bd10c7b`: rc 0 (S04 c4; unit 234/234, e2e 24/24) | SESSION-04 |
+| `pnpm verify` | all of the above | **actual** @ `8612519`: rc 0 (S05 c3; unit 244/244, e2e 25/25) | SESSION-05 |
 
 Commits since `7802c19` touch only `program/` files **except `9ea30c4`**, which changes only the `dev` script in `package.json` (no effect on test/typecheck/lint/e2e/verify). Re-run by Archivist 2026-09-28 @ `2b6e063`: identical (18 failed / 181 passed; typecheck single error at `tests/engine/combat.test.ts:119`).
 
@@ -128,7 +128,7 @@ Hazards: H-1 `e2e:out` exclusive · H-2 e2e needs a GUI · H-3 `file:` engine co
 | CAP-01 | FR-11/12: turn order + initiative | `combat:start`, `state.order/turn/active/round` (ready) | CA-01; DF-CX-1 ✓ `9cb5aa8`; S02 | S03 c3 | **verified** S03 c3 `a62ee03` (e2e 'CAP-01/02', Orchestrator re-run) | — |
 | CAP-02 | FR-12/16: ledger, pools, bound slots, conditions, action detail | engine state + `resolveSlotGrants` + `pack.actions` (ready) | CA-02..04; DF-CX-1 ✓ `9cb5aa8` | S03 c3 | **verified** S03 c3 `a62ee03` (e2e 'CAP-01/02', Orchestrator re-run) | Library behavior noted: slots refill on the first Step of a turn (shown, not changed) |
 | CAP-03 | FR-11: ally-side spawns, recorded + replayed | multi-ally `startCombat` (ready); FightDoc `start.allySpawns` (DB committed `af47822`) | CA-04b, CA-05, CA-06 | S04 c4 | **verified** S04 c4 `bd10c7b` (e2e 'CAP-03' + 'CAP-03 / CA-04b'; unit restart leg) | Library accepts a `positions` key naming no combatant (negative control: replay `diverged at event 0`, not a refusal) → engine-program note |
-| CAP-04 | FR-11 (amendment, **approved Q2 a**): threat-budget encounter | `assembleEncounter`/`spawnEncounter` (ready) | CA-07, CA-08, CA-05 | S05 c3 | planned | probe (rev 1) | Spec ✓ `24601f4`, Design ✓ `9cb5aa8` (Assemble by threat row) |
+| CAP-04 | FR-11 (amendment, **approved Q2 a**): threat-budget encounter | `assembleEncounter`/`spawnEncounter` (ready) | CA-07, CA-08, CA-05 | S05 c3 | **verified** S05 c3 `8612519` (e2e 'CAP-04': summary/roster/order = reference, lockstep, record → restart → replay complete) | — |
 | CAP-05 | FR-14 (amendment, **approved Q3 a**): resume | FightDoc (ready after S01/S04); shared rebuild path (S01) | CA-09..11 | S06 c3 | planned | `replay.ts`, `database.md` | Spec ✓ `24601f4`, Design ✓ `9cb5aa8` (Resume action — Fight → Records only) |
 | CAP-10 | FR-14 (existing): record + replay | existing | CA-14 | S01 c2–c3 (unit), S02 c3 (e2e) | **verified** (unit S01; e2e S02 `f8ef15c` CAP-10 setup-only repair, tamper leg unchanged) | Orchestrator re-run e2e 7/7 @ `f8ef15c` | — |
 | CAP-09 | FR-11/12/13 (existing): combat loop | existing | CA-12 | S01 c3 (unit), S02 c3 (e2e) | **verified** (unit S01; e2e S02 `f8ef15c` CAP-09/keyboard/500-event setup-only repair) | Orchestrator re-run e2e 7/7 @ `f8ef15c` | — |
@@ -145,7 +145,7 @@ rejection → reposition → hit → record → restart → replay `complete`. S
 | CA-15 | Distance is the library's | `rt.spatial.distance` → `engine.distance` → board | number only; no reach judgement | S02 c3 | agreed | **landed** S02 `58fb329` (store re-export, `CombatBoard`) | **verified** S02 c3 `f8ef15c`: each `combat-distance-<id>` = `ref.fight.runtime.spatial.distance` before and after the move |
 | CA-01..04 | (rev 1; CA-03 adds `valid`) | see SESSION-03 | — | S03 | agreed | **landed** S03 `229cd74`/`462e296` (`slotGrants`, `actionInfo`, `initiativeOf`, TurnOrderPanel, Action/Combatant detail) | **verified** S03 c3 `a62ee03`: e2e 'CAP-01/02' lockstep — order/initiative verbatim, ledgers `remaining/grant` after every call, conditions + pack `restricts` (hexbound), action detail cost JSON/`valid`, slot-exhausted card = reference; Orchestrator re-run 6/6 |
 | CA-04b, CA-05, CA-06 | (rev 1; CA-05 also protects position keys) | see SESSION-04 | — | S04 | CA-04b names committed `af47822`: `start.allySpawns?: [{statblockId, instanceId}]` (non-empty only, ally order after the character) | **landed** S04 `497ab84`/`d88b071` (`SpawnSpec`, `begin(…, allySpawns)`, `isSpawns`, shared `spawnOf` allocator, CA-05 refusal before `startCombat`) | **verified** S04 c4 `bd10c7b`: e2e 'CAP-03' lockstep to combat-over; replay.spec 'CAP-03 / CA-04b' stored `start.allySpawns` = panel rows, restart → complete; CA-05 unit (4 collisions, replay error, store no side effects); CA-06 legacy unit; Orchestrator re-run 10/10 |
-| CA-07, CA-08 | (rev 1) | see SESSION-05 | — | S05 | agreed | ready | planned |
+| CA-07, CA-08 | (rev 1) | see SESSION-05 | — | S05 | agreed | **landed** S05 `650668d` (`assemble` → `{encounter, spawns}`; store `encounter`/`assembleEnemies`) | **verified** S05 c3 `8612519`: CA-07 unit `spawnMonster` deep-equal on 12 bodies; CA-08 e2e summary = Node `assembleEncounter` (budget 3 seed 7), CX-D5 unit; CA-05 assembly-path collision refused; Orchestrator re-run 8/8. Length-mismatch guard untestable without mocking the library (recorded) |
 | CA-09..11 | (rev 1; CA-09 adds positions) | see SESSION-06 | — | S06 | agreed | planned | planned |
 
 ## Planning Completeness Review
@@ -351,3 +351,57 @@ Human decisions: **none open** (Q1–Q4 answered 2026-09-27).
   - SESSION-06: Resume should call `begin(..., rec.start.allySpawns ?? [])` through the same seam as `replay.ts`.
   - No remaining proof owners for CAP-03, CA-04b, CA-05 or CA-06.
 - Orchestrator receive: 4 commits = handoff checkpoint 4; `git show --name-only` of each ⊂ lease r1 (`fight.css` untouched). Orchestrator re-ran `pnpm typecheck` rc 0, `pnpm lint` rc 0, `pnpm test` 234/234, `pnpm e2e e2e/combat.spec.ts e2e/replay.spec.ts` 10/10 under `e2e:out` (identity head `bd10c7b`, dirty false); Custom Rule 1 grep empty. Arch delta consumed → `79fe4fc`. Accepted. CAP-03, CA-04b, CA-05, CA-06 verified. Surprises accepted: design row governs spawn meta text (plan test ids kept); add button without "…" mirrors the enemy panel; PlacementPanel naming fix inside the lease. Negative-control finding (library accepts a `positions` key for a missing combatant; replay diverges at event 0 instead of refusing) → Final Report residual gap, engine program as owner (EG class, alongside EG-1). followUp routed: shared `spawnOf` allocator → SESSION-05 envelope; Resume passes `rec.start.allySpawns ?? []` through the replay seam → SESSION-06 envelope.
+
+### SESSION-05 — done 2026-09-28 (3/3: `650668d`, `ba3d122`, `8612519`)
+- notes: CAP-04 threat-budget encounter **complete**: producer and unit proofs at c1, UI at c2, packaged proof at c3. Commits: `650668d` c1, `ba3d122` c2, `8612519` c3. Lease r1 (plan rev 2, Q2 = a). Sources: Spec `24601f4` FR-11 threat criterion; Design `9cb5aa8` "Assemble by threat row (CX)". CA-07 producer: `engine/combat.ts` `assemble(rt, budget, seed)` → `{encounter, spawns}`. Instance ids come from the returned `profile.id`, and statblock ids from `encounter.groups` expanded in order. A length mismatch returns `unexpected` `fight:assemble`. CA-08 producer: store `encounter` (verbatim) and `assembleEnemies(budget, seed)`:
+  - a throw becomes `toAppError('fight:assemble', e)`;
+  - empty groups set the summary and leave the roster unchanged (CX-D5);
+  - non-empty groups replace `enemies` and re-run `relayout()` (ally spawns kept);
+  - a world change clears `encounter`.
+  CA-05 holds: an assembled id already on the ally side (character or ally spawn) is refused and the roster is unchanged. The check uses the same `allyIds()` set as the shared `spawnOf` allocator. M14 `AssembleByThreat` sits in the Enemies panel.
+- verification: - **c0:** probes reproduced on the installed engine `dadf461` (clean):
+    - dark-fantasy·42 budget 3 seed 7 → `{groups:[{barrow-wight,1}],threat 3,budget 3,seedUsed "7",heuristic threat-weighted-uniform}`, ids `[barrow-wight]`;
+    - zombie-urban·42 → `grave-shambler ×2`, ids `grave-shambler-1/-2`;
+    - an empty bestiary throws the FR-16 message;
+    - `assembleEncounter`, `spawnEncounter` and `Encounter` are in `runtime.d.ts`;
+    - the FR-11 threat criterion and the design row are present.
+  - **c1:** `pnpm typecheck` rc 0 and `pnpm lint` rc 0. `pnpm exec vitest run tests/engine/combat.test.ts` → 1 file, 30/30 (25 + 5). `tests/store/combat.test.ts` → 1 file, 22/22 (17 + 5). `pnpm test` → 18 files, 244/244 (234 + 10). Proofs:
+    - CA-07: `spawnMonster(rt, statblockId, instanceId)` deep-equals every `spawnEncounter` profile on budget 40 seed 1 (3 groups, 12 bodies), and `begin` with the spawns gives `sides.enemies` profiles equal to the library's;
+    - determinism, and a different seed differs;
+    - a decimal budget is passed through, and an unaffordable budget gives empty groups;
+    - the empty-bestiary error equals `{unexpected, fight:assemble, <library message>}`;
+    - store: the roster is replaced by library ids and the layout refreshed with the ally spawn kept, CX-D5 leaves roster and placement unchanged, the CA-05 collision (ally hill-spider-1 vs budget 40 seed 1's `hill-spider ×2`) is refused with the roster unchanged and the error named, and a world change clears the summary;
+    - restart leg (real main handlers on a temp dir): `start.enemies` = `[{barrow-wight, barrow-wight}]`, and a new store replays `complete` with byte-equal events.
+    - Negative control, not committed: disabling the CA-05 guard failed exactly the CA-05 test (1/22); the file was restored and confirmed with `cmp`.
+  - **c2:** unit gates green; `pnpm build` rc 0 under `e2e:out`. Render check through the built app with a scratch driver (now deleted), by DOM geometry and computed style, dark-fantasy mood:
+    - 0 horizontal overflow at 1280 and 900;
+    - the row sits inside the Enemies panel, below the add row;
+    - inputs are 80/96px; Randomize is `btn-ghost` and Assemble `btn-primary`;
+    - the summary is 11px JetBrains Mono in `--accent-strong`;
+    - at 900 the Assemble button wraps to a second line (flex-wrap, as in the mock);
+    - the error card renders only under the row, and the inputs keep their values;
+    - Tab order is budget → seed → Randomize → Assemble.
+  - **c3:** `pnpm e2e e2e/combat.spec.ts -g CAP-04` → 1 selected, 1 passed. The test checks, in the built app:
+    - the summary equals the Node reference `assembleEncounter(rt,{budget:3,seed:7})` on the stored `pack.json`;
+    - the `fight-enemy-*` rows equal the `spawnEncounter` ids;
+    - the `fight-place-*` keys are `[brynn, …ids]` at CX-D9, and the tokens are visible;
+    - `combat-order` rows equal the reference `startCombat` order (at the board's positions), and the tokens equal the reference positions;
+    - the fight stays in step with the reference to combat-over;
+    - the stored `start.enemies` and `start.positions` equal what was shown, and events equal the reference;
+    - after `rw.restart()`, replay `data-status` is `complete`, the event count matches the record, and there are 0 divergences.
+    - Negative control, not committed: reference seed 8 → failed on `seedUsed 8` vs `seedUsed 7`; the file was restored and confirmed with `cmp`.
+    - Final `pnpm verify` rc 0: check:engine ok, typecheck/lint 0, unit 18 files 244/244, e2e 25/25 (24 + 1).
+    - `test-results/build-identity.json`: head `8612519caf79b164e03b55557bbf5b37fd47d916`, dirty false.
+  - The Custom Rule 1 grep outside `engine/` is empty.
+  - Boundaries: the real built Electron app via `e2e/fixtures.ts` (isolated userData, restart on the same dir), real main storage/IPC, and the installed engine in the renderer. The reference is the installed engine in the test process on the stored pack.
+- surprises: - **Library id naming:** `spawnEncounter` names a count-1 group with the bare statblock id (`barrow-wight`) and a count-n group `<id>-<k>`. Assembled ids can therefore differ in form from the allocator's `<id>-<n>`. The allocator treats them as taken, so a later add gives `barrow-wight-1`.
+  - **Negative control caught by the summary only:** seed 8 gives the same `barrow-wight ×1` on dark-fantasy·42, so the control is caught by the `seedUsed` text, not by the roster.
+  - **Length-mismatch guard untested:** the CA-07 guard can't be reached without mocking the library, which these test files can't do in their scope.
+  - **Design over plan:** refusals render under the row, and there is one added id, `fight-assemble-error`.
+  - **Seed inputs:** they accept any finite number, per the plan's "finite numbers only". The seed input has `step=1` to mirror the Loot row; nothing is refused for a decimal.
+  - **Refusal keeps the summary:** on a CA-05 refusal the library's summary is still shown beside the error, so the colliding group is visible.
+  - Scratch files `.program/s05-probe.mjs` and `.program/s05-look.mjs` were deleted.
+- followUp: No remaining proof owners for CAP-04, CA-07 or CA-08; CA-05 still holds with a new assembly-path proof. For SESSION-06:
+  - the assembled `start.enemies` go through the same `begin` seam;
+  - `encounter` is not fight state: `end()` keeps it, and only a world change clears it.
+- Orchestrator receive: 3 commits = handoff checkpoint 3; `git show --name-only` of each ⊂ lease r1. Orchestrator re-ran `pnpm typecheck` rc 0, `pnpm lint` rc 0, `pnpm test` 244/244, `pnpm e2e e2e/combat.spec.ts` 8/8 under `e2e:out` (identity head `8612519`, dirty false); Custom Rule 1 grep empty. Arch delta consumed (M06, M09, M14, M17). Accepted. CAP-04, CA-07, CA-08 verified; CA-05 holds on the assembly path. Surprises accepted: library bare-id naming for count-1 groups (allocator treats them as taken); negative control caught via `seedUsed` (same roster for seed 8); error card under the row per design with added id `fight-assemble-error`; summary kept on CA-05 refusal. CA-07 length-mismatch guard unexercised (needs a library mock) → Final Report verification debt. followUp routed: assembled `start.enemies` through the same `begin` seam; `encounter` survives `end()` → SESSION-06 envelope.
