@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateCampaign, loadTheme } from 'ruleswright/compiler';
-import { begin, perform, subscribe, type Combat, type Position, type RuntimeEvent, type ScriptEntry } from '../../src/renderer/src/engine/combat';
+import { assemble, begin, perform, subscribe, type Combat, type Position, type RuntimeEvent, type ScriptEntry } from '../../src/renderer/src/engine/combat';
 import { allyProfile } from '../../src/renderer/src/engine/combat-profile';
 import { restore, serialize } from '../../src/renderer/src/engine/runtime';
 import { openPack } from '../../src/renderer/src/engine/schema';
@@ -472,5 +472,94 @@ describe('initiative provenance (CAP-01, CA-01)', () => {
     expect(store.getState().error).toBeNull();
     expect(initiativeOf(store.getState().log)).toBe(start);
     expect(start?.payload.order).toEqual(store.getState().state?.order);
+  });
+});
+
+describe('threat-budget assembly (CAP-04, CA-05, CA-07, CA-08)', () => {
+  it('non-empty groups replace the enemy roster with the library ids; the default layout is refreshed, ally spawns kept', async () => {
+    const { worlds, store } = await setup();
+    const rt = worlds.getState().active?.runtime;
+    if (!rt) throw new Error('setup');
+    store.getState().addAllySpawn('hill-spider');
+    store.getState().addEnemy('grave-shambles');
+    store.getState().setPosition('brynn', { x: 6, y: 6 });
+    expect(store.getState().assembleEnemies(3, 7)).toBe(true);
+    const s = store.getState();
+    const reference = assemble(rt, 3, 7);
+    if (!reference.ok) throw new Error('reference');
+    expect(s.encounter).toEqual(reference.value.encounter);
+    expect(s.enemies).toEqual([{ statblockId: 'barrow-wight', instanceId: 'barrow-wight' }]);
+    expect(s.error).toBeNull();
+    const layout = { brynn: { x: 0, y: 0 }, 'hill-spider-1': { x: 0, y: 1 }, 'barrow-wight': { x: 1, y: 0 } };
+    expect([s.defaultPositions, s.positions]).toEqual([layout, layout]);
+    // The shared allocator still hands out fresh ids beside the library's.
+    store.getState().addEnemy('barrow-wight');
+    expect(store.getState().enemies.map((e) => e.instanceId)).toEqual(['barrow-wight', 'barrow-wight-1']);
+    store.getState().removeEnemy('barrow-wight-1');
+
+    expect(store.getState().begin()).toBe(true);
+    expect(store.getState().start?.enemies).toEqual([{ statblockId: 'barrow-wight', instanceId: 'barrow-wight' }]);
+    expect(store.getState().state?.combatants['barrow-wight']).toMatchObject({ side: 'enemies', position: { x: 1, y: 0 } });
+  });
+
+  it('CX-D5: empty groups show the summary and leave the roster and placement unchanged', async () => {
+    const { store } = await setup();
+    store.getState().addEnemy('barrow-wight');
+    store.getState().setPosition('barrow-wight-1', { x: 4, y: 4 });
+    const before = store.getState();
+    expect(store.getState().assembleEnemies(0.5, 7)).toBe(true);
+    const s = store.getState();
+    expect(s.encounter).toEqual({ groups: [], threat: 0, budget: 0.5, seedUsed: '7', heuristic: 'threat-weighted-uniform' });
+    expect([s.enemies, s.positions, s.defaultPositions]).toEqual([before.enemies, before.positions, before.defaultPositions]);
+  });
+
+  it('CA-05: an assembled id already on the ally side is refused — roster and placement unchanged, error named', async () => {
+    const { store } = await setup();
+    store.getState().addAllySpawn('hill-spider');
+    store.getState().addEnemy('barrow-wight');
+    const before = store.getState();
+    // dark-fantasy · 42 budget 40 seed 1 holds hill-spider ×2 → hill-spider-1, the ally spawn's id.
+    expect(store.getState().assembleEnemies(40, 1)).toBe(false);
+    const s = store.getState();
+    expect(s.error).toEqual({
+      kind: 'unexpected',
+      operation: 'fight:assemble',
+      message: 'combatant id "hill-spider-1" is already on the ally side — ids must be unique across both sides',
+    });
+    expect(s.encounter?.groups).toContainEqual({ id: 'hill-spider', count: 2 });
+    expect([s.enemies, s.allySpawns, s.positions]).toEqual([before.enemies, before.allySpawns, before.positions]);
+    // The next success clears the refusal.
+    expect(store.getState().assembleEnemies(3, 7)).toBe(true);
+    expect(store.getState().error).toBeNull();
+  });
+
+  it('a world change clears the encounter summary with the roster', async () => {
+    const { worlds, store } = await setup();
+    store.getState().assembleEnemies(3, 7);
+    expect(store.getState().encounter).not.toBeNull();
+    expect(await worlds.getState().forge({ themeId: 'dark-fantasy', seed: 43, knobs: KNOBS })).toBe(true);
+    expect([store.getState().encounter, store.getState().enemies]).toEqual([null, []]);
+  });
+
+  it('restart leg: an assembled fight records start.enemies as assembled and replays complete from a new store', async () => {
+    const { worlds, store } = await setup();
+    expect(store.getState().assembleEnemies(3, 7)).toBe(true);
+    expect(store.getState().begin()).toBe(true);
+    drive(store);
+    expect(store.getState().over).toBe(true);
+    expect(await store.getState().record('threat watch')).toBe(true);
+
+    const worldId = worlds.getState().active?.meta.id as string;
+    const doc = JSON.parse(readFileSync(join(root, 'fights', worldId, 'threat watch.json'), 'utf8'));
+    expect(doc.start.enemies).toEqual([{ statblockId: 'barrow-wight', instanceId: 'barrow-wight' }]);
+    expect(doc.start.positions).toEqual({ brynn: { x: 0, y: 0 }, 'barrow-wight': { x: 1, y: 0 } });
+
+    setPersistence(createInProcessBridge(root));
+    const worlds2 = createWorldsStore();
+    expect(await worlds2.getState().open(worldId)).toBe(true);
+    const store2 = createCombatStore(worlds2, createCharacterStore(worlds2));
+    await store2.getState().replay('threat watch');
+    expect(store2.getState().replayed?.result).toEqual({ status: 'complete' });
+    expect(JSON.stringify(store2.getState().replayed?.events)).toBe(JSON.stringify(doc.events));
   });
 });

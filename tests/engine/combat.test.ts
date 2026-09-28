@@ -1,9 +1,10 @@
 import { generateCampaign, loadTheme } from 'ruleswright/compiler';
-import { resolveSlotGrants } from 'ruleswright/runtime';
+import { assembleEncounter, resolveSlotGrants, spawnEncounter, spawnMonster } from 'ruleswright/runtime';
 import { describe, expect, it } from 'vitest';
 import { allyProfile } from '../../src/renderer/src/engine/combat-profile';
 import {
   actionInfo,
+  assemble,
   begin,
   declare,
   distance,
@@ -515,5 +516,68 @@ describe('slot grants and action detail (CA-02, CA-03)', () => {
     expect(actionInfo(pack, 'ember-surge')).not.toHaveProperty('effect');
     expect(actionInfo(pack, 'no-such-action')).toBeNull();
     expect(actionInfo(pack, 'constructor')).toBeNull();
+  });
+});
+
+describe('threat-budget assembly (CAP-04, CA-07, CA-08)', () => {
+  it('probes: dark-fantasy · 42 budget 3 seed 7 → barrow-wight ×1; zombie-urban · 42 → grave-shambler ×2 — the library result verbatim', () => {
+    const dark = world('dark-fantasy');
+    const r = value(assemble(dark.rt, 3, 7));
+    expect(r.encounter).toEqual(assembleEncounter(world('dark-fantasy').rt, { budget: 3, seed: 7 }));
+    expect(r.encounter).toEqual({
+      groups: [{ id: 'barrow-wight', count: 1 }],
+      threat: 3,
+      budget: 3,
+      seedUsed: '7',
+      heuristic: 'threat-weighted-uniform',
+    });
+    expect(r.spawns).toEqual([{ statblockId: 'barrow-wight', instanceId: 'barrow-wight' }]);
+
+    const urban = value(assemble(world('zombie-urban').rt, 3, 7));
+    expect(urban.encounter.groups).toEqual([{ id: 'grave-shambler', count: 2 }]);
+    expect(urban.spawns).toEqual([
+      { statblockId: 'grave-shambler', instanceId: 'grave-shambler-1' },
+      { statblockId: 'grave-shambler', instanceId: 'grave-shambler-2' },
+    ]);
+  });
+
+  it('CA-07: instance ids are the returned profile ids, statblocks the groups expanded in order; spawnMonster deep-equals each profile', () => {
+    const { rt } = world('dark-fantasy');
+    const { encounter, spawns } = value(assemble(rt, 40, 1));
+    expect(encounter.groups.length).toBeGreaterThan(1);
+    const profiles = spawnEncounter(world('dark-fantasy').rt, encounter);
+    expect(spawns.map((s) => s.instanceId)).toEqual(profiles.map((p) => p.id));
+    expect(spawns.map((s) => s.statblockId)).toEqual(encounter.groups.flatMap((g) => Array<string>(g.count).fill(g.id)));
+    spawns.forEach((s, i) => expect(spawnMonster(rt, s.statblockId, s.instanceId)).toEqual(profiles[i]));
+
+    // The spawns begin a fight whose enemy profiles are exactly the library's.
+    const ally = value(allyProfile(rt, brynn(rt), 'brynn'));
+    const { sides } = value(begin(rt, ally, spawns, layout(ally, spawns)));
+    expect(sides.enemies.map((e) => e.profile)).toEqual(profiles);
+  });
+
+  it('is deterministic per seed; another seed can differ (zombie-urban · 42 budget 3 seed 8 → slab-brute)', () => {
+    expect(value(assemble(world('zombie-urban').rt, 3, 7))).toEqual(value(assemble(world('zombie-urban').rt, 3, 7)));
+    const other = value(assemble(world('zombie-urban').rt, 3, 8));
+    expect(other.encounter.groups).toEqual([{ id: 'slab-brute', count: 1 }]);
+    expect(other.encounter.seedUsed).toBe('8');
+  });
+
+  it('a decimal budget is passed through; a budget nothing fits is empty groups, not an error (CX-D5 belongs to the store)', () => {
+    const half = value(assemble(world('dark-fantasy').rt, 2.5, 7));
+    expect(half.encounter).toEqual(assembleEncounter(world('dark-fantasy').rt, { budget: 2.5, seed: 7 }));
+    expect(half.encounter.budget).toBe(2.5);
+    const none = value(assemble(world('dark-fantasy').rt, 0.5, 7));
+    expect(none).toEqual({ encounter: { groups: [], threat: 0, budget: 0.5, seedUsed: '7', heuristic: 'threat-weighted-uniform' }, spawns: [] });
+  });
+
+  it('an empty bestiary is the library throw, shaped by toAppError(fight:assemble)', () => {
+    const generated = generateCampaign({ theme: loadTheme('dark-fantasy'), seed: 42 });
+    const gate = openPack(JSON.stringify({ ...generated, bestiary: {} }));
+    if (!gate.ok) throw new Error('gate rejected a pack with an empty bestiary');
+    expect(assemble(gate.runtime, 3, 7)).toEqual({
+      ok: false,
+      error: { kind: 'unexpected', operation: 'fight:assemble', message: 'encounter assembly needs at least one bestiary statblock (FR-16).' },
+    });
   });
 });

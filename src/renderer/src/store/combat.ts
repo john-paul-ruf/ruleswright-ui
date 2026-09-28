@@ -11,6 +11,7 @@ import * as combat from '../engine/combat';
 import type {
   Combat,
   CombatState,
+  Encounter,
   EnemySpec,
   FightStart,
   LiveFight,
@@ -41,6 +42,14 @@ export interface CombatStore {
   allySpawns: SpawnSpec[];
   addAllySpawn(statblockId: string): void;
   removeAllySpawn(instanceId: string): void;
+  /** FR-11 (CA-08): the last threat-budget assembly's library result, verbatim; null until one runs. */
+  encounter: Encounter | null;
+  /**
+   * FR-11 threat budget (CA-07/08): `assembleEncounter` + `spawnEncounter`. Non-empty groups replace the enemy
+   * roster (default layout refreshed); empty groups leave it unchanged (CX-D5). An id already on the ally side is
+   * refused with the roster unchanged (CA-05). False when the library throws or the ids collide (`error`).
+   */
+  assembleEnemies(budget: number, seed: number): boolean;
   /**
    * FR-11 placement passed to the next `begin` (CA-12): the default layout after every roster change, then
    * the user's edits. Null on theater-of-mind packs (nothing is passed). A `move` does not change it.
@@ -162,10 +171,12 @@ export function createCombatStore(
 
     const worldId = (): string | null => worlds.getState().active?.meta.id ?? null;
 
+    /** CA-05: the ally side's ids — the character's, then its spawns'. */
+    const allyIds = (): (string | null)[] => [allyId(), ...get().allySpawns.map((s) => s.instanceId)];
+
     /** CA-05: one allocator over both rosters — `${statblockId}-${n}`, the smallest n unused on either side. */
     function spawnOf(statblockId: string): SpawnSpec {
-      const { enemies, allySpawns } = get();
-      const taken = new Set([allyId(), ...enemies.map((e) => e.instanceId), ...allySpawns.map((s) => s.instanceId)]);
+      const taken = new Set([...allyIds(), ...get().enemies.map((e) => e.instanceId)]);
       let n = 1;
       while (taken.has(`${statblockId}-${n}`)) n += 1;
       return { statblockId, instanceId: `${statblockId}-${n}` };
@@ -174,6 +185,7 @@ export function createCombatStore(
     return {
       enemies: [],
       allySpawns: [],
+      encounter: null,
       positions: null,
       defaultPositions: null,
       ...IDLE,
@@ -199,6 +211,30 @@ export function createCombatStore(
       removeAllySpawn(instanceId) {
         set({ allySpawns: get().allySpawns.filter((s) => s.instanceId !== instanceId) });
         relayout();
+      },
+
+      assembleEnemies(budget, seed) {
+        const rt = worlds.getState().active?.runtime;
+        if (!rt) return false;
+        const r = combat.assemble(rt, budget, seed);
+        if (!r.ok) {
+          set({ error: r.error });
+          return false;
+        }
+        const { encounter, spawns } = r.value;
+        const taken = new Set(allyIds());
+        const clash = spawns.find((s) => taken.has(s.instanceId));
+        if (clash) {
+          const message = `combatant id "${clash.instanceId}" is already on the ally side — ids must be unique across both sides`;
+          set({ encounter, error: { kind: 'unexpected', operation: 'fight:assemble', message } });
+          return false;
+        }
+        set({ encounter, error: null });
+        if (spawns.length > 0) {
+          set({ enemies: spawns });
+          relayout();
+        }
+        return true;
       },
 
       setPosition(id, position) {
@@ -364,7 +400,7 @@ export function createCombatStore(
   worlds.subscribe((next, prev) => {
     if (next.active?.runtime === prev.active?.runtime) return;
     store.getState().end();
-    store.setState({ enemies: [], allySpawns: [], records: [], recordsError: null, replayed: null });
+    store.setState({ enemies: [], allySpawns: [], encounter: null, records: [], recordsError: null, replayed: null });
     relayout();
     void store.getState().refreshRecords();
   });
@@ -388,6 +424,7 @@ export type {
   ActionInfo,
   CombatState,
   CombatantState,
+  Encounter,
   EnemySpec,
   PendingTrigger,
   Position,

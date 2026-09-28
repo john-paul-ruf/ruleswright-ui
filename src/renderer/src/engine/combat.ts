@@ -4,16 +4,19 @@
  * own events are captured with a sink, because `Combat.declare` returns the whole round's events.
  */
 import {
+  assembleEncounter,
   bestiaryIds,
   deserializeCombat,
   resolveSlotGrants,
   serializeCombat,
   spatialFromPack,
+  spawnEncounter,
   spawnMonster,
   startCombat,
   type Combat,
   type CombatantProfile,
   type EconomyBalances,
+  type Encounter,
   type Position,
   type Runtime,
   type RuntimeEvent,
@@ -35,6 +38,7 @@ export type {
   CombatSnapshot,
   CharacterSnapshot,
   DeclareOptions,
+  Encounter,
   Position,
   CombatRestoreRequest,
 } from 'ruleswright/runtime';
@@ -119,6 +123,32 @@ export function listSpawnable(rt: Runtime): readonly string[] {
 /** FR-11: a bestiary spawn's library profile (hp, actions) for the assembly roster. */
 export function spawnProfile(rt: Runtime, statblockId: string, instanceId: string): Outcome<CombatantProfile> {
   return attempt('fight:spawn', () => spawnMonster(rt, statblockId, instanceId));
+}
+
+/**
+ * FR-11 threat budget (CA-07): `assembleEncounter` at `budget` and `seed`, then `spawnEncounter`. Each spawn's
+ * instance id is the returned `profile.id`; its statblock id comes from expanding `encounter.groups` in order
+ * (the library's own loop). A count mismatch is refused, never guessed.
+ */
+export function assemble(rt: Runtime, budget: number, seed: number): Outcome<{ encounter: Encounter; spawns: SpawnSpec[] }> {
+  const r = attempt('fight:assemble', () => {
+    const encounter = assembleEncounter(rt, { budget, seed });
+    return { encounter, profiles: spawnEncounter(rt, encounter) };
+  });
+  if (!r.ok) return r;
+  const { encounter, profiles } = r.value;
+  const statblocks = encounter.groups.flatMap((g) => Array.from({ length: g.count }, () => g.id));
+  if (statblocks.length !== profiles.length) {
+    return {
+      ok: false,
+      error: {
+        kind: 'unexpected',
+        operation: 'fight:assemble',
+        message: `spawnEncounter returned ${profiles.length} combatants for ${statblocks.length} in the encounter groups`,
+      },
+    };
+  }
+  return { ok: true, value: { encounter, spawns: profiles.map((p, i) => ({ statblockId: statblocks[i] as string, instanceId: p.id })) } };
 }
 
 /** CA-05: the first combatant id used twice across both sides (the library would merge them), else null. */
