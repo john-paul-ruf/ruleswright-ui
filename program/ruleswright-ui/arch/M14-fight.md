@@ -21,3 +21,12 @@
   - The spawn rows come after the character row. Each shows the statblock name and the mono line `spawnMonster · <instanceId> · ally side`, with a ghost − remove button.
   - A bestiary picker plus "+ Add bestiary spawn" sits below the note.
 - `PlacementPanel`: the side is `enemy` only for enemy-roster ids. Names come from both rosters, so ally spawns show as `A2…` with their statblock name.
+
+
+<!-- combat-complete SESSION-05 --> M14
+### combat-complete SESSION-05 delta — M14 views/fight — `index.tsx`, `fight.css`
+- New `AssembleByThreat` (design "Assemble by threat row (CX)") inside the Enemies panel, below the add row:
+  budget + seed number inputs (finite numbers only enable Assemble), `⟳ Randomize` (user-initiated
+  `crypto.getRandomValues`), primary Assemble, dim hint, verbatim summary line
+  `encounter · groups <id ×n, …|(none)> · threat · budget · seedUsed · heuristic`; `fight:assemble` errors render
+  under the row (not in the header).

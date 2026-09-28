@@ -89,3 +89,14 @@ Imports engine/combat, engine/combat-profile, engine/errors, engine/replay, engi
 - CX-D9 layout (CA-12 extended): allies are `[character, ...allySpawns]` at `x=0`, `y` = index; enemies stay at `x=1`.
 - `begin` passes `start.allySpawns` to `engine.begin`. `start.allySpawns` is set only when non-empty, so the record body carries it only then. When `begin` refuses under CA-05, there is no fight, no log rows and no events.
 - A world change clears `allySpawns` along with the enemy roster.
+
+
+<!-- combat-complete SESSION-05 --> M09
+### combat-complete SESSION-05 delta — M09 store — `src/renderer/src/store/combat.ts`
+- New state `encounter: Encounter | null` (the last assembly's library result, verbatim; CA-08); cleared on world change.
+- New `assembleEnemies(budget, seed): boolean`: non-empty groups replace `enemies` with the library ids and re-run
+  `relayout()` (CX-D9; ally spawns kept); empty groups → `encounter` set, roster/placement unchanged (CX-D5);
+  an id already on the ally side (character id or an ally spawn) → refused, `error` `unexpected` `fight:assemble`,
+  roster unchanged (CA-05). Throw → `error` from `toAppError('fight:assemble', …)`.
+- The CA-05 ally-id set (`allyIds()`) is shared by `spawnOf` and `assembleEnemies`.
+- Re-exports type `Encounter`.

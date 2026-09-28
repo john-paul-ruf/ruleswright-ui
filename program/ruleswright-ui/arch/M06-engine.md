@@ -141,3 +141,13 @@ Imports `ruleswright/runtime` `serializeCombat`; `./combat` (`begin`, `perform`,
   - Allies passed to `startCombat` are `[character, ...allySpawns.map(spawnMonster)]`. `Sides.allies` uses the same order, so `reposition` re-states the spawns with live balances.
   - CA-05: before any `spawnMonster` or `startCombat` call, `begin` refuses a combatant id used twice across the ally, the ally spawns and the enemies. The refusal is `{kind:'unexpected', operation:'fight:begin', message:'combatant id "<id>" is used twice — ids must be unique across both sides'}`.
 - `replay` passes `rec.start.allySpawns ?? []` to `begin`. A record whose ids collide gets `begin`'s refusal and returns `status: 'error'`.
+
+
+<!-- combat-complete SESSION-05 --> M06
+### combat-complete SESSION-05 delta — M06 engine — `src/renderer/src/engine/combat.ts`
+- New: `assemble(rt, budget: number, seed: number): Outcome<{ encounter: Encounter; spawns: SpawnSpec[] }>` over
+  `assembleEncounter(rt, { budget, seed })` + `spawnEncounter`. CA-07: `spawns[i].instanceId` = returned `profile.id`,
+  `spawns[i].statblockId` = `encounter.groups` expanded in order; a count mismatch → `unexpected` `fight:assemble`.
+  A library throw (e.g. empty bestiary) → `toAppError('fight:assemble', e)`.
+- New imports from `ruleswright/runtime`: `assembleEncounter`, `spawnEncounter`, type `Encounter`; `Encounter` re-exported.
+- Library naming fact: a group of count 1 spawns with the bare statblock id (`barrow-wight`), count > 1 as `<id>-<n>`.

@@ -65,3 +65,11 @@
 - New ids: `fight-ally-spawn-<instanceId>`, `fight-ally-spawn-remove-<instanceId>`, `fight-add-ally` (select), `fight-add-ally-submit`.
 - `e2e/combat.spec.ts` 'CAP-03 …': `referenceFight(pack, wights, positions?, allySpawns = [])` now spawns ally spawns too.
 - `e2e/replay.spec.ts` 'CAP-03 / CA-04b …': `FightFile.start.allySpawns?`.
+
+
+<!-- combat-complete SESSION-05 --> M17
+### combat-complete SESSION-05 delta — M17 tests / test ids
+- New ids: `fight-assemble-budget`, `fight-assemble-seed`, `fight-assemble-seed-randomize`, `fight-assemble`,
+  `fight-encounter-summary`, `fight-assemble-error`.
+- `tests/engine/combat.test.ts` 'threat-budget assembly (CAP-04, CA-07, CA-08)' (5); `tests/store/combat.test.ts`
+  'threat-budget assembly (CAP-04, CA-05, CA-07, CA-08)' (5, incl. restart leg); `e2e/combat.spec.ts` 'CAP-04: …'.
