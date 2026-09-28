@@ -5,7 +5,8 @@
 > **Modules:** M14, M15, M08 (only if the design names a new component), M17
 > **Depends on:** SESSION-01; AUTHOR-SPEC-CX (Q4 part) + AUTHOR-DESIGN-CX (Q4 part) committed
 > **Concurrent with:** —
-> **Owns:** `src/renderer/src/views/fight/index.tsx`, `src/renderer/src/views/fight/fight.css`, `src/renderer/src/views/combat/index.tsx`, `src/renderer/src/views/combat/controls.tsx`, `src/renderer/src/views/combat/board.tsx`, `src/renderer/src/views/combat/combat.css`, `src/renderer/src/ui/Combat.tsx`, `src/renderer/src/ui/ui.css`, `src/renderer/src/ui/index.ts`, `e2e/combat.spec.ts`, `e2e/replay.spec.ts`
+> **Owns:** `src/renderer/src/views/fight/index.tsx`, `src/renderer/src/views/fight/fight.css`, `src/renderer/src/views/combat/index.tsx`, `src/renderer/src/views/combat/controls.tsx`, `src/renderer/src/views/combat/board.tsx`, `src/renderer/src/views/combat/combat.css`, `src/renderer/src/ui/Combat.tsx`, `src/renderer/src/ui/ui.css`, `src/renderer/src/ui/index.ts`, `e2e/combat.spec.ts`, `e2e/replay.spec.ts`, `src/renderer/src/store/combat.ts` (lease r2: re-export line(s) only)
+> **Lease revision:** r2 (2026-09-28, Orchestrator; r1 = plan rev 2, nothing accepted under r1)
 > **Reads:** `program/ruleswright-ui/specs/design.md`, `program/ruleswright-ui/mocks/fight.html`, `program/ruleswright-ui/mocks/combat.html`, `program/ruleswright-ui/specs/requirements.md` (FR-11, FR-14), `src/renderer/src/store/combat.ts`, `src/renderer/src/engine/combat.ts`, `src/renderer/src/views/combat/log.tsx`, `src/renderer/src/views/roll/ImportPanel.tsx`, `e2e/fixtures.ts`, `e2e/global-setup.ts`, `.program/probe-grid.mjs`
 > **Resources:** `e2e:out` (checkpoints 2–3)
 > **Checkpoints:** 3
@@ -119,3 +120,17 @@ Run `pnpm verify` under `e2e:out`. Record `test-results/build-identity.json` (he
 Report: design revisions used; any design row not honored (→ Designer request); CA-12/13/15 evidence; the
 repaired tests and what changed in each (setup only); the new test ids; negative control; build identity.
 Arch deltas: M14 `PlacementPanel`, M15 `board.tsx`. Close the e2e red window in STATE.
+
+## Orchestrator lease revision r2 (2026-09-28, from SESSION-01 followUp)
+SESSION-01 landed (`afdd9dc`, `bb1af82`, `3ec636e`). The store re-exports `listSpawnable`, `spatialLabel`,
+`spawnProfile` and type `Position` (`store/combat.ts` ~l.357) but not `spatialOf`/`distance`. Views reach the
+engine through the store (PROGRAM-CONFIG dependency flow). **Permitted edit to `src/renderer/src/store/combat.ts`:**
+add `spatialOf` and `distance` (and their types, e.g. `SpatialDef`) to the existing re-export lines — nothing else.
+For the runtime `distance` needs, use what the store/worlds store already expose; if no runtime is readable
+from a view without new store state, return `blocked` with `needsOwnerCorrection` naming the exact accessor.
+Store API available from S01: `positions`, `defaultPositions` (CX-D9, unchanged by edits), `setPosition`,
+`resetPositions()` (Placement board "Reset to default layout"; Home = `defaultPositions[id]`), `move(completeMap)`
+(refusal → `error`, operation `combat:move`), `live`, `fight`. Reposition precondition order in the engine is
+spatial → open offer → phase; mirror via `state.phase`, `pending.length`, `over`.
+Design `9cb5aa8` rows to honor: Board token (M08 candidate), Placement board, Combat board (after Trigger offers,
+so Declare → Step stays first in Tab order), Reposition control, Declare rejection examples, Spatial caption.
