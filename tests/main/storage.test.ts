@@ -265,6 +265,42 @@ describe('fights — B-2 replay fields (CA-09)', () => {
   });
 });
 
+describe('fights — CX placement and moves (CA-14)', () => {
+  const POSITIONS = { brynn: { x: 0, y: 0 }, 'barrow-wight-1': { x: 1, y: 0 } };
+  const CX = {
+    ...FIGHT,
+    start: {
+      ally: { id: 'brynn', snapshot: { kind: 'character', state: { name: 'Brynn' } } },
+      enemies: [{ statblockId: 'barrow-wight', instanceId: 'barrow-wight-1' }],
+      positions: POSITIONS,
+    },
+    script: [{ op: 'move', positions: { brynn: { x: -2, y: 5 }, 'barrow-wight-1': { x: 1, y: 0 } } }, { op: 'step' }],
+    events: [],
+  } as const;
+
+  it('accepts start.positions and move entries and preserves them verbatim on load', async () => {
+    const { id } = await storage.saveWorld(WORLD, PACK);
+    await storage.saveFight(id, 'grid', CX as never);
+    const doc = await storage.loadFight(id, 'grid');
+    expect(doc.start?.positions).toEqual(POSITIONS);
+    expect(doc.script).toEqual(CX.script);
+  });
+
+  it('refuses a non-integer coordinate, a missing y and a move without positions, each by name', async () => {
+    const { id } = await storage.saveWorld(WORLD, PACK);
+    const cases: [unknown, string][] = [
+      [{ ...CX, start: { ...CX.start, positions: { brynn: { x: 0.5, y: 0 } } } }, 'start.positions must be {[id]: {x: integer, y: integer}}'],
+      [{ ...CX, start: { ...CX.start, positions: { brynn: { x: 0 } } } }, 'start.positions must be {[id]: {x: integer, y: integer}}'],
+      [{ ...CX, script: [{ op: 'step' }, { op: 'move' }] }, 'script[1] is not a valid declare/respond/step/move entry'],
+      [{ ...CX, script: [{ op: 'move', positions: { brynn: { x: 1, y: '2' } } }] }, 'script[0] is not a valid declare/respond/step/move entry'],
+    ];
+    for (const [i, [record, message]] of cases.entries()) {
+      await expect(storage.saveFight(id, `bad ${i}`, record as never)).rejects.toMatchObject({ code: 'invalid-input', message });
+    }
+    expect(await storage.listFights(id)).toEqual([]);
+  });
+});
+
 describe('atomic writes', () => {
   it('leaves no .tmp- files behind', async () => {
     const { id } = await storage.saveWorld(WORLD, PACK);

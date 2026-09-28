@@ -129,6 +129,11 @@ function snapshotViolation(doc: unknown, worldId: string, name: string): string 
   return null;
 }
 
+/** CX `start.positions` / `move` positions: `{[combatantId]: {x: integer, y: integer}}` (database.md). */
+function isPositions(v: unknown): boolean {
+  return isObject(v) && Object.values(v).every((p) => isObject(p) && isInt(p.x) && isInt(p.y));
+}
+
 function isOutcome(v: unknown): v is FightOutcome {
   return (FIGHT_OUTCOMES as readonly unknown[]).includes(v);
 }
@@ -150,8 +155,9 @@ function fightBodyViolation(doc: Json): string | null {
           (op.op === 'respond' &&
             typeof op.triggerId === 'string' &&
             (op.choice === 'take' || op.choice === 'decline') &&
-            optStr(op.targetId)));
-      if (!ok) return `script[${i}] is not a valid declare/respond/step entry`;
+            optStr(op.targetId)) ||
+          (op.op === 'move' && isPositions(op.positions)));
+      if (!ok) return `script[${i}] is not a valid declare/respond/step/move entry`;
     }
   }
   if ('start' in doc) {
@@ -164,6 +170,7 @@ function fightBodyViolation(doc: Json): string | null {
       Array.isArray(s.enemies) &&
       s.enemies.every((e) => isObject(e) && typeof e.statblockId === 'string' && typeof e.instanceId === 'string');
     if (!enemiesOk) return 'start.enemies must be [{statblockId, instanceId}]';
+    if ('positions' in s && !isPositions(s.positions)) return 'start.positions must be {[id]: {x: integer, y: integer}}';
   }
   return null;
 }

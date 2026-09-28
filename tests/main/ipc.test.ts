@@ -110,7 +110,7 @@ describe('payload validation (CA-04)', () => {
     const r = await handlers['fight:save']({ worldId, name: 'n', record });
     expect(r).toEqual({
       ok: false,
-      error: { code: 'invalid-input', message: 'script[1] is not a valid declare/respond/step entry', operation: 'fight:save' },
+      error: { code: 'invalid-input', message: 'script[1] is not a valid declare/respond/step/move entry', operation: 'fight:save' },
     });
     expect(snapshotTree(root)).toEqual(before);
     const good = await handlers['fight:save']({ worldId, name: 'n', record: { ...record, script: [{ op: 'step' }] } });

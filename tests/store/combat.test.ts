@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { begin, perform, subscribe, type Combat, type RuntimeEvent, type ScriptEntry } from '../../src/renderer/src/engine/combat';
+import { generateCampaign, loadTheme } from 'ruleswright/compiler';
+import { begin, perform, subscribe, type Combat, type Position, type RuntimeEvent, type ScriptEntry } from '../../src/renderer/src/engine/combat';
 import { allyProfile } from '../../src/renderer/src/engine/combat-profile';
 import { restore, serialize } from '../../src/renderer/src/engine/runtime';
 import { openPack } from '../../src/renderer/src/engine/schema';
@@ -14,6 +15,8 @@ import { makeTmpDir } from '../support/tmp';
 
 const KNOBS = { threat: 'medium', 'spell-density': 3, grittiness: 'heroic', 'demihuman-caps': 'on' };
 const BRYNN = { name: 'Brynn', race: 'hillfolk', classes: [{ id: 'warden', level: 1 }] };
+/** CX-D9 for Brynn + two barrow-wights: allies x=0, enemies x=1, y = index in its own side. */
+const CX_D9: Record<string, Position> = { brynn: { x: 0, y: 0 }, 'barrow-wight-1': { x: 1, y: 0 }, 'barrow-wight-2': { x: 1, y: 1 } };
 
 let cleanup: () => void;
 let root: string;
@@ -75,7 +78,7 @@ describe('combat store over the real library', () => {
 
     expect(store.getState().begin()).toBe(true);
     const s0 = store.getState();
-    expect(s0.start).toEqual({ ally: { id: 'brynn', snapshot: snapshotBefore }, enemies: s0.enemies });
+    expect(s0.start).toEqual({ ally: { id: 'brynn', snapshot: snapshotBefore }, enemies: s0.enemies, positions: CX_D9 });
     expect(s0.state?.phase).toBe('awaiting-declare');
     expect(s0.log[0]?.type).toBe('combat:start');
 
@@ -119,7 +122,7 @@ describe('combat store over the real library', () => {
     if (!ally.ok) throw new Error('ally');
     const events: RuntimeEvent[] = [];
     const off = subscribe(rt, (e) => events.push(e));
-    const fresh = begin(rt, ally.value, done.start.enemies);
+    const fresh = begin(rt, ally.value, done.start.enemies, done.start.positions);
     if (!fresh.ok) throw new Error('begin');
     for (const entry of done.script) perform(fresh.value, entry);
     off();
@@ -221,5 +224,144 @@ describe('record & replay through the store (CAP-10 producer)', () => {
     expect(store.getState().replayed?.result).toMatchObject({ status: 'diverged', stage: 'events' });
     expect(store.getState().records[0]?.outcome).toBe('diverged');
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ ...doc, script: [b, a, ...rest], outcome: 'diverged' });
+  });
+});
+
+type Store = Awaited<ReturnType<typeof setup>>['store'];
+
+/** Drive the store with the test policy until `done` or combat-over (bounded). */
+function drive(store: Store, done: () => boolean = () => false, limit = 2000) {
+  let tried = 0;
+  for (let calls = 0; !store.getState().over && !done() && calls < limit; calls += 1) {
+    const entry = nextEntry(store.getState().fight as Combat, tried);
+    if (entry.op === 'declare') {
+      store.getState().declare(entry.actionId, entry.targetId);
+      tried = store.getState().rejection ? tried + 1 : 0;
+    } else if (entry.op === 'respond') store.getState().respond(entry.triggerId, entry.choice);
+    else {
+      store.getState().step();
+      tried = 0;
+    }
+    expect(store.getState().error).toBeNull();
+  }
+}
+
+/** A fresh `awaiting-declare` with no open offer, at least `calls` host calls in. */
+function quietAfter(store: Store, calls: number) {
+  return () => {
+    const s = store.getState();
+    return s.script.length >= calls && s.state?.phase === 'awaiting-declare' && s.pending.length === 0;
+  };
+}
+
+const shifted = (store: Store): Record<string, Position> =>
+  Object.fromEntries(Object.values(store.getState().state?.combatants ?? {}).map((c) => [c.id, { x: (c.position?.x ?? 0) + 2, y: c.position?.y ?? 0 }]));
+
+describe('placement and moves (CAP-06, CA-12..14)', () => {
+  it('defaultPositions is CX-D9 after every roster change and ignores setPosition; resetPositions restores it', async () => {
+    const { store } = await setup();
+    expect(store.getState().defaultPositions).toEqual({ brynn: { x: 0, y: 0 } });
+    store.getState().addEnemy('barrow-wight');
+    store.getState().addEnemy('barrow-wight');
+    expect(store.getState().defaultPositions).toEqual(CX_D9);
+    expect(store.getState().positions).toEqual(CX_D9);
+    store.getState().setPosition('brynn', { x: 4, y: 2 });
+    expect(store.getState().positions?.brynn).toEqual({ x: 4, y: 2 });
+    expect(store.getState().defaultPositions).toEqual(CX_D9);
+    store.getState().resetPositions();
+    expect(store.getState().positions).toEqual(CX_D9);
+    store.getState().addEnemy('hill-spider');
+    store.getState().removeEnemy('barrow-wight-1');
+    const layout = { brynn: { x: 0, y: 0 }, 'barrow-wight-2': { x: 1, y: 0 }, 'hill-spider-1': { x: 1, y: 1 } };
+    expect(store.getState().defaultPositions).toEqual(layout);
+    expect(store.getState().positions).toEqual(layout);
+  });
+
+  it('begin passes the edited placement verbatim; start.positions records it', async () => {
+    const { store } = await setup();
+    store.getState().addEnemy('barrow-wight');
+    store.getState().setPosition('barrow-wight-1', { x: 0, y: 1 });
+    expect(store.getState().begin()).toBe(true);
+    const s = store.getState();
+    expect(s.start?.positions).toEqual({ brynn: { x: 0, y: 0 }, 'barrow-wight-1': { x: 0, y: 1 } });
+    expect(s.state?.combatants['barrow-wight-1']?.position).toEqual({ x: 0, y: 1 });
+    expect(s.live?.fight).toBe(s.fight);
+  });
+
+  it('a move appends {op: move, positions} to script, adds no log rows, replaces the fight and keeps the placement', async () => {
+    const { store } = await setup();
+    store.getState().addEnemy('barrow-wight');
+    store.getState().addEnemy('barrow-wight');
+    store.getState().begin();
+    drive(store, quietAfter(store, 5));
+    const before = store.getState();
+    const positions = shifted(store);
+    store.getState().move(positions);
+    const s = store.getState();
+    expect(s.error).toBeNull();
+    expect(s.script).toEqual([...before.script, { op: 'move', positions }]);
+    expect(s.log).toEqual(before.log);
+    expect(s.declarations).toEqual(before.declarations);
+    expect(s.fight).not.toBe(before.fight);
+    expect(s.live?.fight).toBe(s.fight);
+    for (const [id, p] of Object.entries(positions)) expect(s.state?.combatants[id]?.position).toEqual(p);
+    expect(s.positions).toEqual(CX_D9);
+  });
+
+  it('move refusals surface as error with script unchanged: after a declare, and on a theater-of-mind world', async () => {
+    const { store } = await setup();
+    store.getState().addEnemy('barrow-wight');
+    store.getState().begin();
+    const entry = nextEntry(store.getState().fight as Combat, 0);
+    if (entry.op !== 'declare') throw new Error('expected a declare');
+    store.getState().declare(entry.actionId, entry.targetId);
+    drive(store, () => store.getState().pending.length === 0);
+    const script = store.getState().script;
+    store.getState().move(shifted(store));
+    expect(store.getState().error).toMatchObject({ kind: 'unexpected', operation: 'combat:move' });
+    expect(store.getState().script).toEqual(script);
+
+    const theater: { spatial?: unknown } = generateCampaign({ theme: loadTheme('dark-fantasy'), seed: 42, knobs: KNOBS });
+    delete theater.spatial;
+    const worlds = createWorldsStore();
+    expect(await worlds.getState().importFromText(JSON.stringify(theater))).toBe(true);
+    const chars = createCharacterStore(worlds);
+    expect(chars.getState().create(BRYNN)).toBe(true);
+    const plain = createCombatStore(worlds, chars);
+    plain.getState().addEnemy('barrow-wight');
+    expect([plain.getState().positions, plain.getState().defaultPositions]).toEqual([null, null]);
+    expect(plain.getState().begin()).toBe(true);
+    expect(plain.getState().start).not.toHaveProperty('positions');
+    plain.getState().move({ brynn: { x: 0, y: 0 }, 'barrow-wight-1': { x: 1, y: 0 } });
+    expect(plain.getState().error).toMatchObject({ kind: 'unexpected', operation: 'combat:move' });
+    expect(plain.getState().script).toEqual([]);
+  });
+
+  it('restart leg: a recorded fight with a move replays complete from a new store over the real main handlers', async () => {
+    const { worlds, store } = await setup();
+    store.getState().addEnemy('barrow-wight');
+    store.getState().addEnemy('barrow-wight');
+    expect(store.getState().begin()).toBe(true);
+    const begun = structuredClone(store.getState().start?.positions);
+    drive(store, quietAfter(store, 5));
+    store.getState().move(shifted(store));
+    expect(store.getState().error).toBeNull();
+    drive(store);
+    expect(store.getState().over).toBe(true);
+    expect(await store.getState().record('grid watch')).toBe(true);
+
+    const worldId = worlds.getState().active?.meta.id as string;
+    const doc = JSON.parse(readFileSync(join(root, 'fights', worldId, 'grid watch.json'), 'utf8'));
+    expect(doc.start.positions).toEqual(begun);
+    expect(doc.start.positions).toEqual(CX_D9);
+    expect(doc.script.filter((e: ScriptEntry) => e.op === 'move')).toHaveLength(1);
+
+    setPersistence(createInProcessBridge(root));
+    const worlds2 = createWorldsStore();
+    expect(await worlds2.getState().open(worldId)).toBe(true);
+    const store2 = createCombatStore(worlds2, createCharacterStore(worlds2));
+    await store2.getState().replay('grid watch');
+    expect(store2.getState().replayed?.result).toEqual({ status: 'complete' });
+    expect(JSON.stringify(store2.getState().replayed?.events)).toBe(JSON.stringify(doc.events));
   });
 });

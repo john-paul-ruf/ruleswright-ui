@@ -1,14 +1,24 @@
 /**
- * Combat store (M09, FR-11–13): the enemy roster, the live fight and its provenanced log. Every
- * host call goes through `engine/combat` and is appended to `script` (B-2); every event on the
- * world's runtime reaches `log` while a fight is open — never dropped, never deduped (CA-07).
+ * Combat store (M09, FR-11–13): the enemy roster, grid placement, the live fight and its provenanced
+ * log. Every host call goes through `engine/combat` and is appended to `script` (B-2, CX `move`); every
+ * event on the world's runtime reaches `log` while a fight is open — never dropped, never deduped (CA-07).
  * Never throws to views.
  */
 import { create as createStore, type StoreApi } from 'zustand';
 import type { IpcResult } from '../../../shared/ipc-contract';
 import type { FightRecordMeta } from '../../../shared/model';
 import * as combat from '../engine/combat';
-import type { Combat, CombatState, EnemySpec, FightStart, PendingTrigger, RuntimeEvent, ScriptEntry } from '../engine/combat';
+import type {
+  Combat,
+  CombatState,
+  EnemySpec,
+  FightStart,
+  LiveFight,
+  PendingTrigger,
+  Position,
+  RuntimeEvent,
+  ScriptEntry,
+} from '../engine/combat';
 import { allyProfile } from '../engine/combat-profile';
 import { fromIpcError, toAppError, type AppError } from '../engine/errors';
 import { recordingOf, replay, type Declaration, type Recording, type ReplayResult } from '../engine/replay';
@@ -26,7 +36,21 @@ export interface CombatStore {
   enemies: EnemySpec[];
   addEnemy(statblockId: string): void;
   removeEnemy(instanceId: string): void;
+  /**
+   * FR-11 placement passed to the next `begin` (CA-12): the default layout after every roster change, then
+   * the user's edits. Null on theater-of-mind packs (nothing is passed). A `move` does not change it.
+   */
+  positions: Record<string, Position> | null;
+  /** CX-D9 layout for the current roster (null on theater packs); only a roster change changes it. */
+  defaultPositions: Record<string, Position> | null;
+  /** FR-11: place one combatant before Begin (host input; the library judges it at begin). */
+  setPosition(id: string, position: Position): void;
+  /** FR-11: `positions` back to `defaultPositions`. */
+  resetPositions(): void;
+  /** The open fight (`live.fight`), republished after every call. */
   fight: Combat | null;
+  /** The open fight plus its begin-time sides (the reposition seam re-states them). */
+  live: LiveFight | null;
   /** `structuredClone(fight.state)`, republished after every call. */
   state: CombatState | null;
   /** Each combatant's hp as the library reported it at begin (the bar's reference, never computed). */
@@ -40,7 +64,7 @@ export interface CombatStore {
   over: boolean;
   filters: LogFilters;
   setFilters(filters: Partial<LogFilters>): void;
-  /** What the fight was started from (B-2); captured at begin, before `startCombat`. */
+  /** What the fight was started from (B-2, CX `positions`); captured at begin, before `startCombat`. */
   start: FightStart | null;
   script: ScriptEntry[];
   /** The declare calls with the combatant active when each was issued (FightDoc `declarations`). */
@@ -54,6 +78,8 @@ export interface CombatStore {
   declare(actionId: string, targetId?: string): void;
   step(): void;
   respond(triggerId: string, choice: 'take' | 'decline', targetId?: string): void;
+  /** FR-11 (CA-13): reposition every combatant (the complete map); recorded as a `move`, emits no events. */
+  move(positions: Record<string, Position>): void;
   end(): void;
   refreshRecords(): Promise<void>;
   /** FR-14b: save the open fight (start, script, events, combat snapshot) under `name`. */
@@ -66,6 +92,7 @@ type Source<S> = Pick<StoreApi<S>, 'getState' | 'subscribe'>;
 
 const IDLE = {
   fight: null,
+  live: null,
   state: null,
   hpAtStart: {},
   pending: [],
@@ -96,9 +123,14 @@ function allyIdOf(name: string): string {
 /** A combat store bound to `worlds` and `characters` (the app's stores, or a test's own). */
 export function createCombatStore(
   worlds: Source<WorldsState> = useWorldsStore,
-  characters: Pick<StoreApi<CharacterStore>, 'getState'> = useCharacterStore,
+  characters: Source<CharacterStore> = useCharacterStore,
 ) {
   let unsubscribe: (() => void) | null = null;
+
+  const allyId = (): string | null => {
+    const character = characters.getState().character;
+    return character ? allyIdOf(character.state.name) : null;
+  };
 
   const store = createStore<CombatStore>()((set, get) => {
     function publish(fight: Combat, patch: Partial<CombatStore>) {
@@ -110,16 +142,16 @@ export function createCombatStore(
       });
     }
 
-    /** Run one host call on the open fight; on success record it and republish. */
-    function call<T>(entry: ScriptEntry, run: (fight: Combat) => { ok: true; value: T } | { ok: false; error: AppError }): T | null {
-      const fight = get().fight;
-      if (!fight) return null;
-      const r = run(fight);
+    /** Run one host call on the open fight; on success record it and republish (`live.fight` may be new). */
+    function call<T>(entry: ScriptEntry, run: (live: LiveFight) => Outcome<T>): T | null {
+      const live = get().live;
+      if (!live) return null;
+      const r = run(live);
       if (!r.ok) {
         set({ error: r.error });
         return null;
       }
-      publish(fight, { script: [...get().script, entry], error: null });
+      publish(live.fight, { fight: live.fight, script: [...get().script, entry], error: null });
       return r.value;
     }
 
@@ -127,6 +159,8 @@ export function createCombatStore(
 
     return {
       enemies: [],
+      positions: null,
+      defaultPositions: null,
       ...IDLE,
       records: [],
       recordsError: null,
@@ -137,32 +171,47 @@ export function createCombatStore(
         let n = 1;
         while (taken.has(`${statblockId}-${n}`)) n += 1;
         set({ enemies: [...get().enemies, { statblockId, instanceId: `${statblockId}-${n}` }] });
+        relayout();
       },
 
       removeEnemy(instanceId) {
         set({ enemies: get().enemies.filter((e) => e.instanceId !== instanceId) });
+        relayout();
+      },
+
+      setPosition(id, position) {
+        const positions = get().positions;
+        if (positions) set({ positions: { ...positions, [id]: { x: position.x, y: position.y } } });
+      },
+
+      resetPositions() {
+        set({ positions: structuredClone(get().defaultPositions) });
       },
 
       setFilters(filters) {
         set({ filters: { ...get().filters, ...filters } });
       },
 
-      /** FR-11: snapshot the ally (B-2), derive its profile (B-1), subscribe, then start the fight. */
+      /** FR-11: snapshot the ally (B-2), derive its profile (B-1), subscribe, then start the fight at `positions`. */
       begin() {
         const rt = worlds.getState().active?.runtime;
         const character = characters.getState().character;
-        const enemies = get().enemies;
+        const { enemies, positions } = get();
         if (!rt || !character || enemies.length === 0) return false;
         get().end();
         const id = allyIdOf(character.state.name);
-        const start: FightStart = { ally: { id, snapshot: serialize(rt, character) }, enemies: enemies.map((e) => ({ ...e })) };
+        const start: FightStart = {
+          ally: { id, snapshot: serialize(rt, character) },
+          enemies: enemies.map((e) => ({ ...e })),
+          ...(positions === null ? {} : { positions: structuredClone(positions) }),
+        };
         const ally = allyProfile(rt, character, id);
         if (!ally.ok) {
           set({ error: ally.error });
           return false;
         }
         unsubscribe = combat.subscribe(rt, (e) => set((s) => ({ log: [...s.log, e] })));
-        const live = combat.begin(rt, ally.value, start.enemies);
+        const live = combat.begin(rt, ally.value, start.enemies, start.positions);
         if (!live.ok) {
           get().end();
           set({ error: live.error });
@@ -170,7 +219,7 @@ export function createCombatStore(
         }
         const { fight } = live.value;
         const hpAtStart = Object.fromEntries(Object.values(fight.state.combatants).map((c) => [c.id, c.hp.current]));
-        publish(fight, { fight, start, hpAtStart, script: [], rejection: null, error: null });
+        publish(fight, { fight, live: live.value, start, hpAtStart, script: [], rejection: null, error: null });
         return true;
       },
 
@@ -178,23 +227,28 @@ export function createCombatStore(
       declare(actionId, targetId) {
         const entry: ScriptEntry = targetId === undefined ? { op: 'declare', actionId } : { op: 'declare', actionId, targetId };
         const combatantId = get().fight?.state.active ?? '';
-        const r = call(entry, (fight) => combat.declare(fight, actionId, targetId));
+        const r = call(entry, (live) => combat.declare(live.fight, actionId, targetId));
         if (!r) return;
         const declaration = { combatantId, action: actionId, options: targetId === undefined ? {} : { targetId } };
         set({ rejection: r.rejection, declarations: [...get().declarations, declaration] });
       },
 
       step() {
-        if (call({ op: 'step' }, combat.step)) set({ rejection: null });
+        if (call({ op: 'step' }, (live) => combat.step(live.fight))) set({ rejection: null });
       },
 
       respond(triggerId, choice, targetId) {
         const entry: ScriptEntry =
           targetId === undefined ? { op: 'respond', triggerId, choice } : { op: 'respond', triggerId, choice, targetId };
-        if (call(entry, (fight) => combat.respond(fight, triggerId, choice, targetId))) set({ rejection: null });
+        if (call(entry, (live) => combat.respond(live.fight, triggerId, choice, targetId))) set({ rejection: null });
       },
 
-      /** Stop listening and drop the fight; the enemy roster stays for the next one. */
+      move(positions) {
+        const entry: ScriptEntry = { op: 'move', positions: structuredClone(positions) };
+        if (call(entry, (live) => combat.reposition(live, entry.positions))) set({ rejection: null });
+      },
+
+      /** Stop listening and drop the fight; the enemy roster and placement stay for the next one. */
       end() {
         unsubscribe?.();
         unsubscribe = null;
@@ -261,13 +315,37 @@ export function createCombatStore(
     };
   });
 
+  /**
+   * CX-D9 on a roster change: allies `x=0`, enemies `x=1`, `y` = index within its own side in roster order
+   * (character first); null on a theater-of-mind pack. Replaces any edits.
+   */
+  function relayout() {
+    const rt = worlds.getState().active?.runtime;
+    const ally = allyId();
+    const layout =
+      rt && combat.spatialOf(rt.pack) !== null
+        ? Object.fromEntries([
+            ...(ally === null ? [] : [[ally, { x: 0, y: 0 }] as const]),
+            ...store.getState().enemies.map((e, y) => [e.instanceId, { x: 1, y }] as const),
+          ])
+        : null;
+    store.setState({ defaultPositions: layout, positions: structuredClone(layout) });
+  }
+
   // A different world, or a reopened one (a new Runtime), ends the fight and clears the roster.
   worlds.subscribe((next, prev) => {
     if (next.active?.runtime === prev.active?.runtime) return;
     store.getState().end();
     store.setState({ enemies: [], records: [], recordsError: null, replayed: null });
+    relayout();
     void store.getState().refreshRecords();
   });
+  // A different character is a different ally id: the roster changed.
+  characters.subscribe((next, prev) => {
+    const id = (s: CharacterStore) => (s.character ? allyIdOf(s.character.state.name) : null);
+    if (id(next) !== id(prev)) relayout();
+  });
+  relayout();
   void store.getState().refreshRecords();
 
   return store;
@@ -277,7 +355,7 @@ export const useCombatStore = createCombatStore();
 
 /** Library facts the Fight/Combat surfaces read (views reach the engine only through stores). */
 export { listSpawnable, spatialLabel, spawnProfile } from '../engine/combat';
-export type { CombatState, CombatantState, EnemySpec, PendingTrigger, RuntimeEvent } from '../engine/combat';
+export type { CombatState, CombatantState, EnemySpec, PendingTrigger, Position, RuntimeEvent } from '../engine/combat';
 
 /** FR-13: rounds present in the log, ascending. */
 export function roundsOf(log: readonly RuntimeEvent[]): number[] {
