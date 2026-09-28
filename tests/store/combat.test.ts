@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateCampaign, loadTheme } from 'ruleswright/compiler';
 import { assemble, begin, perform, subscribe, type Combat, type Position, type RuntimeEvent, type ScriptEntry } from '../../src/renderer/src/engine/combat';
 import { allyProfile } from '../../src/renderer/src/engine/combat-profile';
+import { recordingOf } from '../../src/renderer/src/engine/replay';
 import { restore, serialize } from '../../src/renderer/src/engine/runtime';
 import { openPack } from '../../src/renderer/src/engine/schema';
 import { setPersistence } from '../../src/renderer/src/persistence/client';
@@ -561,5 +562,128 @@ describe('threat-budget assembly (CAP-04, CA-05, CA-07, CA-08)', () => {
     await store2.getState().replay('threat watch');
     expect(store2.getState().replayed?.result).toEqual({ status: 'complete' });
     expect(JSON.stringify(store2.getState().replayed?.events)).toBe(JSON.stringify(doc.events));
+  });
+});
+
+describe('resume (CAP-05, CA-09..11)', () => {
+  /** A mid-fight record `mid-1`: CX-D9, a move after 5 calls, stopped with an offer open after it. */
+  async function recordMid() {
+    const { worlds, store } = await setup();
+    store.getState().addEnemy('barrow-wight');
+    store.getState().addEnemy('barrow-wight');
+    expect(store.getState().begin()).toBe(true);
+    drive(store, quietAfter(store, 5));
+    const eventsBeforeMove = store.getState().log.length;
+    store.getState().move(shifted(store));
+    drive(store, () => store.getState().pending.length > 0);
+    const mid = store.getState();
+    expect([mid.over, mid.pending.length > 0]).toEqual([false, true]);
+    expect(await store.getState().record('mid-1')).toBe(true);
+    const worldId = worlds.getState().active?.meta.id as string;
+    const file = join(root, 'fights', worldId, 'mid-1.json');
+    return { mid, worldId, file, eventsBeforeMove };
+  }
+
+  /** Restart over the same dir: a new bridge, stores and character, with a fight of its own already open. */
+  async function restarted(worldId: string) {
+    setPersistence(createInProcessBridge(root));
+    const worlds = createWorldsStore();
+    expect(await worlds.getState().open(worldId)).toBe(true);
+    const chars = createCharacterStore(worlds);
+    expect(chars.getState().create(BRYNN)).toBe(true);
+    const store = createCombatStore(worlds, chars);
+    expect(store.getState().assembleEnemies(3, 7)).toBe(true);
+    expect(store.getState().begin()).toBe(true);
+    return { worlds, store };
+  }
+
+  it('adopts the record over the real main handlers after a restart; one call after it appends exactly its events; record → replay complete', async () => {
+    const { mid, worldId, file } = await recordMid();
+    const stored = readFileSync(file, 'utf8');
+    const doc = JSON.parse(stored);
+    expect(doc.outcome).toBe('abandoned');
+
+    const { store } = await restarted(worldId);
+    const old = store.getState().fight as Combat;
+    const { enemies, encounter } = store.getState();
+    expect(await store.getState().resume('mid-1')).toBe(true);
+    const s = store.getState();
+    expect([s.error, s.resumed]).toEqual([null, null]);
+    // CA-09: the rebuilt fight is the recorded one.
+    expect(JSON.parse(JSON.stringify(recordingOf(s.fight as Combat, doc.start, [], [], []).combat))).toEqual(doc.combat);
+    expect(s.pending).toEqual(mid.pending);
+    expect(s.state).toEqual(mid.state);
+    expect(JSON.stringify(s.log)).toBe(JSON.stringify(doc.events));
+    expect([s.start, s.script, s.declarations]).toEqual([doc.start, doc.script, doc.declarations]);
+    expect(s.live?.fight).toBe(s.fight);
+    expect(s.live?.sides.allies.map((a) => a.id)).toEqual(['brynn']);
+    // CA-10: begin-time hp, never the record's.
+    expect(s.hpAtStart).toEqual(mid.hpAtStart);
+    // The assembly roster and encounter are not fight state; the record is not rewritten.
+    expect([s.enemies, s.encounter]).toEqual([enemies, encounter]);
+    expect(readFileSync(file, 'utf8')).toBe(stored);
+
+    // CA-11: the old fight no longer reaches the log; one call appends exactly that call's events.
+    old.step();
+    expect(store.getState().log).toBe(s.log);
+    const fight = s.fight as Combat;
+    const own: RuntimeEvent[] = [];
+    const off = subscribe(fight.runtime, (e) => own.push(e));
+    store.getState().respond(s.pending[0]?.triggerId as string, 'decline');
+    off();
+    expect(own.length).toBeGreaterThan(0);
+    expect(store.getState().log).toEqual([...s.log, ...own]);
+    expect(store.getState().script).toEqual([...doc.script, { op: 'respond', triggerId: s.pending[0]?.triggerId, choice: 'decline' }]);
+
+    // A move keeps the same runtime, so the sink stays attached.
+    drive(store, quietAfter(store, doc.script.length + 1));
+    const beforeMove = store.getState().fight as Combat;
+    store.getState().move(shifted(store));
+    expect(store.getState().error).toBeNull();
+    expect(store.getState().fight).not.toBe(beforeMove);
+    expect(store.getState().fight?.runtime).toBe(fight.runtime);
+    const logged = store.getState().log.length;
+    const after: RuntimeEvent[] = [];
+    const off2 = subscribe(fight.runtime, (e) => after.push(e));
+    store.getState().step();
+    off2();
+    expect(after.length).toBeGreaterThan(0);
+    expect(store.getState().log.slice(logged)).toEqual(after);
+
+    drive(store);
+    expect(store.getState().over).toBe(true);
+    expect(await store.getState().record('mid-2')).toBe(true);
+    expect(store.getState().records.find((r) => r.name === 'mid-2')?.outcome).toBe('complete');
+    await store.getState().replay('mid-2');
+    expect(store.getState().replayed?.result).toEqual({ status: 'complete' });
+    expect(store.getState().records.find((r) => r.name === 'mid-1')?.outcome).toBe('abandoned');
+  });
+
+  it('a tampered move → refused with the first divergent index; store and record unchanged', async () => {
+    const { worldId, file, eventsBeforeMove } = await recordMid();
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    const far = (p: Record<string, Position>) => Object.fromEntries(Object.keys(p).map((id, i) => [id, { x: i * 10, y: 0 }]));
+    const tampered = JSON.stringify({ ...doc, script: doc.script.map((e: ScriptEntry) => (e.op === 'move' ? { op: 'move', positions: far(e.positions) } : e)) });
+    writeFileSync(file, tampered);
+
+    const { store } = await restarted(worldId);
+    const before = store.getState();
+    expect(await store.getState().resume('mid-1')).toBe(false);
+    const s = store.getState();
+    expect(s.resumed).toMatchObject({ name: 'mid-1', result: { status: 'diverged', index: eventsBeforeMove, expected: doc.events[eventsBeforeMove] } });
+    const kept = ['fight', 'live', 'state', 'log', 'script', 'declarations', 'start', 'hpAtStart', 'pending', 'error'] as const;
+    for (const k of kept) expect(s[k]).toBe(before[k]);
+    expect(readFileSync(file, 'utf8')).toBe(tampered);
+  });
+
+  it('a legacy record (no script) → unavailable with the replay reason; nothing adopted', async () => {
+    const { worldId, file } = await recordMid();
+    const { script: _s, ...legacy } = JSON.parse(readFileSync(file, 'utf8'));
+    writeFileSync(file, JSON.stringify(legacy));
+    const { store } = await restarted(worldId);
+    const fight = store.getState().fight;
+    expect(await store.getState().resume('mid-1')).toBe(false);
+    expect(store.getState().resumed).toEqual({ name: 'mid-1', result: { status: 'unavailable', reason: 'record has no replay script (recorded before B-2)' } });
+    expect(store.getState().fight).toBe(fight);
   });
 });

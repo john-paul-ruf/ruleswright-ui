@@ -1,8 +1,9 @@
 import { generateCampaign, loadTheme } from 'ruleswright/compiler';
+import { serializeCombat, type PendingTrigger } from 'ruleswright/runtime';
 import { describe, expect, it } from 'vitest';
 import { begin, perform, subscribe, type LiveFight, type Position, type RuntimeEvent, type ScriptEntry, type SpawnSpec } from '../../src/renderer/src/engine/combat';
 import { allyProfile } from '../../src/renderer/src/engine/combat-profile';
-import { recordingOf, replay, type Declaration, type Recording } from '../../src/renderer/src/engine/replay';
+import { recordingOf, replay, resume, type Declaration, type Recording } from '../../src/renderer/src/engine/replay';
 import { create, serialize, type Outcome } from '../../src/renderer/src/engine/runtime';
 import { openPack } from '../../src/renderer/src/engine/schema';
 
@@ -40,15 +41,19 @@ function nextEntry({ fight }: LiveFight, tried: number): ScriptEntry {
   return { op: 'step' };
 }
 
+type Recorded = Recording & { eventsBeforeMove: number; hpAtStart: Record<string, number>; pending: PendingTrigger[] };
+
 /**
- * Record a full fight exactly as the combat store does: snapshot, profile, subscribe, begin with the default
- * layout, script. With `moveAfter`, one `move` to SHIFTED is issued at the first quiet `awaiting-declare`
- * after that many calls; `eventsBeforeMove` counts the events recorded before it.
+ * Record a fight exactly as the combat store does: snapshot, profile, subscribe, begin with the default
+ * layout, script — to combat-over, or until `until` holds (a mid-fight record). With `moveAfter`, one `move` to
+ * SHIFTED is issued at the first quiet `awaiting-declare` after that many calls; `eventsBeforeMove` counts the
+ * events recorded before it. `hpAtStart` is read right after begin; `pending` are the offers open at record time.
  */
 function recordFight(
   moveAfter?: number,
   fightOf: { enemies: typeof ENEMIES; positions: Record<string, Position>; allySpawns?: SpawnSpec[] } = { enemies: ENEMIES, positions: POSITIONS },
-): Recording & { eventsBeforeMove: number } {
+  until?: (live: LiveFight, script: readonly ScriptEntry[]) => boolean,
+): Recorded {
   const gate = openPack(PACK_JSON);
   if (!gate.ok) throw new Error('gate rejected a forged pack');
   const rt = gate.runtime;
@@ -59,11 +64,12 @@ function recordFight(
   const events: RuntimeEvent[] = [];
   const off = subscribe(rt, (e) => events.push(e));
   const live = value(begin(rt, ally, enemies, positions, allySpawns));
+  const hpAtStart = Object.fromEntries(Object.values(live.fight.state.combatants).map((c) => [c.id, c.hp.current]));
   const script: ScriptEntry[] = [];
   const declarations: Declaration[] = [];
   let tried = 0;
   let eventsBeforeMove = -1;
-  for (let calls = 0; live.fight.state.phase !== 'combat-over' && calls < 2000; calls += 1) {
+  for (let calls = 0; live.fight.state.phase !== 'combat-over' && !until?.(live, script) && calls < 2000; calls += 1) {
     const quiet = live.fight.state.phase === 'awaiting-declare' && live.fight.pendingTriggers.length === 0;
     const moveNow = moveAfter !== undefined && eventsBeforeMove === -1 && calls >= moveAfter && quiet;
     const entry: ScriptEntry = moveNow ? { op: 'move', positions: SHIFTED } : nextEntry(live, tried);
@@ -77,12 +83,17 @@ function recordFight(
     } else if (entry.op === 'step') tried = 0;
   }
   off();
-  expect(live.fight.state.phase).toBe('combat-over');
+  if (until) expect(until(live, script)).toBe(true);
+  else expect(live.fight.state.phase).toBe('combat-over');
   if (moveAfter !== undefined) expect(eventsBeforeMove).toBeGreaterThan(0);
   // What the file holds: the recording after a JSON round trip.
   const rec = JSON.parse(JSON.stringify(recordingOf(live.fight, start, script, events, declarations))) as Recording;
-  return { ...rec, eventsBeforeMove };
+  return { ...rec, eventsBeforeMove, hpAtStart, pending: JSON.parse(JSON.stringify(live.fight.pendingTriggers)) };
 }
+
+/** Mid-fight, after the move: a trigger offer is open (a wight's `attack:rolled` at the warden → `parry`). */
+const offerOpenAfterMove = (live: LiveFight, script: readonly ScriptEntry[]) =>
+  script.some((e) => e.op === 'move') && live.fight.pendingTriggers.length > 0;
 
 describe('recordingOf', () => {
   it('holds start, script, events, the declare calls and the combat envelope paired with the ally', () => {
@@ -193,5 +204,88 @@ describe('replay (database.md replay rule, CA-09)', () => {
     expect(replay({ theme: null, seed: null, knobs: null }, PACK_JSON, rec).result).toMatchObject({ status: 'unavailable' });
     const { script: _s, ...legacy } = rec;
     expect(replay(META, PACK_JSON, legacy).result).toMatchObject({ status: 'unavailable' });
+  });
+});
+
+describe('resume (FR-14, CA-09, CA-10)', () => {
+  it('CA-09: a mid-fight record with a move and an open offer resumes to the same fight — snapshot, rng, positions, offers, events', () => {
+    const rec = recordFight(6, undefined, offerOpenAfterMove);
+    expect(rec.pending.map((p) => p.triggerId)).toContain('brynn.parry');
+    const r = resume(PACK_JSON, rec);
+    if (r.status !== 'resumed') throw new Error(`expected resumed, got ${JSON.stringify(r)}`);
+    const snapshot = JSON.parse(JSON.stringify(serializeCombat(r.live.fight, { pairsWith: rec.start.ally.id })));
+    expect(snapshot).toEqual(rec.combat);
+    expect(snapshot.rng).toEqual(rec.combat.rng);
+    expect(Object.fromEntries(Object.values(r.live.fight.state.combatants).map((c) => [c.id, c.position]))).toEqual(SHIFTED);
+    expect(JSON.parse(JSON.stringify(r.live.fight.pendingTriggers))).toEqual(rec.pending);
+    expect(JSON.stringify(r.events)).toBe(JSON.stringify(rec.events));
+    expect(r.live.sides.allies.map((a) => a.id)).toEqual(['brynn']);
+    expect(r.live.sides.enemies.map((e) => e.id)).toEqual(ENEMIES.map((e) => e.instanceId));
+  });
+
+  it('CA-10: hpAtStart is the begin-time hp, not the record-time hp', () => {
+    const rec = recordFight(6, undefined, offerOpenAfterMove);
+    const r = resume(PACK_JSON, rec);
+    if (r.status !== 'resumed') throw new Error('expected resumed');
+    expect(r.hpAtStart).toEqual(rec.hpAtStart);
+    const now = Object.fromEntries(Object.values(r.live.fight.state.combatants).map((c) => [c.id, c.hp.current]));
+    expect(now).not.toEqual(rec.hpAtStart);
+  });
+
+  it('the resumed fight continues: finishing it and recording the whole script replays complete', () => {
+    const rec = recordFight(6, undefined, offerOpenAfterMove);
+    const r = resume(PACK_JSON, rec);
+    if (r.status !== 'resumed') throw new Error('expected resumed');
+    const events = [...r.events];
+    const off = subscribe(r.live.fight.runtime, (e) => events.push(e));
+    const script = [...rec.script];
+    let tried = 0;
+    for (let calls = 0; r.live.fight.state.phase !== 'combat-over' && calls < 2000; calls += 1) {
+      const entry = nextEntry(r.live, tried);
+      const out = value(perform(r.live, entry));
+      script.push(entry);
+      if (entry.op === 'declare') tried = (out as { rejection: unknown }).rejection === null ? 0 : tried + 1;
+      else if (entry.op === 'step') tried = 0;
+    }
+    off();
+    expect(r.live.fight.state.phase).toBe('combat-over');
+    const whole = JSON.parse(JSON.stringify(recordingOf(r.live.fight, rec.start, script, events, rec.declarations))) as Recording;
+    expect(replay(META, PACK_JSON, whole)).toEqual({ result: { status: 'complete' }, events: whole.events });
+  });
+
+  it('an ally-spawn record resumes with the spawn on the allies side (the board reads live.sides)', () => {
+    const rec = recordFight(undefined, SPIDER_FIGHT, (_live, script) => script.length >= 3);
+    const r = resume(PACK_JSON, rec);
+    if (r.status !== 'resumed') throw new Error('expected resumed');
+    expect(r.live.sides.allies.map((a) => a.id)).toEqual(['brynn', 'hill-spider-1']);
+    expect(JSON.parse(JSON.stringify(serializeCombat(r.live.fight, { pairsWith: 'brynn' })))).toEqual(rec.combat);
+  });
+
+  it('a tampered move → diverged at the first event after it, nothing handed over', () => {
+    const rec = recordFight(6, undefined, offerOpenAfterMove);
+    const far = Object.fromEntries(Object.keys(SHIFTED).map((id, i) => [id, { x: i * 10, y: 0 }]));
+    const script = rec.script.map((e) => (e.op === 'move' ? { op: 'move' as const, positions: far } : e));
+    const r = resume(PACK_JSON, { ...rec, script });
+    expect(r).toMatchObject({ status: 'diverged', index: rec.eventsBeforeMove, expected: rec.events[rec.eventsBeforeMove] });
+    expect(r).not.toHaveProperty('live');
+    if (r.status === 'diverged') expect(r.actual?.type).toBe('declare:rejected');
+  });
+
+  it('a record without script, start or events → unavailable with the replay reason text', () => {
+    const rec = recordFight(undefined, undefined, (_live, script) => script.length >= 4);
+    const { script: _s, ...noScript } = rec;
+    const { start: _t, ...noStart } = rec;
+    const { events: _e, ...noEvents } = rec;
+    const reason = 'record has no replay script (recorded before B-2)';
+    for (const legacy of [noScript, noStart, noEvents]) expect(resume(PACK_JSON, legacy)).toEqual({ status: 'unavailable', reason });
+    expect(replay(META, PACK_JSON, noScript).result).toEqual({ status: 'unavailable', reason });
+  });
+
+  it('a spatial-pack record without start.positions → error carrying the library E-SPAT-01 cards', () => {
+    const rec = recordFight(undefined, undefined, (_live, script) => script.length >= 4);
+    const { positions: _p, ...start } = rec.start;
+    const r = resume(PACK_JSON, { ...rec, start });
+    expect(r).toMatchObject({ status: 'error', error: { kind: 'library', operation: 'fight:begin' } });
+    if (r.status === 'error' && r.error.kind === 'library') expect(r.error.cards.every((c) => c.rule === 'E-SPAT-01')).toBe(true);
   });
 });

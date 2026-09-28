@@ -1,7 +1,7 @@
 /**
  * Combat store (M09, FR-11–13): the enemy and ally-spawn rosters, grid placement, the live fight and its provenanced
  * log. Every host call goes through `engine/combat` and is appended to `script` (B-2, CX `move`); every
- * event on the world's runtime reaches `log` while a fight is open — never dropped, never deduped (CA-07).
+ * event on the open fight's runtime (the world's, or a resumed record's — FR-14) reaches `log` — never dropped, never deduped (CA-07).
  * Never throws to views.
  */
 import { create as createStore, type StoreApi } from 'zustand';
@@ -23,7 +23,7 @@ import type {
 } from '../engine/combat';
 import { allyProfile } from '../engine/combat-profile';
 import { fromIpcError, toAppError, type AppError } from '../engine/errors';
-import { recordingOf, replay, type Declaration, type Recording, type ReplayResult } from '../engine/replay';
+import { recordingOf, replay, resume, type Declaration, type Recording, type ReplayResult, type ResumeResult } from '../engine/replay';
 import { serialize, type Outcome } from '../engine/runtime';
 import { getPersistence } from '../persistence/client';
 import { useCharacterStore, type CharacterStore } from './character';
@@ -88,6 +88,8 @@ export interface CombatStore {
   recordsError: AppError | null;
   /** The latest replay: its record name, verdict and the replayed events. */
   replayed: { name: string; result: ReplayResult; events: RuntimeEvent[] } | null;
+  /** The latest refused resume: its record name and why (a successful resume clears it). */
+  resumed: { name: string; result: Exclude<ResumeResult, { status: 'resumed' }> } | null;
   begin(): boolean;
   declare(actionId: string, targetId?: string): void;
   step(): void;
@@ -100,6 +102,12 @@ export interface CombatStore {
   record(name: string): Promise<boolean>;
   /** FR-14b: replay a stored record; a divergence also rewrites its `outcome` to `diverged`. */
   replay(name: string): Promise<void>;
+  /**
+   * FR-14 resume (CX-D6, CA-09..11): rebuild a stored record on the stored pack; when every event matches, adopt
+   * the rebuilt fight with the record's start, script and declarations and its log. Otherwise nothing changes but
+   * `resumed`. Never rewrites the record's `outcome`. True when adopted.
+   */
+  resume(name: string): Promise<boolean>;
 }
 
 type Source<S> = Pick<StoreApi<S>, 'getState' | 'subscribe'>;
@@ -169,6 +177,9 @@ export function createCombatStore(
       return r.value;
     }
 
+    /** The open fight's event sink: every event, in order (CA-07). */
+    const appendToLog = (e: RuntimeEvent) => set((s) => ({ log: [...s.log, e] }));
+
     const worldId = (): string | null => worlds.getState().active?.meta.id ?? null;
 
     /** CA-05: the ally side's ids — the character's, then its spawns'. */
@@ -192,6 +203,7 @@ export function createCombatStore(
       records: [],
       recordsError: null,
       replayed: null,
+      resumed: null,
 
       addEnemy(statblockId) {
         set({ enemies: [...get().enemies, spawnOf(statblockId)] });
@@ -272,7 +284,7 @@ export function createCombatStore(
           set({ error: ally.error });
           return false;
         }
-        unsubscribe = combat.subscribe(rt, (e) => set((s) => ({ log: [...s.log, e] })));
+        unsubscribe = combat.subscribe(rt, appendToLog);
         const live = combat.begin(rt, ally.value, start.enemies, start.positions, start.allySpawns);
         if (!live.ok) {
           get().end();
@@ -374,6 +386,40 @@ export function createCombatStore(
         if (!r.ok) set({ recordsError: r.error });
         await get().refreshRecords();
       },
+
+      async resume(name) {
+        const active = worlds.getState().active;
+        if (!active) return false;
+        const loaded = await bridge('fight:load', () => getPersistence().fightLoad({ worldId: active.meta.id, name }));
+        if (!loaded.ok) {
+          set({ recordsError: loaded.error });
+          return false;
+        }
+        const doc = loaded.value as unknown as Partial<Recording>;
+        const result = resume(active.packJson, doc);
+        if (result.status !== 'resumed') {
+          set({ resumed: { name, result }, recordsError: null });
+          return false;
+        }
+        // CA-11: end the old subscription, attach the sink to the rebuilt fight's runtime, then publish.
+        get().end();
+        const { live, events, hpAtStart } = result;
+        unsubscribe = combat.subscribe(live.fight.runtime, appendToLog);
+        publish(live.fight, {
+          fight: live.fight,
+          live,
+          start: doc.start ?? null,
+          script: [...(doc.script ?? [])],
+          declarations: [...(doc.declarations ?? [])],
+          log: events,
+          hpAtStart,
+          rejection: null,
+          error: null,
+          resumed: null,
+          recordsError: null,
+        });
+        return true;
+      },
     };
   });
 
@@ -400,7 +446,7 @@ export function createCombatStore(
   worlds.subscribe((next, prev) => {
     if (next.active?.runtime === prev.active?.runtime) return;
     store.getState().end();
-    store.setState({ enemies: [], allySpawns: [], encounter: null, records: [], recordsError: null, replayed: null });
+    store.setState({ enemies: [], allySpawns: [], encounter: null, records: [], recordsError: null, replayed: null, resumed: null });
     relayout();
     void store.getState().refreshRecords();
   });
