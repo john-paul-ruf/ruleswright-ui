@@ -1,6 +1,6 @@
 /**
- * CAP-09 (FR-11–13; CA-05, CA-07, CA-08), CAP-06 (FR-11 grid; CA-12, CA-13, CA-15) and CAP-01/02 (FR-11/12/16;
- * CA-01..04) through the real built app: fight assembly from the active character plus bestiary spawns, placement,
+ * CAP-09 (FR-11–13; CA-05, CA-07, CA-08), CAP-06 (FR-11 grid; CA-12, CA-13, CA-15), CAP-01/02 (FR-11/12/16;
+ * CA-01..04) and CAP-03 (FR-11 ally spawns; CA-04b, CA-12) through the real built app: fight assembly from the active character plus bestiary spawns, placement,
  * the declare/step/respond loop to `combat-over`, the board and reposition, turn order, initiative, slot ledgers,
  * conditions, action detail, and the provenanced log. Every expected value comes from the same
  * library calls made in the test process on the stored pack bytes, at the positions the UI shows before Begin.
@@ -53,10 +53,10 @@ interface Reference {
 }
 
 /**
- * The same fight the app starts: Brynn (profileFromCharacter, id `brynn`) vs `wights` spawned barrow-wights, at
- * `positions` (what the placement board showed; absent on a theater-of-mind pack).
+ * The same fight the app starts: Brynn (profileFromCharacter, id `brynn`) plus `allySpawns` after her vs `wights`
+ * spawned barrow-wights, at `positions` (what the placement board showed; absent on a theater-of-mind pack).
  */
-function referenceFight(pack: unknown, wights = 2, positions?: Positions): Reference {
+function referenceFight(pack: unknown, wights = 2, positions?: Positions, allySpawns: { statblockId: string; instanceId: string }[] = []): Reference {
   const rt = new Runtime(pack as ConstructorParameters<typeof Runtime>[0]);
   const ally = profileFromCharacter(rt, createCharacter(rt, { name: 'Brynn', race: 'hillfolk', classes: [{ id: 'warden', level: 1 }] }), 'brynn');
   const events: RuntimeEvent[] = [];
@@ -65,8 +65,9 @@ function referenceFight(pack: unknown, wights = 2, positions?: Positions): Refer
     id,
     profile: spawnMonster(rt, 'barrow-wight', id),
   }));
-  const fight = startCombat(rt, { allies: [{ id: 'brynn', ...ally }], enemies, ...(positions ? { positions } : {}) });
-  return { fight, events, sides: [[{ id: 'brynn', profile: ally.profile }], enemies] };
+  const spawns = allySpawns.map((a) => ({ id: a.instanceId, profile: spawnMonster(rt, a.statblockId, a.instanceId) }));
+  const fight = startCombat(rt, { allies: [{ id: 'brynn', ...ally }, ...spawns], enemies, ...(positions ? { positions } : {}) });
+  return { fight, events, sides: [[{ id: 'brynn', profile: ally.profile }, ...spawns], enemies] };
 }
 
 /** Reposition on the reference: serialize → restore at `positions`, every combatant's live balances re-stated. */
@@ -713,4 +714,60 @@ test('CAP-01/02: turn order, initiative, slot ledgers, conditions and action det
   await page.setViewportSize({ width: 900, height: 800 });
   expect(await layoutFacts(page)).toMatchObject({ overflowX: 0, columnBelowLog: true });
   await shot(page, 'combat-economy-fantasy-narrow');
+});
+
+test('CAP-03: Brynn + a hill-spider ally spawn vs one barrow-wight — roster, placement, order, allies side, lockstep to combat-over', async ({ rw }) => {
+  const page = rw.page;
+  await forgeWithBrynn(page);
+
+  // Fight assembly: the spawn row sits on the ally side after the character; one wight on the enemy side.
+  await page.getByTestId('nav-fight').click();
+  await page.getByTestId('fight-add-ally').selectOption('hill-spider');
+  await page.getByTestId('fight-add-ally-submit').click();
+  await page.getByTestId('fight-add-enemy').selectOption('barrow-wight');
+  await page.getByTestId('fight-add-enemy-submit').click();
+  const spider = page.getByTestId('fight-ally-spawn-hill-spider-1');
+  await expect(spider.locator('.row-title')).toHaveText('hill-spider');
+  await expect(spider.locator('.row-data')).toHaveText('spawnMonster · hill-spider-1 · ally side');
+  await expect(page.getByTestId('fight-ally')).toContainText('hillfolk · warden 1 · hp 27 · ac 12');
+  expect(await page.locator('[data-testid="fight-ally"], [data-testid^="fight-ally-spawn-"].combatant').evaluateAll((els) => els.map((el) => el.getAttribute('data-testid')))).toEqual([
+    'fight-ally',
+    'fight-ally-spawn-hill-spider-1',
+  ]);
+  // CA-12: the default layout puts the spawn in the allies column after the character.
+  const positions = await placed(page);
+  expect(Object.keys(positions)).toEqual(['brynn', 'hill-spider-1', 'barrow-wight-1']);
+  await expect(page.getByTestId('fight-token-hill-spider-1')).toHaveText('A2');
+  await shot(page, 'fight-ally-spawn-fantasy-wide');
+  await page.getByTestId('fight-begin').click();
+  await expect(page.getByTestId('combat-phase')).toHaveText('awaiting-declare');
+
+  const ref = referenceFight(packOf(rw.userData), 1, positions, [{ statblockId: 'hill-spider', instanceId: 'hill-spider-1' }]);
+  expect(ref.fight.state.combatants['hill-spider-1']?.side).toBe('allies');
+  const rows = page.getByTestId('combat-event');
+  await expect(rows).toHaveCount(ref.events.length);
+  expect(await orderRows(page)).toEqual(ref.fight.state.order.map((id) => [id, String(id === ref.fight.state.active)]));
+  await expect(page.getByTestId('combat-order-hill-spider-1')).toContainText('allies');
+  await expect(page.getByTestId('combat-combatant-hill-spider-1')).toContainText('allies · hp');
+  expect(await tokens(page)).toEqual(positionsOf(ref.fight));
+
+  // Lockstep: the app and the reference issue the same calls; the log grows by exactly the reference's events.
+  let tried = 0;
+  let spiderActed = false;
+  for (let calls = 0; ref.fight.state.phase !== 'combat-over'; calls += 1) {
+    if (calls > 1500) throw new Error('the fight never ended');
+    const entry = nextEntry(ref.fight, tried);
+    spiderActed ||= entry.op === 'declare' && ref.fight.state.active === 'hill-spider-1';
+    const out = apply(ref, entry);
+    await perform(page, entry);
+    await expect(rows).toHaveCount(ref.events.length);
+    if (entry.op === 'declare') tried = out.some((e) => e.type === 'declare:rejected') ? tried + 1 : 0;
+    else if (entry.op === 'step') tried = 0;
+  }
+  expect(spiderActed).toBe(true);
+  expect(await rows.evaluateAll((els) => els.map((el) => el.getAttribute('data-type')))).toEqual(ref.events.map((e) => e.type));
+  const ended = ref.events.find((e) => e.type === 'combat:ended');
+  if (!ended) throw new Error('no combat:ended in the reference fight');
+  await expect(page.getByTestId('combat-over')).toContainText(`winner ${String(ended.payload.winner)} · defeated ${String(ended.payload.defeated)}`);
+  await shot(page, 'combat-ally-spawn-over-fantasy-wide');
 });

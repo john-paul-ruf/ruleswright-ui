@@ -3,7 +3,8 @@
  * show its stored RNG words, replay after a restart, flag a tampered script's first divergent event and persist
  * `outcome: diverged`, and report replay unavailable for a legacy record and for a world with unknown params.
  * CAP-06 / CA-14: a grid fight's placement and reposition are recorded (`start.positions`, one `move`) and replay
- * complete after a restart. Expected values come from the same library calls in the test process, on the stored
+ * complete after a restart. CAP-03 / CA-04b: a fight with an ally-side spawn records `start.allySpawns` as the Allies
+ * panel showed it and replays complete after a restart. Expected values come from the same library calls in the test process, on the stored
  * bytes, at the positions the placement board showed before Begin.
  */
 import { randomUUID } from 'node:crypto';
@@ -43,6 +44,7 @@ interface FightFile {
     ally: { id: string; snapshot: CharacterSnapshot };
     enemies: { statblockId: string; instanceId: string }[];
     positions?: Record<string, Position>;
+    allySpawns?: { statblockId: string; instanceId: string }[];
   };
   script?: Entry[];
   events: RuntimeEvent[];
@@ -348,4 +350,79 @@ test('CAP-06 / CA-14: a grid fight with its placement and one reposition is reco
   await expect(page.getByTestId('fight-replay-event')).toHaveCount(doc.events.length);
   await expect(page.getByTestId('fight-replay-divergence')).toHaveCount(0);
   await shot(page, 'fight-replay-grid-complete-fantasy-wide');
+});
+
+test('CAP-03 / CA-04b: a fight with an ally spawn records start.allySpawns as shown, then replays complete after a restart', async ({ rw }) => {
+  let page = rw.page;
+  await page.getByTestId('nav-roll').click();
+  await page.getByTestId('roll-theme-dark-fantasy').click();
+  await page.getByTestId('roll-seed').fill('42');
+  await page.getByTestId('roll-forge').click();
+  await expect(page.getByTestId('active-world-seed')).toHaveText('dark-fantasy · 42');
+  await createBrynn(page);
+
+  await page.getByTestId('nav-fight').click();
+  await page.getByTestId('fight-add-ally').selectOption('hill-spider');
+  await page.getByTestId('fight-add-ally-submit').click();
+  await page.getByTestId('fight-add-enemy').selectOption('barrow-wight');
+  await page.getByTestId('fight-add-enemy-submit').click();
+  // What the Allies panel shows: each spawn row's statblock name and its instance id.
+  const shown = await page.locator('[data-testid^="fight-ally-spawn-"].combatant').evaluateAll((els) =>
+    els.map((el) => ({
+      statblockId: el.querySelector('.row-title')?.textContent ?? '',
+      instanceId: el.getAttribute('data-testid')?.slice('fight-ally-spawn-'.length) ?? '',
+    })),
+  );
+  expect(shown).toEqual([{ statblockId: 'hill-spider', instanceId: 'hill-spider-1' }]);
+  const positions = await placed(page);
+  await page.getByTestId('fight-begin').click();
+  await expect(page.getByTestId('combat-phase')).toHaveText('awaiting-declare');
+
+  const worldId = worldIdWhere(rw.userData, (w) => w.seed === 42);
+  const rt = new Runtime(JSON.parse(readFileSync(packFile(rw.userData, worldId), 'utf8')));
+  const ally = profileFromCharacter(rt, createCharacter(rt, { name: 'Brynn', race: 'hillfolk', classes: [{ id: 'warden', level: 1 }] }), 'brynn');
+  const refEvents: RuntimeEvent[] = [];
+  rt.events.on((e) => refEvents.push(e));
+  const spawn = (s: { statblockId: string; instanceId: string }) => ({ id: s.instanceId, profile: spawnMonster(rt, s.statblockId, s.instanceId) });
+  const ref = startCombat(rt, {
+    allies: [{ id: 'brynn', ...ally }, ...shown.map(spawn)],
+    enemies: [spawn({ statblockId: 'barrow-wight', instanceId: 'barrow-wight-1' })],
+    positions,
+  });
+  const rows = page.getByTestId('combat-event');
+  const script: Entry[] = [];
+  let tried = 0;
+  for (let calls = 0; ref.state.phase !== 'combat-over'; calls += 1) {
+    if (calls > 1500) throw new Error('the fight never ended');
+    const entry = nextEntry(ref, tried);
+    const from = refEvents.length;
+    apply(ref, entry);
+    script.push(entry);
+    if (entry.op === 'declare') tried = refEvents.slice(from).some((e) => e.type === 'declare:rejected') ? tried + 1 : 0;
+    else if (entry.op === 'step') tried = 0;
+    await perform(page, entry);
+    await expect(rows).toHaveCount(refEvents.length);
+  }
+  await expect(page.getByTestId('combat-over')).toBeVisible();
+
+  await page.getByTestId('combat-record-name').fill('spider-journey');
+  await page.getByTestId('combat-record').click();
+  await expect(page.getByTestId('fight-record-spider-journey')).toBeVisible();
+  const doc = readFight(fightFile(rw.userData, worldId, 'spider-journey'));
+  expect(doc.start.allySpawns).toEqual(shown);
+  expect(doc.start.positions).toEqual(positions);
+  expect(doc.script).toEqual(script);
+  expect(JSON.stringify(doc.events)).toBe(JSON.stringify(refEvents));
+  expect(doc.outcome).toBe('complete');
+
+  await rw.restart();
+  page = rw.page;
+  await expect(page.getByTestId('active-world-seed')).toHaveText('dark-fantasy · 42');
+  await createBrynn(page);
+  await page.getByTestId('nav-fight').click();
+  await page.getByTestId('fight-replay-spider-journey').click();
+  await expect(page.getByTestId('fight-replay-status')).toHaveAttribute('data-status', 'complete');
+  await expect(page.getByTestId('fight-replay-event')).toHaveCount(doc.events.length);
+  await expect(page.getByTestId('fight-replay-divergence')).toHaveCount(0);
+  await shot(page, 'fight-replay-ally-spawn-complete-fantasy-wide');
 });
