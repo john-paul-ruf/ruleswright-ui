@@ -27,3 +27,12 @@ Barrel `ui/index.ts` (imports `ui.css`). Files → exports:
 <!-- loot-inventory SESSION-03 -->
 ### loot-inventory SESSION-03 delta — fourth mood `wild`
 - **M08 ui** (`types.ts`): `MoodLike` gains `'wild'`. ThemeCard needs no change; it previews through `data-mood`.
+
+
+<!-- combat-complete SESSION-02 --> M08
+### combat-complete SESSION-02 delta — M08 ui — `Combat.tsx`, `ui.css`, `index.ts`
+- New exports: `Board`, `TokenMark`, types `BoardPiece`, `BoardProps` (design rows "Board token", shared by the Placement and Combat boards).
+  - `Board({ cols, rows, size: 'place' | 'combat', pieces, label, editing?, focusRequest?, onPlace?, onHome?, onEscape? })`: a display-only viewport. The origin is `(min(0, min x), min(0, min y))`; pieces beyond the viewport are listed ("outside the viewport · A1 id (x, y)"); shared squares stack with a `×n` badge. When `editing`, tokens are focusable and draggable: click a token then a square, or drag; arrows call `onPlace(id, x±1, y±1)`; Home calls `onHome(id)`; Esc clears the selection and calls `onEscape()`. Focus follows the moved token. It computes no reach or legality.
+  - `BoardPiece { id, label ('A<n>'|'E<n>'), side ('ally'|'enemy'), x, y, title, active?, testId? }`; the token carries `data-x`, `data-y`, `data-active`.
+  - `TokenMark({ label, side })`: a 24px roster token (aria-hidden) for rows.
+  - CSS: `.board`, `.board-place` (36px squares / 28px tokens), `.board-combat` (28 / 22), `.board-token(-ally|-enemy|.active|.selected|-mark)`, `.board-sq`, `.board-ax`, `.board-stack`, `.board-note`. Tokens only; the geometry px come from design.md.

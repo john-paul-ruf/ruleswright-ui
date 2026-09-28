@@ -69,3 +69,8 @@ Imports engine/combat, engine/combat-profile, engine/errors, engine/replay, engi
 - `move(positions)` runs `reposition`, appends `{op:'move', positions}` to `script`, and republishes. It adds no log rows or declarations; a refusal goes to `error`.
 - `record()` writes `start.positions` through `start` (spatial packs only).
 - The store now also re-exports the type `Position`.
+
+
+<!-- combat-complete SESSION-02 --> M09
+### combat-complete SESSION-02 delta — M09 store — `store/combat.ts` (lease r2, re-export only)
+- The view-facing re-exports gain `distance`, `spatialOf` and type `SpatialDef` (from `engine/combat`).

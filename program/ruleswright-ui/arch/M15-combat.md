@@ -9,3 +9,13 @@
 ## Change history
 - v1-shell plan: created (planned; S02 placeholder renders the correct empty state so routing is complete before the surface lands).
 - SESSION-06 c3 (`269c0e8`), c4 (`bf33cd3`): realized as above.
+
+<!-- combat-complete SESSION-02 --> M15
+### combat-complete SESSION-02 delta — M15 views/combat — new `board.tsx`; `index.tsx`, `controls.tsx`, `combat.css`
+- `board.tsx` `CombatBoard({ state })` (the design's "Combat board" + "Reposition control"): mounted after `OffersPanel`, before `CombatantsPanel`; grid packs only.
+  - Tokens are at `state.combatants[id].position`, in roster order from `live.sides`.
+  - Distances from the active combatant use `distance(fight.runtime, a, b)` (library `rt.spatial.distance`).
+  - The Reposition mode mirrors the store precondition (phase `awaiting-declare`, `pending.length === 0`, `!over`) and applies `move(completeMap)`.
+  - Test ids: `combat-board`, `combat-spatial-def`, `combat-token-<id>` (`data-x`, `data-y`, `data-active`), `combat-distance-<id>`, `combat-move`, `combat-move-banner`, `combat-move-apply`, `combat-move-cancel`, `combat-move-unavailable`.
+- `controls.tsx`: the declare rejection card is now `ErrorCard{ kind: 'library', operation: rejection.type, name: payload.kind, cards: [{ rule, jsonPath: resource, message }] }`, i.e. `declare:rejected · <kind>` / `<rule> <resource>` / message (design row "Declare rejection examples").
+- M15 now imports M08 `Board`. There are no new module edges (views → store + ui as before).

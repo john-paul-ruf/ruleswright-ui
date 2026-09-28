@@ -9,3 +9,7 @@
 ## Change history
 - v1-shell plan: created (planned; S02 placeholder renders the correct empty state so routing is complete before the surface lands).
 - SESSION-06 c3 (`269c0e8`): realized as above.
+
+<!-- combat-complete SESSION-02 --> M14
+### combat-complete SESSION-02 delta — M14 views/fight — `index.tsx`, `fight.css`
+- `PlacementPanel` (internal to `index.tsx`; the design's "Placement board"), rendered between the Allies/Enemies panels and Determinism, only when `spatialOf(pack) !== null`. It reads the store's `positions`/`defaultPositions` and writes `setPosition`/`resetPositions`. Test ids: `fight-placement`, `fight-spatial-def`, `fight-place-<id>` (row; `data-x`, `data-y`), `fight-place-<id>-x|y` (integer inputs; a non-integer gives a danger border and nothing moves), `fight-token-<id>`, `fight-place-reset`.

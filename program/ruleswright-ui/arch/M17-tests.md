@@ -42,3 +42,9 @@
 <!-- loot-inventory SESSION-03 -->
 ### loot-inventory SESSION-03 delta — fourth mood `wild`
 - **M17 tests**: `contrast.test.ts` `MOODS` gains `'wild'`. `designTable()` reads the 5th column (after archive). The gate asserts 12 non-empty tokens per mood.
+
+
+<!-- combat-complete SESSION-02 --> M17
+### combat-complete SESSION-02 delta — M17 tests — `e2e/combat.spec.ts`, `e2e/replay.spec.ts`
+- The reference fights take the positions read from `fight-place-<id>` before Begin.
+- New e2e tests: "CAP-06: grid fight …", "theater-of-mind: …" (combat.spec) and "CAP-06 / CA-14: … recorded, then replays complete after a restart" (replay.spec).
