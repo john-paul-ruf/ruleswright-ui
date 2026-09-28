@@ -140,6 +140,25 @@
   overflow-wrap: anywhere;
 }
 
+/* Reposition mode (CX Reposition control): accent-ruled surface2 banner. */
+.combat-move-banner {
+  padding: var(--space-2);
+  border: 1px solid var(--hairline);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-s);
+  background: var(--surface2);
+}
+
+.combat-move-title {
+  font-size: var(--text-12);
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+
+.combat-move-banner .combat-note {
+  margin-top: var(--space-1);
+}
+
 /* Below the mock's `lg` breakpoint the control column stacks under the log. */
 @media (max-width: 1023px) {
   .combat-grid {

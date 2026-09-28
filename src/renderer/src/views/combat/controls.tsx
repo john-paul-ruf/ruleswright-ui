@@ -1,4 +1,7 @@
-/** The control column (FR-12, DF-1): phase + declare/step, trigger offers, combatants. */
+/**
+ * The control column (FR-12, DF-1): phase + declare/step, trigger offers, combatants. A declare rejection
+ * renders as the design's card: `declare:rejected · <kind>`, then `<rule> <resource>` and the message verbatim.
+ */
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { offerEvents, useCombatStore, type CombatState } from '../../store/combat';
 import { Button, Chip, CombatantRow, ErrorCard, Field, Panel, Select, TriggerOffer } from '../../ui';
@@ -79,8 +82,8 @@ export function PhasePanel({ state }: { state: CombatState }): JSX.Element {
           <ErrorCard
             error={{
               kind: 'library',
-              operation: 'combat:declare',
-              name: 'DeclareRejection',
+              operation: rejection.type,
+              name: String(rejection.payload.kind),
               message: String(rejection.payload.message),
               cards: [{ rule: rejection.why.rule, jsonPath: String(rejection.payload.resource), message: String(rejection.payload.message) }],
             }}
