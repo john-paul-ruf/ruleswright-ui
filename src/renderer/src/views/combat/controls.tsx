@@ -1,9 +1,19 @@
 /**
  * The control column (FR-12, DF-1): phase + declare/step, trigger offers, combatants. A declare rejection
  * renders as the design's card: `declare:rejected · <kind>`, then `<rule> <resource>` and the message verbatim.
+ * DF-CX-1: the selected action's pack definition (CA-03) and each combatant's library state (CA-02, CA-04) are
+ * shown as reported — no affordability preview; the declare result stays the authority (CX-D4).
  */
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { offerEvents, useCombatStore, type CombatState } from '../../store/combat';
+import {
+  actionInfo,
+  offerEvents,
+  slotGrants,
+  useCombatStore,
+  type ActionInfo,
+  type CombatantState,
+  type CombatState,
+} from '../../store/combat';
 import { Button, Chip, CombatantRow, ErrorCard, Field, Panel, Select, TriggerOffer } from '../../ui';
 
 /** Keep keyboard play alive: when the focused control disappears or is disabled, move focus to `target`. */
@@ -13,6 +23,26 @@ function useRescueFocus(target: RefObject<HTMLElement>, when: unknown): void {
     const lost = focused === null || focused === document.body || (focused as HTMLButtonElement).disabled === true;
     if (lost && target.current && !(target.current as HTMLButtonElement).disabled) target.current.focus();
   }, [target, when]);
+}
+
+/** DF-CX-1 Action detail: `pack.actions[id]` verbatim; an absent part is `—`; `effect` is not shown. */
+function ActionDetail({ actionId, info }: { actionId: string; info: ActionInfo | null }): JSX.Element {
+  const absent = <span className="mono dim">—</span>;
+  return (
+    <div className="panel2 combat-well combat-gap-s" data-testid="combat-action-detail" aria-live="polite">
+      <p className="kicker combat-kicker-s">Action · {actionId}</p>
+      <div className="combat-dl">
+        <span className="kicker combat-kicker-s">cost</span>
+        {info ? <span className="mono">{JSON.stringify(info.cost)}</span> : absent}
+        <span className="kicker combat-kicker-s">tags</span>
+        {info && info.tags.length > 0 ? <span className="mono">{info.tags.join(' · ')}</span> : absent}
+        <span className="kicker combat-kicker-s">trigger.on</span>
+        {info?.triggerOn ? <span className="mono">{info.triggerOn}</span> : absent}
+        <span className="kicker combat-kicker-s">valid</span>
+        {info?.valid ? <span className="mono">{info.valid}</span> : absent}
+      </div>
+    </div>
+  );
 }
 
 function TargetOptions({ state }: { state: CombatState }): JSX.Element {
@@ -35,6 +65,7 @@ export function PhasePanel({ state }: { state: CombatState }): JSX.Element {
   const error = useCombatStore((s) => s.error);
   const declare = useCombatStore((s) => s.declare);
   const step = useCombatStore((s) => s.step);
+  const pack = useCombatStore((s) => s.fight?.runtime.pack);
   const actions = state.combatants[state.active]?.actions ?? [];
   const [picked, setPicked] = useState('');
   const [target, setTarget] = useState('');
@@ -62,6 +93,7 @@ export function PhasePanel({ state }: { state: CombatState }): JSX.Element {
           ))}
         </Select>
       </Field>
+      {pack && actionId !== '' && <ActionDetail actionId={actionId} info={actionInfo(pack, actionId)} />}
       <Field label="Target" className="combat-gap-s">
         <Select data-testid="combat-target-select" value={target} disabled={locked} onChange={(e) => setTarget(e.target.value)}>
           <TargetOptions state={state} />
@@ -173,6 +205,68 @@ export function OffersPanel({ state }: { state: CombatState }): JSX.Element | nu
   );
 }
 
+/** `<slot> <remaining>/<grant>`: grant keys in the library's order, then any ledger key it does not grant (`—`). */
+function ledgerOf(c: CombatantState, grants: Readonly<Record<string, number>>): string[] {
+  const remaining = c.slots.remaining;
+  const names = [...Object.keys(grants), ...Object.keys(remaining).filter((name) => !Object.hasOwn(grants, name))];
+  return names.map((name) => `${name} ${remaining[name] ?? '—'}/${grants[name] ?? '—'}`);
+}
+
+/** DF-CX-1 Combatant detail: the library's ledger, pools, bound slots and conditions, as reported. */
+function CombatantDetail({ c, active }: { c: CombatantState; active: boolean }): JSX.Element | null {
+  const fight = useCombatStore((s) => s.fight);
+  if (!fight) return null;
+  const conditionDefs = fight.runtime.pack.content.conditions ?? {};
+  const pools = Object.entries(c.pools);
+  const bound = Object.entries(c.boundSlots);
+  const empty = (text: string) => <span className="combat-empty">{text}</span>;
+  return (
+    <details className="combat-detail" open={active}>
+      <summary className="kicker combat-kicker-s" aria-label={`Detail · ${c.name}`}>
+        Detail
+      </summary>
+      <div className="combat-dl">
+        <span className="kicker combat-kicker-s">slots</span>
+        <span className="combat-chips" data-testid={`combat-ledger-${c.id}`}>
+          {ledgerOf(c, slotGrants(fight.runtime)).map((slot) => (
+            <Chip key={slot} className="mono">
+              {slot}
+            </Chip>
+          ))}
+        </span>
+        <span className="kicker combat-kicker-s">pools</span>
+        <span data-testid={`combat-pools-${c.id}`}>
+          {pools.length > 0 ? <span className="mono">{pools.map(([id, n]) => `${id} ${n}`).join(' · ')}</span> : empty('no pools')}
+        </span>
+        {bound.length > 0 && (
+          <>
+            <span className="kicker combat-kicker-s">bound</span>
+            <span className="mono" data-testid={`combat-bound-${c.id}`}>
+              {bound.map(([level, n]) => `L${level} ×${n}`).join(' · ')}
+            </span>
+          </>
+        )}
+        <span className="kicker combat-kicker-s">conditions</span>
+        <span data-testid={`combat-conditions-${c.id}`}>
+          {c.conditions.length > 0
+            ? c.conditions.map(({ conditionId, duration }, i) => {
+                const restricts = conditionDefs[conditionId]?.restricts ?? [];
+                return (
+                  <span key={i} className="combat-condition">
+                    <span className="mono">
+                      {conditionId} · {duration}
+                    </span>
+                    {restricts.length > 0 && <span className="mono combat-note-s">restricts {restricts.join(' · ')}</span>}
+                  </span>
+                );
+              })
+            : empty('no conditions')}
+        </span>
+      </div>
+    </details>
+  );
+}
+
 export function CombatantsPanel({ state }: { state: CombatState }): JSX.Element {
   const hpAtStart = useCombatStore((s) => s.hpAtStart);
   return (
@@ -182,17 +276,20 @@ export function CombatantsPanel({ state }: { state: CombatState }): JSX.Element 
           const c = state.combatants[id];
           if (!c) return null;
           return (
-            <CombatantRow
-              key={id}
-              data-testid={`combat-combatant-${id}`}
-              active={id === state.active}
-              name={c.name}
-              meta={`${c.side} · hp ${c.hp.current} / ${hpAtStart[id] ?? c.hp.current} at start · ac ${c.ac}`}
-              hp={{ current: c.hp.current, max: hpAtStart[id] ?? c.hp.current }}
-            />
+            <div key={id}>
+              <CombatantRow
+                data-testid={`combat-combatant-${id}`}
+                active={id === state.active}
+                name={c.name}
+                meta={`${c.side} · hp ${c.hp.current} / ${hpAtStart[id] ?? c.hp.current} at start · ac ${c.ac}`}
+                hp={{ current: c.hp.current, max: hpAtStart[id] ?? c.hp.current }}
+              />
+              <CombatantDetail c={c} active={id === state.active} />
+            </div>
           );
         })}
       </div>
+      <p className="mono combat-note">as the library reports it — no affordability preview, no down label</p>
     </Panel>
   );
 }

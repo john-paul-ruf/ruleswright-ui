@@ -1,7 +1,7 @@
-/** Combat (M15, FR-11–13), per mocks/combat.html + DF-1 + CX: the event log is the primary panel. */
+/** Combat (M15, FR-11–13), per mocks/combat.html + DF-1 + CX + DF-CX-1: the event log is the primary panel. */
 import { useEffect, useRef } from 'react';
 import { EmptyState } from '../../shell/EmptyState';
-import { spatialLabel, useCombatStore, type RuntimeEvent } from '../../store/combat';
+import { spatialLabel, spatialOf, useCombatStore, type RuntimeEvent } from '../../store/combat';
 import { useUiStore } from '../../store/ui';
 import { useWorldsStore } from '../../store/worlds';
 import { Button, Chip, CombatOverBanner, Panel } from '../../ui';
@@ -9,6 +9,7 @@ import { RECORD_NAME_INPUT, RecordsPanel } from '../fight/records';
 import { CombatBoard } from './board';
 import { CombatantsPanel, OffersPanel, PhasePanel } from './controls';
 import { EventLog } from './log';
+import { TurnOrderPanel } from './order';
 import './combat.css';
 
 export function CombatView(): JSX.Element {
@@ -18,6 +19,7 @@ export function CombatView(): JSX.Element {
   if (!state) return <EmptyState kind="no-fights" />;
   const { meta, pack } = active;
   const seed = meta.seed === null ? 'seed unknown' : `seed ${meta.seed}`;
+  const spatial = spatialOf(pack);
 
   return (
     <div className="combat" data-testid="combat-surface">
@@ -28,7 +30,13 @@ export function CombatView(): JSX.Element {
           </p>
           <h1 className="display combat-title">Combat</h1>
         </div>
-        <Chip>{spatialLabel(pack)}</Chip>
+        {/* DF-CX-1 Spatial caption: the pack's spatial section, verbatim. */}
+        <div className="combat-head-chips">
+          <Chip>{spatialLabel(pack)}</Chip>
+          <span className="mono combat-caption" data-testid="combat-spatial-caption">
+            {spatial ? `model ${spatial.model} · reach.default ${spatial.reach.default}` : 'this pack declares no spatial model'}
+          </span>
+        </div>
       </header>
       <OverBanner />
       <div className="combat-grid">
@@ -37,6 +45,7 @@ export function CombatView(): JSX.Element {
           <PhasePanel state={state} />
           <OffersPanel state={state} />
           <CombatBoard state={state} />
+          <TurnOrderPanel state={state} />
           <CombatantsPanel state={state} />
           <Panel pad="s" kicker="Replay & records">
             <RecordsPanel recordable />

@@ -159,6 +159,132 @@
   margin-top: var(--space-1);
 }
 
+/* DF-CX-1 Spatial caption: dim mono beside the header's spatial chip. */
+.combat-head-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.combat-caption {
+  font-size: var(--text-10);
+  color: var(--dim);
+}
+
+/* panel2 wells (Action detail, Initiative provenance): the mock's p-3. */
+.combat-well {
+  padding: var(--space-3);
+}
+
+.combat-strong {
+  color: var(--accent-strong);
+}
+
+/* DF-CX-1 Turn order panel. */
+.combat-order-position {
+  font-size: var(--text-11);
+  color: var(--accent-strong);
+}
+
+.combat-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.combat-order-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-2) 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+
+.combat-order-row.active {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 18px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.combat-order-index {
+  font-size: var(--text-10);
+  color: var(--dim);
+}
+
+.combat-order-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-14);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.combat-order-row .hpnum {
+  font-size: var(--text-20);
+  color: var(--ink);
+}
+
+.combat-order-row.active .hpnum {
+  color: var(--accent-strong);
+}
+
+/* DF-CX-1 Combatant detail: a keyboard-togglable surface2 disclosure under each row. */
+.combat-detail {
+  margin-top: var(--space-1);
+  padding: var(--space-2) 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-s);
+  background: var(--surface2);
+}
+
+.combat-detail summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.combat-detail summary::-webkit-details-marker {
+  display: none;
+}
+
+.combat-detail summary:focus-visible {
+  outline: none;
+  border-radius: var(--radius-s);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.combat-detail .combat-dl {
+  margin-top: var(--space-2);
+}
+
+.combat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.combat-condition {
+  display: flex;
+  flex-direction: column;
+}
+
+.combat-note-s {
+  font-size: var(--text-10);
+  color: var(--dim);
+}
+
+.combat-empty {
+  font-size: var(--text-12);
+  color: var(--dim);
+}
+
 /* Below the mock's `lg` breakpoint the control column stacks under the log. */
 @media (max-width: 1023px) {
   .combat-grid {
