@@ -203,4 +203,79 @@ none. The sessions were fully serial, as planned (CX-D8).
 | S06 surprises | no nav to Combat (store-test proof); undesigned refusal kinds; fresh Runtime | closed: accepted; undesigned kinds carried to the next Designer pass |
 
 ### Archivist's Note
-(pending: appended below after the final Archivist pass)
+- **role:** archivist
+- **registryUpdated:** true. Changes to PROGRAM-CONFIG's registry:
+  - added M13 → M15 (`character/inventory.tsx` imports `summaryOf` from `combat/log`);
+  - removed M15 → M01, which the registry has claimed since v1-shell but no `views/combat` file has ever imported;
+  - added M14 ↔ M15 to the list of module cycles;
+  - M13, M14 and M15 now list their current key files and what they own, with M14 using the FR-11 wording.
+- **reconciled** (commit `8bf57c3`; the tree is clean):
+  - `arch/M01-shared.md`, `arch/M02-main.md`, `arch/M04-styles.md`, `arch/M05-moods.md`, `arch/M06-engine.md`, `arch/M08-ui.md`, `arch/M09-store.md`
+  - `arch/M11-M15-views.md`: the M12–M15 files were copies of its sections. It now holds only the shared view rules and M11, and each of M12–M15 is the single detail file.
+  - `arch/M12-world.md`, `arch/M13-character.md`, `arch/M14-fight.md`
+  - `arch/M15-combat.md`: the layout is corrected to the mount order the source actually uses.
+  - `arch/M17-tests.md`, `arch/M18-build.md`
+  - `PROGRAM-CONFIG.MD`
+  - `ARCHIVIST-LOG.md`
+  - All 22 appended delta blocks are gone: 8 from loot-inventory, which closed without a final Archivist pass, and 14 from combat-complete. Every fact was checked against the source at `c22426a`.
+- **conventionsAdded:**
+  - Plan-time engine probes must drive the real host loop, bounded, and record who acts first and when slots refill. If a c0 probe could disprove the only planned proof, the plan names a replacement proof up front. Promoted on the 3-cycle axis (v1-shell E1, loot-inventory PC-1, combat-complete).
+  - `store/combat.ts` is the combat spine. A combat plan must state the serialization cost up front or schedule a split first. Promoted on the in-cycle axis: 6 of 6 sessions leased it.
+  - Final Report deltas applied:
+    - FR-11 spatial wording;
+    - the current FightDoc shape (`start.positions`, `start.allySpawns`, `move`) under Custom Rule 8;
+    - every new test id, and the changed `fight-spatial` text;
+    - the e2e convention that reference fights read positions from `fight-place-<id>`.
+  - loot-inventory deltas (LI-D8) that were never applied:
+    - the engine pin history (current `dadf461`);
+    - revisions for the Author sources, plus the list of carried design housekeeping;
+    - Custom Rule 3 now names the loot seed and threat-assembly seed controls;
+    - the four-mood list including `wild` ✻;
+    - the `char-*` inventory test ids.
+  - Commit subject convention generalized from `v1-shell SESSION-NN` to `<feature> SESSION-NN`.
+- **proposedForFramework:**
+  - ORCHESTRATOR: don't end a run while the Final Report's Archivist's Note is still pending. loot-inventory did this, and its PROGRAM-CONFIG deltas were silently dropped. 1 cycle, 1 instance.
+  - PLANNER: a checkpoint that widens a union used across modules should ship the shared type change in the same checkpoint (S01 c1/c3). 1 cycle, 1 instance.
+  - PLANNER/ORCHESTRATOR: a session that changes a shared surface should lease every spec or test that pins it (v1-shell S03 navigation; CX F1 `ipc.test.ts`). 2 cycles, 2 instances.
+  - ORCHESTRATOR: design housekeeping carried to "the next Designer pass" needs a named re-entry item with a resumption condition. 2 cycles, 4 instances.
+  - PLANNER: error paths that ship untested (loot-inventory rejections; CA-07 length guard) need an owning lease with a mock seam. 2 cycles, 2 instances.
+  - ORCHESTRATOR: document the 300 s MCP await timeout and recovering a lost handle from the runtime session log as standard procedure. 2 cycles, 3 instances.
+  - PLANNER: mark whole-repo gate edges between concurrently planned sessions in the dependency graph (loot-inventory PC-2). 1 cycle, 1 instance.
+  - PLANNER: when one spine file is leased by every session, plan a split or state the serialization cost. 1 cycle, 6 instances.
+- **logEntry:** a dated entry (2026-09-27) is appended to `ARCHIVIST-LOG.md`. It covers:
+  - **Registry corrections:** the edge fixes listed above.
+  - **Adoption correction:** the previous entry said two recommendations were "adopted in `3a6deaf`". That commit is a STATE commit and touches no role document. The role docs are gitignored, have no history, and their mtimes predate that pass. Their current text doesn't contain either change, so both rows stay open.
+  - **Contract and capability review:**
+    - CAP-05 is correctly marked "verified within the approved rule".
+    - B-CX-7 is still an open human question.
+    - The CA-07 guard has an owner but no proof yet.
+    - EG-8 is an engine-program issue.
+    - No stale readiness rows were found.
+  - **Role docs:** `PLANNER.md`, `CODER.md`, `UI-CODER.md` and `ORCHESTRATOR.md` are byte-identical to how this pass found them.
+  - **Not inspected:** engine internals and the mocks. No gates were re-run; results are cited from the Final Report and STATE.
+  - **Cleanup ledger not updated:** the envelope limits commits to `arch/`, PROGRAM-CONFIG and the log, so I reverted my edit to `CLEANUP-LEDGER.md`. The findings are in the log entry for the next pass that is allowed to commit the ledger:
+    - C1 (`release/` not gitignored) and C2 (`OkCard` has no consumer) are both still true;
+    - C3 is replaced by engine gaps EG-1..EG-8;
+    - new C4: unused type exports in `engine/combat.ts`;
+    - new C5: the `EnemySpec`/`SpawnSpec` alias;
+    - new C6: the `store/combat.ts` hotspot.
+
+### cleanupBriefs
+
+[] (none). Campaign K1 (C2, C4, C5) has 3 medium-confidence findings, below the brief threshold of 5 medium or 3 high.
+
+### standingRecommendations
+
+| id | pattern | cycles | instances | firstSeen | status |
+|---|---|---:|---:|---|---|
+| 785c75731e5e9eb6 | Plan-time probes should drive the actual host loop (declare → step → respond to the end), not read type declarations | 3 | 4 | v1-shell | promoted (PROGRAM-CONFIG); framework recommendation open |
+| 97641a906d3c0447 | A session that changes navigation should lease every spec that navigates through that surface | 2 | 2 | v1-shell | open |
+| 0d4dfe658858963c | Human visual review of screenshot sets owed as final-report debt | 1 | 1 | v1-shell | open |
+| cc00aa16e2f5e7f5 | electron-builder output dir (release/) absent from .gitignore | 3 | 1 | v1-shell | open |
+| bb0bbd74088d3d3b | A feature cycle closed without its final Archivist pass (Final Report Archivist's Note left pending), so its arch deltas and PROGRAM-CONFIG deltas rolled into the next cycle unreconciled | 1 | 1 | loot-inventory | open |
+| 441471f46e938236 | A checkpoint that widens a union consumed across modules must carry the shared type change in the same checkpoint | 1 | 1 | combat-complete | open |
+| fd4db33b2a177c9b | Design housekeeping carried to "the next Designer pass" with no scheduled owner or resumption condition | 2 | 4 | loot-inventory | open |
+| 7e1f39c4c298e5f5 | Unexercised error paths recorded as verification debt with no owning lease | 2 | 2 | loot-inventory | open |
+| c11d55653812170b | MCP await idle timeout (300 s) and orchestrator runtime restarts force re-awaits and recovery from session logs | 2 | 3 | loot-inventory | open |
+| 30a8ca5b264e67bd | Dependency graph omits whole-repo gate edges between concurrently planned sessions | 1 | 1 | loot-inventory | open |
+| e5ca138ece6253ad | One spine file leased by every session serializes the whole feature (effective concurrency 1) | 1 | 6 | combat-complete | promoted (PROGRAM-CONFIG); framework recommendation open |
