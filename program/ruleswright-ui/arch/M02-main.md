@@ -1,33 +1,29 @@
 # M02 — main (`src/main/`)
 
-**Status:** realized (SESSION-01 c1–c2 `ca1d972`, `77d8e63`; FightDoc adaptation SESSION-06 c5 `98a14e3`). **Imports (mechanical, non-test):** `electron`, `node:crypto`, `node:fs/promises`, `node:path`, and M01 (`../shared/model`, `../shared/ipc-contract`; intra-module `./dialogs`/`./storage`/`./window`/`./ipc`). **Never** `ruleswright`.
+**Status:** realized (v1-shell S01 c1–c2 `ca1d972`, `77d8e63`; FightDoc projection v1-shell S06 c5 `98a14e3`; grid/ally-spawn validation combat-complete S01 c3 `3ec636e`, S04 c1 `497ab84`). **Imports (mechanical, non-test):** `electron`, `node:crypto`, `node:fs/promises`, `node:path`, and M01 (`../shared/model`, `../shared/ipc-contract`; intra-module `./dialogs`/`./storage`/`./window`/`./ipc`). **Never** `ruleswright`.
 
 ## Public API (realized)
-- `index.ts` — app entry: honors `RULESWRIGHT_USER_DATA` (D-12 test-isolation hook) via `app.setPath('userData', …)` before `ready`, so every userData read uses it; installs the main-side network block (`session.defaultSession.webRequest.onBeforeRequest` cancels any URL whose protocol is not `file:`/`devtools:`/`data:` and, in dev, is not the `ELECTRON_RENDERER_URL` origin — CSP meta plus block, D-13); registers IPC over `createStorage(app.getPath('userData'))` and `createDialogs(getWindow)`; creates one window with restored bounds.
-- `window.ts` — `createMainWindow(bounds: WindowBounds | null, onClose: (b) => Promise<void>): BrowserWindow` (not `createMainWindow(settings)`; close is deferred until bounds are persisted so quitting never races the write). `contextIsolation:true, sandbox:true, nodeIntegration:false`, min 1280×800, `setWindowOpenHandler(()=>({action:'deny'}))`, `will-navigate` prevented.
-- `storage.ts` — `createStorage(rootDir)` (no Electron import; node tests run it on real fs): `createStorage(root) → Storage` with `listWorlds / openWorld / readPackBytes / saveWorld / renameWorld / deleteWorld / getSettings / setSettings / list|save|load|deleteSnapshot / list|save|load|deleteFight / setFightOutcome`. Exports `StorageError {code: IpcErrorCode}` and `sha256Hex`. Atomic temp+rename writes; UUID-v4 directory validation; path clamping (`under()` refuses anything escaping the store); unknown fields tolerated and preserved on rewrite; cascade delete `worlds/<id>` → `snapshots/<id>` → `fights/<id>` → clear `lastWorldId`; `packSha256` = sha256 of the exact bytes (`sha256Hex`). Fight save enforces the optional B-2 fields when present (`script[].op ∈ declare|respond|step`, `choice ∈ take|decline`, `start.enemies[]` = `{statblockId, instanceId}` strings, `start.ally.snapshot.kind === 'character'`, `events` an array, 16 MiB cap) per current `database.md`.
-- `dialogs.ts` — `createDialogs(getWindow: () => BrowserWindow | null): Dialogs`; exports the `Dialogs` interface (`saveJson(defaultName)`, `openJson()` → path | null). `dialog.showSaveDialog/showOpenDialog` is looked up **at call time** (e2e stubs it through `electronApp.evaluate`).
-- `ipc.ts` — `createIpcHandlers({storage, dialogs})` → `Record<Channel, (payload: unknown) => Promise<IpcResult<unknown>>>` (pure, node-testable; every payload shape-checked before any disk access, nothing throws across the bridge); exports `Handler`, `IpcHandlers`; `registerIpc(ipcMain, handlers)`.
+- `index.ts` — app entry: honors `RULESWRIGHT_USER_DATA` (D-12 test-isolation hook) via `app.setPath('userData', …)` before `ready`; installs the main-side network block (`session.defaultSession.webRequest.onBeforeRequest` cancels any URL whose protocol is not `file:`/`devtools:`/`data:` and, in dev, is not the `ELECTRON_RENDERER_URL` origin — CSP meta plus block, D-13); registers IPC over `createStorage(app.getPath('userData'))` and `createDialogs(getWindow)`; creates one window with restored bounds.
+- `window.ts` — `createMainWindow(bounds: WindowBounds | null, onClose: (b) => Promise<void>): BrowserWindow` (close is deferred until bounds are persisted). `contextIsolation:true, sandbox:true, nodeIntegration:false`, min 1280×800, `setWindowOpenHandler(()=>({action:'deny'}))`, `will-navigate` prevented.
+- `storage.ts` — `createStorage(rootDir)` (no Electron import; node tests run it on real fs) → `Storage` with `listWorlds / openWorld / readPackBytes / saveWorld / renameWorld / deleteWorld / getSettings / setSettings / list|save|load|deleteSnapshot / list|save|load|deleteFight / setFightOutcome`. Exports `StorageError {code: IpcErrorCode}` and `sha256Hex`. Atomic temp+rename writes; UUID-v4 directory validation; path clamping (`under()` refuses anything escaping the store); unknown fields tolerated and preserved on rewrite; cascade delete `worlds/<id>` → `snapshots/<id>` → `fights/<id>` → clear `lastWorldId`; `packSha256` = sha256 of the exact bytes. `fightMeta` projects `rng / round / eventCount` from the stored document.
+- `dialogs.ts` — `createDialogs(getWindow)`: `Dialogs` (`saveJson(defaultName)`, `openJson()` → path | null). `dialog.showSaveDialog/showOpenDialog` is looked up **at call time** (e2e stubs it through `electronApp.evaluate`).
+- `ipc.ts` — `createIpcHandlers({storage, dialogs})` → `Record<Channel, handler>` (pure, node-testable; every payload shape-checked before any disk access, nothing throws across the bridge); exports `Handler`, `IpcHandlers`; `registerIpc(ipcMain, handlers)`.
 
-## Deviations from `specs/architecture.md` (recorded in STATE)
-- `settings:set` accepts only `lastWorldId` (the window writes bounds through main's own `setSettings` path, not IPC); a `settings:set` patch with other keys is `invalid-input` — narrower than architecture's "partial `Settings`", which was mechanical (the renderer never sets bounds).
+## FightDoc save validation (`storage.ts`, per `database.md` `af47822`)
+Optional replay fields are enforced when present (16 MiB cap on the whole document):
+- `declarations` array; `outcome ∈ FIGHT_OUTCOMES`; `events` an array.
+- `script[i]` is one of `declare | respond (choice take|decline) | step | move`; a `move` requires `isPositions(positions)`. Refusal text: `script[i] is not a valid declare/respond/step/move entry` (pinned by `tests/main/ipc.test.ts`; lease r2 of combat-complete S01, planning finding F1).
+- `start.ally.snapshot.kind === 'character'`.
+- `isSpawns` validates both `start.enemies` and `start.allySpawns` as `[{statblockId, instanceId}]` strings (`'start.allySpawns must be [{statblockId, instanceId}]'`).
+- `isPositions`: an object whose values are all `{x: integer, y: integer}`; `start.positions` refusal `'start.positions must be {[id]: {x: integer, y: integer}}'`.
+- Records without the combat-complete fields load and list unchanged (CA-06).
+
+## Deviations from `specs/architecture.md` (recorded in v1-shell STATE)
+- `settings:set` accepts only `lastWorldId` (window bounds are written through main's own path); other keys are `invalid-input`.
 - `world:list` → `{worlds, skipped}` (D-06) vs architecture's `WorldMeta[]`.
 
 ## Change history
-- v1-shell plan: created (planned; FightDoc adaptation possibly SESSION-06 per B-2).
-- SESSION-01 c1 (`ca1d972`): root scaffold with main/preload/renderer wiring.
-- SESSION-01 c2 (`77d8e63`): realized — `storage.ts` (`createStorage(root)` → `Storage`, `StorageError`, `sha256Hex`), `dialogs.ts` (`Dialogs` interface, call-time dialog lookup), `ipc.ts` (`Handler`, `IpcHandlers`), `window.ts` (bounds/onClose signature, deferred close).
-- SESSION-06 c5 (`98a14e3`): `fightMeta` in `storage.ts` projects `rng / round / eventCount` from the stored document (S01 followUp resolved; `ipc.ts` unchanged). B-2 validation was already present from S01.
-
-<!-- combat-complete SESSION-01 --> M02
-### combat-complete SESSION-01 delta — M02 main — `src/main/storage.ts` FightDoc validation
-- `isPositions`: an object whose values are all `{x: integer, y: integer}`.
-- `script[i].op === 'move'` requires `isPositions(positions)`. The refusal text is now `script[i] is not a valid declare/respond/step/move entry`.
-- `start.positions` (when present) must be valid positions, else it is refused with `start.positions must be {[id]: {x: integer, y: integer}}`.
-
-
-<!-- combat-complete SESSION-04 --> M02
-### combat-complete SESSION-04 delta — M02 main — `src/main/storage.ts`
-- New `isSpawns(v)` validates both `start.enemies` and `start.allySpawns`.
-- When `start.allySpawns` is present and malformed, the save is refused with `invalid-input` `'start.allySpawns must be [{statblockId, instanceId}]'`.
-- Records without the field load and list unchanged (CA-06).
+- v1-shell S01 c1 (`ca1d972`) scaffold; c2 (`77d8e63`) storage/dialogs/ipc/window realized.
+- v1-shell S06 c5 (`98a14e3`): `fightMeta` list projection.
+- combat-complete S01 c3 (`3ec636e`): `isPositions`, `move` entries, `start.positions`, new refusal text.
+- combat-complete S04 c1 (`497ab84`): `isSpawns` for `start.enemies` + `start.allySpawns`.

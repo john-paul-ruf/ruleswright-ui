@@ -1,161 +1,99 @@
 # M06 — engine (`src/renderer/src/engine/`)
 
-**Status:** realized. The ONLY importer of `ruleswright`, `ruleswright/compiler`, `ruleswright/runtime`, `ruleswright/schema` (lint-enforced, Custom Rule 1, self-tested by `tests/lint/boundary.test.ts`).
+**Status:** realized. The ONLY importer of `ruleswright`, `ruleswright/compiler`, `ruleswright/runtime`, `ruleswright/schema` (lint-enforced, Custom Rule 1, self-tested by `tests/lint/boundary.test.ts`; the grep for `ruleswright` imports outside `engine/` was empty after every combat-complete session). Consumed engine: `../Ruleswright` HEAD `dadf461` (installed dist verified by `pnpm check:engine`, combat-complete wave close `c22426a`).
 
-| File | Session | Realized |
+**Imports (mechanical, non-test):** `ruleswright/*` (ext), M01 (`errors.ts` type-only `IpcError`/`IpcErrorCode`; `schema.ts` type `PackIdentity`; `determinism.ts`/`replay.ts` type `WorldMeta` — all type-only, so M06 → M01 carries no runtime value import), intra-module files.
+
+| File | Realized by | Responsibility |
 |---|---|---|
-| `errors.ts` | S01 c3 | `AppError` (`library` / `host` / `unexpected`), `toAppError(operation, e)`, `fromIpcError(err)`; re-exports `type ErrorCard`. Library cards carried verbatim — never paraphrased (CA-05). |
-| `compiler.ts` | S01 c3 | `listThemes(): ThemeInfo[]` (D-04 discovery), `forge(themeId, seed, knobs): ForgeResult` (`packJson = JSON.stringify(pack)`, gate through `new Runtime`), `type KnobSpec` (the library's `KnobDeclWithId`, which it does not export, joined as `KnobDecl & {id}`), `KnobDecl`/`ThemeTemplate`/`Pack` types re-exported. |
-| `schema.ts` | S01 c3 | `openPack(packJson): PackGate` (JSON.parse → `new Runtime(parsed)`; bare `validatePack` is not a gate — Custom Rule 4), `importPackText(text): ImportResult` (canonical bytes + provenance params, D-03/D-05), `packIdentityOf(pack): PackIdentity` (via `packContentHash`). |
-| `determinism.ts` | S04 | `rerunSameSeed` + `rerunUnavailableReason` — see below. |
-| `runtime.ts` | S05 | character wrappers: create, derived, progression, pools/spells, conditions, restrictions, serialize/restore — see below. |
-| `combat.ts` | S06 | start/declare/step/respond wrappers + event subscription. |
-| `combat-profile.ts` | S06 (B-1 = A, D-18) | character → `CharacterCombatant` via the engine's `profileFromCharacter`. |
-| `replay.ts` | S06 (B-2, D-19) | record script + replay with divergence detection. |
+| `errors.ts` | v1-shell S01 c3 `5fcf552` | `AppError` (`library` / `host` / `unexpected`), `toAppError(operation, e)`, `fromIpcError(err)`; re-exports `type ErrorCard`. Library cards carried verbatim — never paraphrased (CA-05). |
+| `compiler.ts` | v1-shell S01 c3 | `listThemes(): ThemeInfo[]` (D-04 discovery), `forge(themeId, seed, knobs): ForgeResult` (`packJson = JSON.stringify(pack)`, gate through `new Runtime`), `type KnobSpec` (`KnobDecl & {id}`), `KnobDecl`/`ThemeTemplate`/`Pack` re-exported. |
+| `schema.ts` | v1-shell S01 c3 | `openPack(packJson): PackGate` (JSON.parse → `new Runtime(parsed)`; Custom Rule 4), `importPackText(text): ImportResult` (canonical bytes + provenance params, D-03/D-05), `packIdentityOf(pack)` (via `packContentHash`); re-exports type `Runtime`. |
+| `determinism.ts` | v1-shell S04 `33481cf`, `d310755` | `rerunSameSeed`, `rerunUnavailableReason`. |
+| `runtime.ts` | v1-shell S05 `c38946e`; loot-inventory S02 `fb3aebd` | character wrappers + inventory/loot. |
+| `combat.ts` | v1-shell S06 `c71e320`; combat-complete S01/S03/S04/S05 | fight start (grid, ally spawns), declare/step/respond/move, spatial + economy pass-throughs, threat assembly. |
+| `combat-profile.ts` | v1-shell S06 (B-1 = A) | character → `CharacterCombatant` via the engine's `profileFromCharacter`. |
+| `replay.ts` | v1-shell S06 c5 `98a14e3`; combat-complete S01/S04/S06 | record, replay, resume over one shared rebuild. |
 
-## `engine/determinism.ts` (SESSION-04 c1 `33481cf`, c2 `d310755`)
+## `engine/determinism.ts`
 - `type RerunResult = {status:'pass'; bytes; ms} | {status:'fail'; offset; storedLength; rerunLength; storedExcerpt; rerunExcerpt} | {status:'unavailable'; reason} | {status:'error'; error: AppError}`.
-- `rerunSameSeed(meta: Pick<WorldMeta,'theme'|'seed'|'knobs'>, storedPackJson: string): RerunResult` — `generateCampaign({theme: loadTheme(theme), seed, knobs})` → `JSON.stringify` → strict `===` with the stored string (CA-12). `bytes` = UTF-8 byte length; `offset` = first differing UTF-16 index (or the shorter length); excerpts = `slice(offset−40, offset+40)` of each; library throws → `toAppError('rerun', e)`.
-- `rerunUnavailableReason(meta): string | null` — `'generation parameters unknown (imported pack)'` when any param is null; `'theme not provided by this engine build'` when the theme is not in `listThemes()`.
-- Imports: `ruleswright/compiler` (`generateCampaign`, `loadTheme`), `./compiler` (`listThemes`), `./errors`.
+- `rerunSameSeed(meta: Pick<WorldMeta,'theme'|'seed'|'knobs'>, storedPackJson): RerunResult` — `generateCampaign({theme: loadTheme(theme), seed, knobs})` → `JSON.stringify` → strict `===` with the stored string (CA-12 of v1-shell). `offset` = first differing UTF-16 index; excerpts ±40 chars; library throws → `toAppError('rerun', e)`.
+- `rerunUnavailableReason(meta): string | null` — `'generation parameters unknown (imported pack)'` when any param is null; `'theme not provided by this engine build'` when the theme is not in `listThemes()`. Pure; imported directly by M12 (recorded module edge).
 
-## `engine/runtime.ts` (SESSION-05 c1 `c38946e`)
-Imports `ruleswright/runtime` (functions + types) and `./errors`. Every mutator returns `Outcome<T>`; library throws → `toAppError(operation, e)` (CA-05). Operations: `character:create|award-xp|set-level|spend|prepare|cast|rest|apply-condition|remove-condition|tick`, `snapshot:restore`.
+## `engine/runtime.ts`
+Imports `ruleswright/runtime` and `./errors`. Every mutator returns `Outcome<T>`; library throws → `toAppError(operation, e)` (CA-05). Operations: `character:create|award-xp|set-level|spend|prepare|cast|rest|apply-condition|remove-condition|tick|grant-item|drop-item|loot`, `snapshot:restore`.
 ```ts
-export type { Character, CharacterState, DerivedStats, RuntimeEvent, CharacterSnapshot, ClassEntry } from 'ruleswright/runtime';
+export type { Character, CharacterState, DerivedStats, RuntimeEvent, CharacterSnapshot, ClassEntry, InventoryEntry } from 'ruleswright/runtime';
 export type Outcome<T> = { ok: true; value: T } | { ok: false; error: AppError };
-export function create(rt: Runtime, req: { name: string; race: string; classes: ClassEntry[] }): Outcome<Character>;
-export function awardXp(rt: Runtime, c: Character, amount: number): Outcome<readonly RuntimeEvent[]>;   // rt.awardXp(facade)
-export function setLevels(rt: Runtime, c: Character, entries: ClassEntry[]): Outcome<readonly RuntimeEvent[]>; // rt.levelSet(facade)
-export function checkBuild(rt: Runtime, race: string, entries: ClassEntry[]): readonly ErrorCard[];      // validateBuild
-export function spend(rt, c, pool: string, amount: number): Outcome<RuntimeEvent>;                      // spendPool(rt, c.state, …)
-export function prepare(rt, c, spellId: string, slotIndex?: number): Outcome<RuntimeEvent>;
-export function cast(rt, c, spellId: string, slotIndex?: number): Outcome<RuntimeEvent>;
+export function create(rt, req: { name; race; classes: ClassEntry[] }): Outcome<Character>;
+export function awardXp(rt, c, amount): Outcome<readonly RuntimeEvent[]>;
+export function setLevels(rt, c, entries: ClassEntry[]): Outcome<readonly RuntimeEvent[]>;
+export function checkBuild(rt, race, entries): readonly ErrorCard[];            // validateBuild
+export function spend(rt, c, pool, amount): Outcome<RuntimeEvent>;
+export function prepare(rt, c, spellId, slotIndex?): Outcome<RuntimeEvent>;
+export function cast(rt, c, spellId, slotIndex?): Outcome<RuntimeEvent>;
 export function restNow(rt, c): Outcome<RuntimeEvent>;
-export function apply(rt, c, conditionId: string): Outcome<RuntimeEvent>;
-export function remove(rt, c, conditionId: string): Outcome<RuntimeEvent>;
+export function apply(rt, c, conditionId): Outcome<RuntimeEvent>;
+export function remove(rt, c, conditionId): Outcome<RuntimeEvent>;
 export function tick(rt, c): Outcome<readonly RuntimeEvent[]>;
-export interface CharacterView { state: CharacterState /* structuredClone */; derived: DerivedStats; pools: readonly string[];
-  known: readonly string[]; restrictedActions: readonly string[]; restrictedSpells: readonly string[] }
-export function viewOf(rt: Runtime, c: Character): CharacterView;
-export function serialize(rt: Runtime, c: Character): CharacterSnapshot;   // serializeCharacter, verbatim (CA-06)
-export function restore(rt: Runtime, snapshot: unknown): Outcome<Character>; // restoreCharacter; foreign pack → E-SNAP-01
+export function grant(rt, c, itemId, qty): Outcome<RuntimeEvent>;               // grantItem (FR-18)
+export function drop(rt, c, itemId, qty): Outcome<RuntimeEvent>;                // dropItem
+export function loot(rt, c, tableId, seed: number): Outcome<readonly RuntimeEvent[]>; // grantLoot, passes exactly {seed} (CA-14 of loot-inventory)
+export function lootTableIds(rt): readonly string[];                             // rt.pack.tables ids ending in `-loot`
+export interface ItemOption { id; name: string | null; kind: string | null }
+export interface CharacterView { state /* structuredClone */; derived; pools; known; restrictedActions; restrictedSpells;
+  items: readonly ItemOption[] /* content.items in pack order, verbatim */; lootTables: readonly string[] }  // CA-13 of loot-inventory
+export function viewOf(rt, c): CharacterView;
+export function serialize(rt, c): CharacterSnapshot;   // serializeCharacter, verbatim (CA-06)
+export function restore(rt, snapshot: unknown): Outcome<Character>; // restoreCharacter; foreign pack → E-SNAP-01
 ```
 
-## `engine/combat.ts` (SESSION-06 c1 `c71e320`)
-Imports `ruleswright/runtime` (`bestiaryIds`, `spatialFromPack`, `spawnMonster`, `startCombat`); `ruleswright/schema` type `Pack`; `./errors`; types from `./runtime`.
-- `listSpawnable(rt)`, `spawnProfile(rt, statblockId, instanceId): Outcome<CombatantProfile>`,
-  `begin(rt, ally: {profile, balances?}, enemies: EnemySpec[]): Outcome<Combat>` (ally id = `profile.id`),
-  `declare(fight, actionId, targetId?): Outcome<{events, rejection}>` (events captured by a per-call sink — the library returns the whole round; a rejection is an event, never a throw),
-  `step(fight): Outcome<StepOutcome>`, `respond(fight, triggerId, choice, targetId?): Outcome<RuntimeEvent[]>` (own events),
-  `perform(fight, entry: ScriptEntry)`, `subscribe(rt, sink): () => void`, `spatialLabel(pack): 'theater-of-mind' | 'grid'`.
-  Types: `EnemySpec`, `FightStart`, `ScriptEntry`, `AllyCombatant`, `DeclareResult` + re-exports (Combat, CombatState, CombatPhase, CombatantProfile, CombatantState, RuntimeEvent, StepOutcome, PendingTrigger, CombatSnapshot, CharacterSnapshot, DeclareOptions).
+## `engine/combat.ts`
+Imports from `ruleswright/runtime`: `assembleEncounter`, `bestiaryIds`, `deserializeCombat`, `resolveSlotGrants`, `serializeCombat`, `spatialFromPack`, `spawnEncounter`, `spawnMonster`, `startCombat` (+ types); `ruleswright/schema` types `ActionCost`, `Pack`, `SpatialDef`; `./errors`; types from `./runtime`.
 
-## `engine/combat-profile.ts` (SESSION-06 c1, CA-08, B-1 = A)
-Imports `ruleswright/runtime` `profileFromCharacter`. `allyProfile(rt, character, id?): Outcome<CharacterCombatant>` — wraps the export and passes its result straight through; the UI does no profile math. Throws `no-combat-actions` when the class action union is empty.
+**Types.** `SpawnSpec {statblockId, instanceId}` (either side; `EnemySpec` is an alias). `FightStart {ally: {id, snapshot}, enemies, positions?, allySpawns?}`. `ScriptEntry` = declare | respond | step | `{op:'move', positions}`. `AllyCombatant {profile, balances?}`. `Sides {allies, enemies: {id, profile}[]}` — the sides exactly as `startCombat` took them. `LiveFight {fight: Combat, sides}` — a `move` replaces `fight`. `DeclareResult`. `ActionInfo {actionId, cost: ActionCost, tags, triggerOn: string|null, valid: string|null}`. Re-exports `Combat`, `CombatState`, `CombatPhase`, `CombatantProfile`, `CombatantState`, `RuntimeEvent`, `StepOutcome`, `PendingTrigger`, `CombatSnapshot`, `CharacterSnapshot`, `DeclareOptions`, `Encounter`, `Position`, `CombatRestoreRequest`, `ActionCost`, `SpatialDef`.
 
-## `engine/replay.ts` (SESSION-06 c5 `98a14e3`)
-Imports `ruleswright/runtime` `serializeCombat`; `./combat` (`begin`, `perform`, `subscribe`), `./combat-profile` (`allyProfile`), `./determinism` (`rerunSameSeed`), `./errors`, `./runtime` (`restore`), `./schema` (`openPack`).
-- `recordingOf(fight, start, script, events, declarations): Recording` — `declarations` are the script's declare calls with the combatant active when each was issued; `combat` is `serializeCombat(fight, {pairsWith: start.ally.id})`.
-- `replay(meta, storedPackJson, rec): {result: ReplayResult, events}` — re-roll (`rerunSameSeed`) → pack divergence reported before any combat, else open the stored pack, restore the ally, re-apply the script and compare events index by index. Null params or a record without `script` → unavailable, never guessed. Types `Recording`, `ReplayResult`, `Declaration`.
+**Functions.**
+- `listSpawnable(rt)`, `spawnProfile(rt, statblockId, instanceId): Outcome<CombatantProfile>`.
+- `begin(rt, ally, enemies, positions?, allySpawns = []): Outcome<LiveFight>` — allies passed to `startCombat` are `[character, ...allySpawns.map(spawnMonster)]` (CA-04b), enemies spawned the same way; `positions` go to `startCombat` verbatim (CA-12). On a grid pack with no positions the library's `E-SPAT-01` refusal comes back as `kind 'library'`, operation `fight:begin`. CA-05: before any `spawnMonster`/`startCombat` call, an id used twice across ally, ally spawns and enemies is refused with `{kind:'unexpected', operation:'fight:begin', message:'combatant id "<id>" is used twice — ids must be unique across both sides'}` (mitigates engine gap EG-1).
+- `reposition(live, positions): Outcome<Combat>` (CA-13) — runs `serializeCombat` → `deserializeCombat`, re-stating `live.sides` with the **live** `{pools, boundSlots}` from `fight.state.combatants[id]` (CX-D11). Preconditions, in this order, each an `unexpected` `combat:move` naming the condition: (1) the pack is spatial, (2) no open offer, (3) phase `awaiting-declare` (CX-D10). A library throw → `toAppError('combat:move')`. Emits zero events; success replaces `live.fight`.
+- `declare(fight, actionId, targetId?): Outcome<DeclareResult>` (events captured by a per-call sink; a rejection is an event, never a throw), `step(fight)`, `respond(fight, triggerId, choice, targetId?)`.
+- `perform(live, entry): Outcome<unknown>` — dispatches one `ScriptEntry`; `move` → `reposition`.
+- `subscribe(rt, sink): () => void`.
+- Spatial pass-throughs: `spatialLabel(pack)` (`'grid'` when `spatialFromPack(pack).enabled`, else `'theater-of-mind'`; every generated pack on `dadf461` is grid), `spatialOf(pack): SpatialDef | null` (verbatim `pack.spatial`), `distance(rt, a, b)` (`rt.spatial.distance`, CA-15).
+- Economy pass-throughs: `slotGrants(rt)` = `resolveSlotGrants(rt.pack).slots` verbatim (CA-02); `actionInfo(pack, actionId)` = own-property lookup of `pack.actions[actionId]` with `tags ?? []`, `trigger?.on ?? null`, `valid ?? null`, no `effect` (CA-03); unknown or prototype keys → null.
+- `assemble(rt, budget, seed): Outcome<{encounter: Encounter, spawns: SpawnSpec[]}>` over `assembleEncounter(rt, {budget, seed})` + `spawnEncounter`. CA-07: `spawns[i].instanceId` = the returned `profile.id`, `statblockId` = `encounter.groups` expanded in order; a count mismatch → `unexpected` `fight:assemble` (not exercised by any test — verification debt, see Final Report); a library throw (e.g. empty bestiary) → `toAppError('fight:assemble', e)`.
 
-## Verified library facts (plan-time probes; still true of installed dist `01dcf77`)
-- No theme enumerator; `loadTheme(name)` switches on `dark-fantasy|zombie-urban`; `DARK_FANTASY`/`ZOMBIE_URBAN` exported.
-- `generateCampaign` throws `GenerationError{errors: ErrorCard[]}` (unknown knob → E-SCHEMA-01 card); `KnobRejection` is a type only, never thrown alone.
-- `new Runtime(bad)` throws `PackLoadError{errors}` (uses the unexported `packDslChecker`, `runtime.ts:73`); `createCharacter` throws `CharacterBuildError{errors}`; pool/spell/condition failures throw `RuntimeRuleError{errors}`.
-- `Combat.declare()` does **not** throw on rejection: it returns/emits a `declare:rejected` event (`payload {kind, resource, message}`, `why.rule`).
-- `CharacterSnapshot = {kind, snapshotVersion, pack:{id,schemaVersion,contentHash}, state}` — **no RNG words** (B-3). RNG words exist in `CombatState.rng` / `CombatSnapshot.rng`.
-- `restoreCharacter` on another world's runtime throws `RuntimeRuleError` E-SNAP-01.
-- Combat dice default to `new Rng(0)`; `Rng` is not exported.
+## `engine/combat-profile.ts`
+Imports `ruleswright/runtime` `profileFromCharacter`. `allyProfile(rt, character, id?): Outcome<CharacterCombatant>` — passes the library result straight through; the UI does no profile math. Library throws `no-combat-actions` when the class action union is empty. Re-exports types `CharacterCombatant`, `EconomyBalances`.
+
+## `engine/replay.ts`
+Imports `ruleswright/runtime` `serializeCombat`; `./combat` (`begin`, `perform`, `subscribe`), `./combat-profile`, `./determinism` (`rerunSameSeed`), `./errors`, `./runtime` (`restore`), `./schema` (`openPack`).
+- Types: `Declaration {combatantId, action, options}`, `Recording {start, script, events, combat, declarations}`, `ReplayResult` (`complete` | `diverged` stage `pack` | `diverged` stage `events` + `index`/`expected`/`actual` | `unavailable` | `error`), `ResumeResult` (`resumed {live, events, hpAtStart}` | `diverged {index, expected?, actual?}` | `unavailable` | `error`).
+- `recordingOf(fight, start, script, events, declarations): Recording` — `combat` = `serializeCombat(fight, {pairsWith: start.ally.id})`.
+- Private `rebuild(operation, storedPackJson, {start, script})`: `openPack` → restore the ally → `allyProfile` → subscribe → `begin(…, start.positions, start.allySpawns ?? [])` → capture `hpAtStart` → `perform` each script entry. Shared by replay and resume (combat-complete S06).
+- `replay(meta, storedPackJson, rec)` — re-roll (`rerunSameSeed`) first: pack divergence is reported before any combat; else rebuild and compare events index by index.
+- `resume(storedPackJson, rec)` — the rebuild on the stored pack bytes with **no** re-roll (imported worlds resume too). The rebuilt fight is handed over only when every event equals `rec.events` (CX-D6, human-approved Q3 = a). Known limit: a tampered **trailing** `move` emits no events and is not refused — open product question B-CX-7.
+- Missing `script`/`start`/`events` → `unavailable` with the shared reason `record has no replay script (recorded before B-2)`; a spatial record without `start.positions` → `error` with the library's `E-SPAT-01` cards; a record whose ids collide → `begin`'s CA-05 refusal as `error`.
+
+## Verified library facts (probes and session proofs)
+- Theme discovery, `loadTheme`, `GenerationError`/`PackLoadError`/`CharacterBuildError`/`RuntimeRuleError` shapes; `Combat.declare()` returns/emits `declare:rejected` rather than throwing; `CharacterSnapshot` holds no RNG words (RNG words live in `CombatState.rng` / `CombatSnapshot.rng`); `restoreCharacter` across worlds → E-SNAP-01 (v1-shell probes, reconfirmed by later sessions).
+- End of combat (engine `01dcf77`, D-26): `combat:ended` `{winner, defeated}` with `why.rule 'combat.sideDefeated'` after every resolution; downed combatants skipped and offered no triggers; `step()` at `combat-over` returns `{kind:'combat-over'}`; `deserializeCombat` derives `phase` from frozen hp. `isDowned`/`defeatedSide` are not exported (EG-2).
+- Grid (engine `dadf461`, combat-complete probes probe-grid/probe-grid2, S01 c0): `startCombat` without positions on a spatial pack → `E-SPAT-01` per combatant; reach/validity rejections arrive as `declare:rejected` kinds `valid`/`spatial`; serialize → restore keeps rng, pools and phase and emits 0 events; restore after a declare grants a second action (hence CX-D10).
+- Observed by sessions (Coders corrected plan premises against the real engine): the barrow wight acts first in dark-fantasy·42; turn slots refill on the first Step of a turn, not at turn handover (shown, not changed); a threat-budget group of count 1 spawns with the bare statblock id, count > 1 as `<id>-<n>`; `startCombat`/restore accepts a `positions` key naming no combatant (EG-8).
+- Engine gaps owned by `../Ruleswright` (UI shows what the library holds): EG-1 duplicate ids merged (mitigated by CA-05), EG-2 downed not exported, EG-3 combat conditions never tick / character conditions not carried, EG-4 reach overrides keyed by combatant vs statblock id, EG-5 no movement verb, EG-6 `serializeCombat` keeps one open offer per combatant, EG-7 bursts not declarable, EG-8 positions for absent combatants accepted.
+
+## Upstream engine API history
+- SESSION-E1 (engine `a5c20ea`, `6a5bc0a`, `f0bf58e`): `ClassDef.actions?` (pack v1.2), both themes declare class actions, `profileFromCharacter` exported (arch `2d11736`).
+- SESSION-E1 r2 (engine `01dcf77`): end-of-combat rule above (arch `f076529`).
+- loot-inventory (engine `f792f49`, dist `8b802b7`): `grantItem`/`dropItem`/`grantLoot`, `InventoryEntry`, `wyldwood` theme.
+- combat-complete (engine `dadf461`): spatial model (`startCombat` `positions`, `Position`, `SpatialDef`, `rt.spatial.distance`), `resolveSlotGrants`, `assembleEncounter`/`spawnEncounter`/`Encounter`. Pre-`dadf461` worlds fail rerun honestly and their records replay pack-diverged (LI-D4 class).
 
 ## Change history
-- v1-shell plan: created (planned, per-file table above).
-- SESSION-01 c3 (`5fcf552`): `errors.ts`, `compiler.ts`, `schema.ts` realized.
-- SESSION-04 c1/c2 (`33481cf`, `d310755`): `determinism.ts` realized.
-- SESSION-05 c1 (`c38946e`): `runtime.ts` realized (every probe fact reproduced against the installed library).
-- SESSION-E1 (engine `a5c20ea`, `6a5bc0a`, `f0bf58e`, `01dcf77`): upstream engine public-API delta consumed by `combat-profile.ts` — see below.
-- SESSION-06 c1–c5: `combat.ts`, `combat-profile.ts`, `replay.ts` realized; `begin` takes `{profile, balances?}`, `declare` returns an `Outcome`, `allyProfile` optional `id`, `recordingOf(fight, start, script, events, declarations)`.
-
-## Upstream engine API delta — SESSION-E1 (engine commits a5c20ea, 6a5bc0a, f0bf58e)
-- **engine M01 schema:** `ClassDef.actions?: KebabId[]` (pack v1.2, `src/schema/artifacts.ts:85`). `validatePack`/`checkClasses` accepts `actions`: non-array → `E-SCHEMA-01` at `content.classes.<id>.actions`; non-kebab entry or duplicate → `E-SCHEMA-01` at `…actions[i]` (uniqueItems); unresolved id → `E-REF-01` at `…actions[i]` with a nearest-id hint. Empty or absent list is valid. `schemaVersion` stays 1.
-- **engine M04 compiler:** both bundled themes declare class actions (D-23). `stages/classes.ts` unchanged: it already `structuredClone`s class defs verbatim. Pack bytes changed: dark-fantasy·42 15,863 B → 16,056 B (`packContentHash` a5b8b1b2 → 5dc003f3); zombie-urban·42 9,154 B → 9,352 B (d92d1050 → e84a0aed).
-- **engine M03 runtime (new file `src/runtime/character-profile.ts`), exported from `ruleswright/runtime` and via `export *` from the root barrel (`src/index.ts` unchanged):**
-  ```ts
-  export interface CharacterCombatant { readonly profile: CombatantProfile; readonly balances: EconomyBalances }
-  export function profileFromCharacter(runtime: Runtime, character: Character, id?: string): CharacterCombatant;
-  ```
-  Imports M03-internal only (`evalPackFormula` from `combat/resolve`, `RuntimeRuleError`/`ruleCard`) + M01 types. Throws `RuntimeRuleError` with rule `no-combat-actions` (artifactId = first class id, jsonPath `content.classes`) when the class action union is empty. Active conditions are not carried (v1 limit).
-- **Upstream end-of-combat rule (SESSION-E1 r2, engine `01dcf77`, D-26):** `Combat.resolve()` runs `endIfSideDefeated()` after every declared or reactive resolution — when every combatant of one non-empty side is at `hp.current ≤ 0`, it sets `phase: 'combat-over'`, clears open offers (`pendingTriggers` cleared), and emits one `combat:ended` event with payload `{winner: 'allies'|'enemies', defeated}` and `why.rule 'combat.sideDefeated'` (no actor/target; `at` = the resolving turn's clock). Downed combatants are skipped in turn order (`advanceFrom`) and are offered no triggers (`surfaceOffers` refuses them). `step()` at `combat-over` returns `{kind:'combat-over'}`; `declare()` throws its existing `combat is over` guard; `respond()` throws its existing "no pending trigger" error. The combat envelope is unchanged (`snapshots.schema.json` has no phase field): `deserializeCombat` derives `phase` from the frozen hp — `combat-over` when `defeatedSide(combatants)` holds, else `awaiting-declare` as before. **No public TypeScript declaration changed** (`StepOutcome`, `CombatState`, `CombatPhase`, `CombatSnapshot`, `RuntimeEvent` all as before); the new public surface is the event type string `combat:ended` and its payload. Internal helpers `isDowned`/`defeatedSide` are exported from `combat.ts` but not from the barrel. Known engine gaps left unchanged (outside lease, carried to the engine program): combat snapshots can hold negative hp vs schema `minimum: 0` (harmless on the restore path, observed by S06); one-sided (empty-side) fights never end; conditions are not carried into combat.
-
-## Change history (upstream deltas)
-- Arch fragment `.program/signal/SESSION-E1.arch.md` integrated at `2d11736` (upstream API delta).
-- Arch fragment integrated at `f076529` (upstream end-of-combat rule, engine `01dcf77`).
-
-<!-- loot-inventory SESSION-02 -->
-### loot-inventory SESSION-02 delta — M06 engine
-— `engine/runtime.ts`
-- New value imports from `ruleswright/runtime`: `grantItem`, `dropItem`, `grantLoot`.
-- New exports:
-  - `grant(rt, c, itemId, qty): Outcome<RuntimeEvent>` — operation `character:grant-item`.
-  - `drop(rt, c, itemId, qty): Outcome<RuntimeEvent>` — operation `character:drop-item`.
-  - `loot(rt, c, tableId, seed: number): Outcome<readonly RuntimeEvent[]>` — operation `character:loot`; passes exactly `{ seed }` (CA-14).
-  - `lootTableIds(rt): readonly string[]` — `rt.pack.tables` ids ending in `-loot`.
-  - `interface ItemOption { id; name: string | null; kind: string | null }`.
-  - `type InventoryEntry` re-exported from `ruleswright/runtime`.
-- `CharacterView` gains `items: readonly ItemOption[]` (`pack.content.items` in pack order, verbatim, `null` when absent) and `lootTables: readonly string[]`; both filled in `viewOf` (CA-13).
-
-
-<!-- combat-complete SESSION-01 --> M06
-### combat-complete SESSION-01 delta — M06 engine — `src/renderer/src/engine/combat.ts`, `replay.ts`
-- Type re-exports: `Position`, `CombatRestoreRequest` (runtime) and `SpatialDef` (schema).
-- `FightStart.positions?: Record<string, Position>`; `ScriptEntry` gains `{op:'move'; positions}`.
-- `interface Sides { allies, enemies: {id, profile}[] }` holds the sides exactly as `startCombat` took them.
-- `interface LiveFight { fight: Combat; sides: Sides }`: a `move` replaces `fight` in place.
-- `begin(rt, ally, enemies, positions?) → Outcome<LiveFight>` (was `Outcome<Combat>`). Positions go to `startCombat` verbatim. On a grid pack with no positions it returns the library's `E-SPAT-01` refusal (`kind 'library'`, operation `fight:begin`).
-- `reposition(live, positions) → Outcome<Combat>` (CA-13) runs through `serializeCombat` → `deserializeCombat`. The begin-time sides are re-stated with live `{pools, boundSlots}` copied from `fight.state.combatants[id]`.
-  - Preconditions are checked in this order. Each failure returns `{kind:'unexpected', operation:'combat:move'}`, naming the condition:
-    1. the pack is spatial;
-    2. no open offer;
-    3. phase is `awaiting-declare`.
-  - A library throw becomes `toAppError('combat:move')`. Success replaces `live.fight`. It emits zero events.
-- `perform(live: LiveFight, entry) → Outcome<unknown>` (was `perform(fight: Combat, …)`); `move` → `reposition`.
-- `spatialOf(pack) → SpatialDef | null` (verbatim `pack.spatial`).
-- `distance(rt, a, b) → number` (`rt.spatial.distance`).
-- `spatialLabel(pack)` is now typed (no cast); every generated pack is `'grid'`.
-- `replay.ts`: begins with `rec.start.positions` and re-applies the script through `perform(live, …)`. The result shape is unchanged. A spatial record without `start.positions` gives `{status:'error'}` with the library's `E-SPAT-01` cards.
-
-
-<!-- combat-complete SESSION-03 --> M06
-### combat-complete SESSION-03 delta — M06 engine — `src/renderer/src/engine/combat.ts`
-- New value import `resolveSlotGrants` from `ruleswright/runtime`; new type import + re-export `ActionCost` from `ruleswright/schema`.
-- `slotGrants(rt: Runtime): Readonly<Record<string, number>>` — `resolveSlotGrants(rt.pack).slots` verbatim (CA-02).
-- `interface ActionInfo { actionId; cost: ActionCost; tags: readonly string[]; triggerOn: string | null; valid: string | null }`.
-- `actionInfo(pack: Pack, actionId: string): ActionInfo | null` — own-property lookup of `pack.actions[actionId]`; `tags ?? []`, `trigger?.on ?? null`, `valid ?? null`; `effect` is not carried (CA-03). Unknown id (incl. prototype keys) → null.
-
-
-<!-- combat-complete SESSION-04 --> M06
-### combat-complete SESSION-04 delta — M06 engine — `engine/combat.ts`, `engine/replay.ts`
-- `SpawnSpec { statblockId; instanceId }` is the bestiary spawn type for either side. `EnemySpec` stays as a type alias of `SpawnSpec`.
-- `FightStart.allySpawns?: SpawnSpec[]`.
-- The signature is now `begin(rt, ally, enemies, positions?, allySpawns = [])`. The parameter is appended, so SESSION-01's order is kept.
-  - Allies passed to `startCombat` are `[character, ...allySpawns.map(spawnMonster)]`. `Sides.allies` uses the same order, so `reposition` re-states the spawns with live balances.
-  - CA-05: before any `spawnMonster` or `startCombat` call, `begin` refuses a combatant id used twice across the ally, the ally spawns and the enemies. The refusal is `{kind:'unexpected', operation:'fight:begin', message:'combatant id "<id>" is used twice — ids must be unique across both sides'}`.
-- `replay` passes `rec.start.allySpawns ?? []` to `begin`. A record whose ids collide gets `begin`'s refusal and returns `status: 'error'`.
-
-
-<!-- combat-complete SESSION-05 --> M06
-### combat-complete SESSION-05 delta — M06 engine — `src/renderer/src/engine/combat.ts`
-- New: `assemble(rt, budget: number, seed: number): Outcome<{ encounter: Encounter; spawns: SpawnSpec[] }>` over
-  `assembleEncounter(rt, { budget, seed })` + `spawnEncounter`. CA-07: `spawns[i].instanceId` = returned `profile.id`,
-  `spawns[i].statblockId` = `encounter.groups` expanded in order; a count mismatch → `unexpected` `fight:assemble`.
-  A library throw (e.g. empty bestiary) → `toAppError('fight:assemble', e)`.
-- New imports from `ruleswright/runtime`: `assembleEncounter`, `spawnEncounter`, type `Encounter`; `Encounter` re-exported.
-- Library naming fact: a group of count 1 spawns with the bare statblock id (`barrow-wight`), count > 1 as `<id>-<n>`.
-
-
-<!-- combat-complete SESSION-06 --> M06
-### combat-complete SESSION-06 delta — M06 engine — `replay.ts`
-  - `ResumeResult` = `{status:'resumed', live: LiveFight, events, hpAtStart}` | `{status:'diverged', index, expected?, actual?}` | `{status:'unavailable', reason}` | `{status:'error', error}`.
-  - `resume(storedPackJson, rec)`: the replay rebuild on the stored pack bytes, with no re-roll. The rebuilt fight is handed over only when every event equals `rec.events`.
-  - The rebuild (openPack → restore ally → `allyProfile` → subscribe → `begin(…, positions, allySpawns ?? [])` → `hpAtStart` → `perform` each entry) is now one private `rebuild(operation, …)` shared by `replay` and `resume`. `replay`'s behavior is unchanged.
-  - The missing-parts reason text is the shared constant ("record has no replay script (recorded before B-2)").
+- v1-shell: S01 c3 errors/compiler/schema; S04 determinism; S05 runtime; S06 c1–c5 combat, combat-profile, replay.
+- loot-inventory S02 c1 (`fb3aebd`): inventory wrappers (arch delta `a8b78cb`).
+- combat-complete S01 c1–c2 (`afdd9dc`, `bb1af82`): `LiveFight`/`Sides`, `begin → Outcome<LiveFight>`, `reposition`, `perform(live, …)`, `spatialOf`, `distance`; replay with positions/moves (arch `268a2f1`).
+- combat-complete S03 c1 (`229cd74`): `slotGrants`, `actionInfo` (arch `e033c16`).
+- combat-complete S04 c1 (`497ab84`): `SpawnSpec`, `begin(…, allySpawns)`, CA-05 refusal; replay spawns `allySpawns` (arch `79fe4fc`).
+- combat-complete S05 c1 (`650668d`): `assemble` (arch `a19a902`).
+- combat-complete S06 c1 (`1951f76`): `resume`/`ResumeResult`, shared `rebuild` (arch `acfc1fa`).
